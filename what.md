@@ -36,9 +36,9 @@ SlothQL API
 ## Utils
 
 - [ ] Query typeclass
-    -[ ] Describes a computation to be executed in the database
-    -[ ] Functor, Applicative, Monad (?)
-    -[ ] Can be prepared for execution by building a `cats.effect.IO` 
+    - [ ] Describes a computation to be executed in the database
+    - [ ] Functor, Applicative, Monad (?)
+    - [ ] Can be prepared for execution by building a `cats.effect.IO` 
 
 ## High level
       
