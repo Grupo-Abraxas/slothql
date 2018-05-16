@@ -123,7 +123,7 @@ object CypherFragment {
     }
     object Var {
       implicit def fragment[A]: CypherFragment[Var[A]] = instance.asInstanceOf[CypherFragment[Var[A]]]
-      private lazy val instance = define[Var[_]](_.name)
+      private lazy val instance = define[Var[_]](v => escapeName(v.name))
     }
     object Call {
       implicit def fragment[A]: CypherFragment[Call[A]] = instance.asInstanceOf[CypherFragment[Call[A]]]
@@ -134,13 +134,12 @@ object CypherFragment {
 
     // // // Maps // // //
     case class Map(get: Predef.Map[String, Known[Expr[_]]]) extends Expr[Predef.Map[String, Expr[_]]]
-    type MapExpr = Expr[Predef.Map[String, Known[Expr[_]]]]
+    type MapExpr = Expr[MapExpr0]
+    type MapExpr0 = Predef.Map[String, Known[Expr[_]]]
     case class Key[A](map: Known[MapExpr], key: String)(implicit val m: Manifest[A]) extends Expr[A]
 
     object Map {
-      implicit lazy val fragment: CypherFragment[Map] = define {
-        _.get.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString("{ ", ", ", " }")
-      }
+      implicit lazy val fragment: CypherFragment[Map] = define(m => mapStr(m.get))
     }
     object Key {
       implicit def fragment[A]: CypherFragment[Key[A]] = instance.asInstanceOf[CypherFragment[Key[A]]]
@@ -177,9 +176,7 @@ object CypherFragment {
     object AtRange {
       implicit def fragment[A]: CypherFragment[AtRange[A]] = instance.asInstanceOf[CypherFragment[AtRange[A]]]
       private lazy val instance = define[AtRange[_]] {
-        case AtRange(list, Ior.Left(min))      => atIndex(list, s"${min.toCypher}..")
-        case AtRange(list, Ior.Right(max))     => atIndex(list, s"..${max.toCypher}")
-        case AtRange(list, Ior.Both(min, max)) => atIndex(list, s"${min.toCypher}..${max.toCypher}")
+        case AtRange(list, range) => atIndex(list, rangeStr(range))
       }
     }
 
@@ -262,5 +259,114 @@ object CypherFragment {
     }
   }
 
+  sealed trait Query[+A]
+  object Query {
+    case class Union[+A, +B](left: Known[Query[A]], right: Known[Query[B]], all: Boolean) extends Query[(A, B)] // TODO
+
+    sealed trait Query0[+A] extends Query[A]
+    case class Return[+A](ret: Known[CypherFragment.Return[A]]) extends Query0[A]
+    case class Clause[+A](clause: Known[CypherFragment.Clause], query: Known[Query0[A]]) extends Query0[A]
+
+    implicit def fragment[A]: CypherFragment[Query[A]] = instance.asInstanceOf[CypherFragment[Query[A]]]
+    private lazy val instance = define[Query[Any]] {
+      case Union(left, right, all) => s"${left.toCypher} UNION ${if (all) "ALL " else ""}${right.toCypher}"
+      case Clause(clause, query) => s"${clause.toCypher} ${query.toCypher}"
+      case Return(ret) => s"RETURN ${ret.toCypher}"
+    }
+  }
+
+  sealed trait Return[+A]
+  object Return {
+    sealed trait Return0[+A] extends Return[A]
+
+    case object All extends Return0[Any]
+    type All = All.type
+
+    case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return0[A]
+    case class List(head: Known[Return0[_]], tail: scala.List[Known[Expr[_]]]) extends Return[scala.List[Any]]
+
+    implicit def fragment[A]: CypherFragment[Return[A]] = instance.asInstanceOf[CypherFragment[Return[A]]]
+    private lazy val instance = define[Return[Any]] {
+      case All => "*"
+      case Expr(expr, as) => expr.toCypher + asStr(as)
+      case List(head, Nil) => head.toCypher
+      case List(head, tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
+    }
+  }
+
+  sealed trait Clause
+  object Clause {
+    case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Clause
+    case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Clause
+    case class Unwind(expr: Known[Expr[List[_]]], as: String) extends Clause
+
+    implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
+      case Match(pattern, optional, where) =>
+        val optionalStr = if (optional) "OPTIONAL " else ""
+        val patternStr = pattern.toList.map(_.toCypher).mkString(", ")
+        s"${optionalStr}MATCH $patternStr${whereStr(where)}"
+      case With(ret, where) => s"WITH ${ret.toCypher}${whereStr(where)}"
+      case Unwind(expr, as) => s"UNWIND ${expr.toCypher}${asStr(Option(as))}"
+    }
+  }
+
+
+  type PatternTuple = NonEmptyList[Known[Pattern]]
+  sealed trait Pattern
+  object Pattern {
+    case class Let[+A](alias: String, pattern: Known[Pattern0]) extends Pattern
+
+    sealed trait Pattern0 extends Pattern
+    case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0
+    case class Path(left: Known[Node], rel: Known[Rel], right: Known[Pattern0]) extends Pattern0
+    case class Rel(alias: Option[String], types: List[String], map: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+
+    object Rel {
+      sealed trait Length
+      case object All extends Length
+      case class Range(limits: Ior[Long, Long]) extends Length
+
+      sealed trait Direction
+      case object Outgoing extends Direction
+      case object Incoming extends Direction
+      case object Any extends Direction
+    }
+
+    implicit lazy val fragment: CypherFragment[Pattern] = define[Pattern] {
+      case Let(alias, pattern) => s"${escapeName(alias)} = ${pattern.toCypher}}"
+      case Node(alias, labels, map) => s"(${aliasStr(alias)}${labelsStr(labels)}${mapStr(map)})"
+      case Path(left, rel, right) => s"${left.toCypher} ${rel.toCypher} ${right.toCypher}"
+      case Rel(alias, types, map, len, dir) =>
+        val lenStr = len match {
+          case None => ""
+          case Some(Rel.All) => "*"
+          case Some(Rel.Range(range)) => "*" + rangeStr(range.bimap(Expr.Lit(_), Expr.Lit(_)))
+        }
+        val params = s"[${aliasStr(alias)}${typesStr(types)}$lenStr${mapStr(map)}]"
+        dir match {
+          case Rel.Outgoing => s"-$params->"
+          case Rel.Incoming => s"<-$params-"
+          case Rel.Any      => s"-$params-"
+        }
+    }
+
+    private def aliasStr(alias: Option[String]) = alias.map(escapeName).getOrElse("")
+    private def labelsStr(labels: List[String]) = labelLikeStr(labels, ":")
+    private def typesStr(types: List[String]) = labelLikeStr(types, "|")
+    private def labelLikeStr(xs: List[String], sep: String) = xs match {
+      case Nil => ""
+      case _ => xs.map(escapeName).mkString(":", sep, "")
+    }
+  }
+
   private def escapeName(name: String) = "`" + name.replaceAll("`", "``") + "`"
+  private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
+  private def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
+  private def mapStr(map: Map[String, Known[Expr[_]]]) =
+    map.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString("{ ", ", ", " }")
+  private def rangeStr(ior: Ior[Known[_], Known[_]]) = ior match {
+      case Ior.Left(min)      => s"${min.toCypher}.."
+      case Ior.Right(max)     => s"..${max.toCypher}"
+      case Ior.Both(min, max) => s"${min.toCypher}..${max.toCypher}"
+  }
 }
