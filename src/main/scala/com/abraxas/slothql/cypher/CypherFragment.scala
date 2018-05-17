@@ -333,7 +333,7 @@ object CypherFragment {
     }
 
     implicit lazy val fragment: CypherFragment[Pattern] = define[Pattern] {
-      case Let(alias, pattern) => s"${escapeName(alias)} = ${pattern.toCypher}}"
+      case Let(alias, pattern) => s"${escapeName(alias)} = ${pattern.toCypher}"
       case Node(alias, labels, map) => s"(${aliasStr(alias)}${labelsStr(labels)}${mapStr(map)})"
       case Path(left, rel, right) => s"${left.toCypher} ${rel.toCypher} ${right.toCypher}"
       case Rel(alias, types, map, len, dir) =>
@@ -363,7 +363,8 @@ object CypherFragment {
   private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
   private def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
   private def mapStr(map: Map[String, Known[Expr[_]]]) =
-    map.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString("{ ", ", ", " }")
+    if (map.isEmpty) ""
+    else map.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString("{ ", ", ", " }")
   private def rangeStr(ior: Ior[Known[_], Known[_]]) = ior match {
       case Ior.Left(min)      => s"${min.toCypher}.."
       case Ior.Right(max)     => s"..${max.toCypher}"
