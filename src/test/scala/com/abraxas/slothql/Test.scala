@@ -1,6 +1,7 @@
 package com.abraxas.slothql
 
-import cats.data.{ Ior, NonEmptyList }
+import cats.data.NonEmptyList
+import shapeless._
 
 import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
 import com.abraxas.slothql.cypher.CypherFragment._
@@ -71,20 +72,21 @@ object Test3 extends App {
       optional = false,
       where = None
     ),
-    Query.Return(Return.List(
-      Return.Expr(Expr.Key[String](n, "email").known, as = None),
-      List(
-        Return.Expr(Expr.Key[String](n, "name").known, as = None)
-      )
-    ))
+    Query.Return(
+      Return.List(
+        Return.Expr(Expr.Key[String](n, "email"), as = None),
+        Return.Expr(Expr.Key[String](n, "name"), as = None) :: HNil
+      ).known
+    )
   )
 
   println("query = " + query.known.toCypher)
 
   import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
-  val result = io.unsafeRunSync()
+  val result: Seq[(String, String)] = io.unsafeRunSync()
 
   println("result = " + result)
 

@@ -20,6 +20,7 @@ object CypherTransactor {
   trait Reader[Src, A] extends DepFn1[Src]
   object Reader {
     type Aux[Src, A, R] = Reader[Src, A] { type Out = R }
+    def apply[Src, A](implicit reader: Reader[Src, A]): Aux[Src, A, reader.Out] = reader
   }
 
   class Default(protected val session: () => Session) extends CypherTransactor {
@@ -52,19 +53,26 @@ object CypherTransactor {
       RecordReader define (_.values().asScala.map(_.asObject()).toList)
 
     private object ReadValue extends Poly2 {
-      implicit def impl[A, R]: Case.Aux[ValueReader.Aux[A, R], Value, R] = at[ValueReader.Aux[A, R], Value](_ apply _)
+      implicit def impl[A](implicit reader: ValueReader[A]): Case.Aux[A, Value, reader.Out] =
+        at[A, Value]((_, v) => reader(v))
     }
-    implicit def tuple[T <: Product, Repr <: HList, ReprReaders <: HList, Values <: HList, Read <: HList, ReadT <: Product](
+
+    private object Null extends Poly0 {
+      implicit def impl[A]: Case0[A] = at[A](null.asInstanceOf[A])
+    }
+
+    // converts HList to tuple
+    implicit def hlist[L <: HList, Values <: HList, Read <: HList](
       implicit
-      gen: Generic.Aux[T, Repr],
-      lift: ops.hlist.LiftAll.Aux[ValueReader, Repr, ReprReaders],
+      stubL: ops.hlist.FillWith[Null.type, L],
+      valuesT: ops.hlist.ConstMapper.Aux[Value, L, Values],
       values: ops.traversable.FromTraversable[Values],
-      zipApply: ops.hlist.ZipWith.Aux[ReprReaders, Values, ReadValue.type, Read],
-      toTuple: ops.hlist.Tupler.Aux[Read, ReadT]
-    ): Aux[T, ReadT] =
+      zipApply: ops.hlist.ZipWith.Aux[L, Values, ReadValue.type, Read],
+      toTuple: ops.hlist.Tupler[Read]
+    ): Aux[L, toTuple.Out] =
       RecordReader define { record =>
         val Some(vs) = values(record.values().asScala)
-        toTuple(zipApply(lift.instances, vs))
+        toTuple(zipApply(stubL(), vs))
       }
 
   }
@@ -72,6 +80,17 @@ object CypherTransactor {
   type ValueReader[A] = Reader[Value, A]
   object ValueReader {
     type Aux[A, R] = Reader.Aux[Value, A, R]
+
+    def define[A, R](f: Value => R): Aux[A, R] =
+      new Reader[Value, A] {
+        type Out = R
+        def apply(rec: Value): R = f(rec)
+      }
+
+    implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
+
+    implicit lazy val string: Aux[String, String] = ValueReader define (_.asString())
+
   }
 
 }

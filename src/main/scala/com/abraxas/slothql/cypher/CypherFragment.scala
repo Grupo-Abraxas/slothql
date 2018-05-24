@@ -1,11 +1,14 @@
 package com.abraxas.slothql.cypher
 
+import scala.language.{ higherKinds, implicitConversions }
+
 import cats.{ Bifunctor, Contravariant, Functor }
 import cats.data.{ Ior, NonEmptyList }
 import cats.syntax.bifunctor._
 import cats.syntax.functor._
+import shapeless.{ :: => #:, _ }
 
-import scala.language.{ higherKinds, implicitConversions }
+import com.abraxas.slothql.util.ComappedCov
 
 trait CypherFragment[-A] {
   // TODO: (String, Params)
@@ -283,7 +286,44 @@ object CypherFragment {
     type All = All.type
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return0[A]
-    case class List(head: Known[Return0[_]], tail: scala.List[Known[Expr[_]]]) extends Return[scala.List[Any]]
+
+    sealed trait List[Head, Tail <: HList] extends Return[Head #: Tail] {
+      type HeadExpr <: Return0[Head]
+      type KnownTailExpr <: HList
+
+      type Cons = Head #: Tail
+      type ConsExpr = HeadExpr #: KnownTailExpr
+
+      val head: Known[HeadExpr]
+      val tail: KnownTailExpr
+      val listTail: scala.List[Known[Expr[_]]]
+    }
+    object List {
+      private object KnownHList extends Poly1 {
+        implicit def impl[A: CypherFragment]: Case.Aux[A, Known[A]] = at[A](Known(_))
+      }
+
+      type Aux[H, T <: HList, HE <: Return0[H], TE <: HList] = List[H, T] { type HeadExpr = HE; type KnownTailExpr = TE }
+
+      def apply[H, HE[x] <: Return0[x], TE <: HList, T <: HList, TKnown <: HList](h: HE[H], t: TE)(
+        implicit
+        headFragment: CypherFragment[HE[H]],
+        stripExpr: ComappedCov.Aux[TE, Expr, T],
+        tKnown: ops.hlist.Mapper.Aux[KnownHList.type, TE, TKnown],
+        toList: ops.hlist.ToTraversable.Aux[TKnown, scala.List, Known[Expr[_]]]
+      ): List.Aux[H, T, HE[H], TKnown] =
+        new List[H, T] {
+          type HeadExpr = HE[H]
+          type KnownTailExpr = TKnown
+          val head: Known[HE[H]] = Known(h)(headFragment)
+          val tail: TKnown = tKnown(t)
+          lazy val listTail: scala.List[Known[Expr[_]]] = tail.toList
+        }
+
+      def unapply(ret: Return[_]): Option[(Known[Return0[_]], scala.List[Known[Expr[_]]])] = PartialFunction.condOpt(ret) {
+        case list: List[_, _] => list.head -> list.listTail
+      }
+    }
 
     implicit def fragment[A]: CypherFragment[Return[A]] = instance.asInstanceOf[CypherFragment[Return[A]]]
     private lazy val instance = define[Return[Any]] {
