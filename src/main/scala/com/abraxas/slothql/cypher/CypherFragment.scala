@@ -116,6 +116,7 @@ object CypherFragment {
 
   sealed trait Expr[+T]
   object Expr {
+    type Inv[T] = Expr[T]
     // // // Values and Variables // // //
     case class Lit[+A](value: A) extends Expr[A]
 
@@ -574,17 +575,30 @@ object CypherFragment {
     }
 
     object Expr {
-      type Aux[+A, Expr0 <: CypherFragment.Expr[_], As <: Option[String]] = Expr[A] { type Expr = Expr0; type Alias = As }
-
-      def apply[A, E[+x] <: CypherFragment.Expr[x]](expr0: E[A])(implicit fragment: CypherFragment[E[A]]): Aux[A, E[A], None.type] =
-        new Expr[A] {
-          type Expr = E[A]
-          type Alias = None.type
-          val expr: Known[E[A]] = expr0
-          val alias: None.type = None
-        }
+      type Aux[+A, E <: CypherFragment.Expr[_], As <: Option[String]] = Expr[A] { type Expr = E; type Alias = As }
+      def apply[E <: CypherFragment.Expr[_]](e: E)(implicit build: Build[E, None.type]): build.Out = build(e, None)
+      def apply[E <: CypherFragment.Expr[_], As <: Option[String]](e: E, as: As)(implicit build: Build[E, As]): build.Out = build(e, as)
       def unapply[A](ret: Return[A]): Option[(Known[CypherFragment.Expr[A]], Option[String])] = PartialFunction.condOpt(ret) {
         case expr: Expr[A @unchecked] => expr.expr -> expr.alias
+      }
+
+      sealed trait Build[E <: CypherFragment.Expr[_], As <: Option[String]] extends DepFn2[E, As] { type Out <: Expr[_] }
+      object Build {
+        type Aux[E <: CypherFragment.Expr[_], As <: Option[String], Out0 <: Expr[_]] = Build[E, As] { type Out = Out0 }
+
+        implicit def impl[A, E <: CypherFragment.Expr[_], As <: Option[String]](
+          implicit ev: E <:< CypherFragment.Expr.Inv[A], fragment: CypherFragment[E]
+        ): Aux[E, As, Expr.Aux[A, E, As]] =
+          new Build[E, As] {
+            type Out = Expr.Aux[A, E, As]
+            def apply(t: E, u: As): Expr.Aux[A, E, As] =
+              new Expr[A] {
+                type Expr = E
+                type Alias = As
+                val expr: Known[CypherFragment.Expr[A]] = Known(t).widen
+                val alias: As = u
+              }
+          }
       }
     }
 
