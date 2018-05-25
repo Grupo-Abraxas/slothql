@@ -118,8 +118,21 @@ object CypherFragment {
   object Expr {
     // // // Values and Variables // // //
     case class Lit[+A](value: A) extends Expr[A]
-    case class Var[+A](name: String) extends Expr[A]
-    case class Call[+A](func: String, params: NonEmptyList[Known[Expr[_]]]) extends Expr[A]
+
+    sealed trait Var[+A] extends Expr[A] {
+      type Name <: String
+      val name: Name
+    }
+
+    sealed trait Call[+A] extends Expr[A] {
+      type Name <: String
+      val name: Name
+
+      type Params <: HList
+      val params: Params
+      val paramsList: scala.List[Known[Expr[_]]]
+    }
+
 
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
@@ -133,27 +146,105 @@ object CypherFragment {
 
       private lazy val literalToString = define[Lit[_]](_.value.toString)
     }
+
     object Var {
+      type Aux[+A, Name0 <: String] = Var[A] { type Name = Name0 }
+      def apply[A](name0: String): Var.Aux[A, name0.type] =
+        new Var[A] {
+          type Name = name0.type
+          val name: Name = name0
+        }
+      def unapply(expr: Expr[_]): Option[String] = PartialFunction.condOpt(expr) {
+        case v: Var[_] => v.name
+      }
+
       implicit def fragment[A]: CypherFragment[Var[A]] = instance.asInstanceOf[CypherFragment[Var[A]]]
       private lazy val instance = define[Var[_]](v => escapeName(v.name))
     }
+
     object Call {
+      type Aux[+A, Name0 <: String, Params0 <: HList] = Call[A] { type Name = Name0; type Params = Params0 }
+      def apply[A]: Builder[A] = Builder.asInstanceOf[Builder[A]]
+      def unapply(expr: Expr[_]): Option[(String, scala.List[Known[Expr[_]]])] = PartialFunction.condOpt(expr) {
+        case call: Call[_] => call.name -> call.paramsList
+      }
+
+      protected class Builder[A] {
+        def apply[Params0 <: HList](name0: String, params0: Params0)(
+          implicit
+          toList: ops.hlist.ToTraversable.Aux[Params0, scala.List, Known[Expr[_]]]
+        ): Call.Aux[A, name0.type, Params0] =
+          new Call[A] {
+            type Name = name0.type
+            val name: name0.type = name0
+            type Params = Params0
+            val params: Params0 = params0
+            lazy val paramsList: scala.List[Known[Expr[_]]] = params0.toList
+          }
+      }
+      private object Builder extends Builder[Any]
+
       implicit def fragment[A]: CypherFragment[Call[A]] = instance.asInstanceOf[CypherFragment[Call[A]]]
       private lazy val instance = define[Call[_]] {
-        case Call(func, params) => s"${escapeName(func)}(${params.toList.map(_.toCypher).mkString(", ")})"
+        case Call(func, params) => s"${escapeName(func)}(${params.map(_.toCypher).mkString(", ")})"
       }
     }
 
     // // // Maps // // //
-    case class Map(get: Predef.Map[String, Known[Expr[_]]]) extends Expr[Predef.Map[String, Expr[_]]]
+    sealed trait Map extends Expr[Predef.Map[String, Expr[_]]] {
+      type Records <: HList
+      val records: Records
+      val asMap: Predef.Map[String, Known[Expr[_]]]
+    }
     type MapExpr = Expr[MapExpr0]
     type MapExpr0 = Predef.Map[String, Known[Expr[_]]]
-    case class Key[+A](map: Known[MapExpr], key: String) extends Expr[A]
+
+    sealed trait Key[+A] extends Expr[A] {
+      type Key <: String
+      val key: Key
+
+      type Map <: MapExpr
+      val target: Map
+      val targetKnown: Known[Map]
+    }
+
 
     object Map {
-      implicit lazy val fragment: CypherFragment[Map] = define(m => mapStr(m.get))
+      type Aux[Recs <: HList] = Map { type Records = Recs }
+      def apply[Recs <: HList](recs: Recs)(
+        implicit toMap: ops.record.ToMap.Aux[Recs, String, Known[Expr[_]]]
+      ): Map.Aux[Recs] =
+        new Map {
+          type Records = Recs
+          val records: Recs = recs
+          lazy val asMap: Predef.Map[String, Known[Expr[_]]] = toMap(recs)
+        }
+      def unapply(expr: Expr[_]): Option[Predef.Map[String, Known[Expr[_]]]] = PartialFunction.condOpt(expr) {
+        case map: Map => map.asMap
+      }
+
+      implicit lazy val fragment: CypherFragment[Map] = define(m => mapStr(m.asMap))
     }
     object Key {
+      type Aux[+A, K <: String, M <: MapExpr] = Key[A] { type Key = K; type Map = M }
+      def apply[A]: Builder[A] = Builder.asInstanceOf[Builder[A]]
+      def unapply(expr: Expr[_]): Option[(Known[MapExpr], String)] = PartialFunction.condOpt(expr) {
+        case k: Key[_] => k.targetKnown -> k.key
+      }
+
+      protected class Builder[A] {
+        // explicitly specifying the `Aux` return type breaks IDE compatibility
+        def apply[M <: MapExpr](m: M, k: String)(implicit frag: CypherFragment[M]) =
+          new Key[A] {
+            type Key = k.type
+            val key: k.type = k
+            type Map = M
+            val target: M = m
+            val targetKnown: Known[M] = Known(m)
+          }
+      }
+      private object Builder extends Builder[Any]
+
       implicit def fragment[A]: CypherFragment[Key[A]] = instance.asInstanceOf[CypherFragment[Key[A]]]
       implicit lazy val instance: CypherFragment[Key[_]] = define {
         case Key(m, k) => s"${m.toCypher}.${escapeName(k)}"
@@ -193,15 +284,38 @@ object CypherFragment {
     }
 
     // // // Strings // // //
-    case class StringExpr(left: Known[Expr[String]], right: Known[Expr[String]], op: StringExpr.Op) extends Expr[Boolean]
+    sealed trait StringExpr extends Expr[Boolean] {
+      type Left  <: Expr[String]
+      type Right <: Expr[String]
+      type Op    <: StringExpr.Op
+      val left:  Known[Left]
+      val right: Known[Right]
+      val op: Op
+    }
     object StringExpr {
+      type Aux[L <: Expr[String], P <: Op, R <: Expr[String]] = StringExpr { type Left = L; type Right = R; type Op = P }
+      def apply[L <: Expr[String], P <: Op, R <: Expr[String]](l: L, p: P, r: R)(
+        implicit lFragment: CypherFragment[L], rFragment: CypherFragment[R]
+      ): Aux[L, P, R] =
+        new StringExpr {
+          type Op = P
+          type Left = L
+          type Right = R
+          val left: Known[L] = l
+          val right: Known[R] = r
+          val op: P = p
+        }
+      def unapply(expr: Expr[Boolean]): Option[(Known[Expr[String]], Op, Known[Expr[String]])] = PartialFunction.condOpt(expr) {
+        case str: StringExpr => (str.left, str.op, str.right)
+      }
+
       sealed trait Op
       case object StartsWith extends Op
       case object EndsWith   extends Op
       case object Contains   extends Op
 
       implicit lazy val fragment: CypherFragment[StringExpr] = define {
-        case StringExpr(left, right, op) =>
+        case StringExpr(left, op, right) =>
           val opStr = op match {
             case StartsWith => "STARTS WITH"
             case EndsWith   => "ENDS WITH"
@@ -213,8 +327,23 @@ object CypherFragment {
 
     // // // Logic // // //
     sealed trait LogicExpr extends Expr[Boolean]
-    case class LogicBinaryExpr(left: Known[Expr[Boolean]], right: Known[Expr[Boolean]], op: LogicExpr.BinaryOp) extends LogicExpr
-    case class LogicUnaryExpr(expr: Known[Expr[Boolean]], op: LogicExpr.UnaryOp) extends LogicExpr
+
+    sealed trait LogicBinaryExpr extends LogicExpr {
+      type Left  <: Expr[Boolean]
+      type Right <: Expr[Boolean]
+      type Op    <: LogicExpr.BinaryOp
+      val left:  Known[Left]
+      val right: Known[Right]
+      val op: Op
+    }
+
+    sealed trait LogicUnaryExpr extends LogicExpr {
+      type Arg <: Expr[Boolean]
+      type Op  <: LogicExpr.UnaryOp
+      val arg: Known[Arg]
+      val op: Op
+    }
+
     object LogicExpr {
       sealed trait BinaryOp
       case object Or  extends BinaryOp
@@ -227,7 +356,7 @@ object CypherFragment {
       case object NotNull extends UnaryOp
 
       implicit lazy val fragment: CypherFragment[LogicExpr] = define {
-        case LogicBinaryExpr(left, right, op) =>
+        case LogicBinaryExpr(left, op, right) =>
           val opStr = op match {
             case Or  => "OR"
             case And => "AND"
@@ -243,6 +372,41 @@ object CypherFragment {
           }
           s"${expr.toCypher} $opStr"
       }
+    }
+
+    object LogicBinaryExpr {
+      type Op = LogicExpr.BinaryOp
+      type Aux[L <: Expr[Boolean], P <: Op, R <: Expr[Boolean]] = LogicBinaryExpr { type Left = L; type Right = R; type Op = P }
+      def apply[L <: Expr[Boolean], P <: Op, R <: Expr[Boolean]](l: L, p: P, r: R)(
+        implicit lFragment: CypherFragment[L], rFragment: CypherFragment[R]
+      ): Aux[L, P, R] =
+        new LogicBinaryExpr {
+          type Op = P
+          type Left = L
+          type Right = R
+          val left: Known[L] = l
+          val right: Known[R] = r
+          val op: P = p
+        }
+      def unapply(expr: Expr[Boolean]): Option[(Known[Expr[Boolean]], Op, Known[Expr[Boolean]])] = PartialFunction.condOpt(expr) {
+        case b: LogicBinaryExpr => (b.left, b.op, b.right)
+      }
+    }
+
+    object LogicUnaryExpr {
+      type Op = LogicExpr.UnaryOp
+      type Aux[E <: Expr[Boolean], P <: Op] = LogicUnaryExpr { type Arg = E; type Op = P }
+      def apply[E <: Expr[Boolean], P <: Op](e: E, p: P)(implicit fragment: CypherFragment[E]): Aux[E, P] =
+        new LogicUnaryExpr {
+          type Op = P
+          type Arg = E
+          val arg: Known[E] = e
+          val op: P = p
+        }
+      def unapply(expr: Expr[Boolean]): Option[(Known[Expr[Boolean]], Op)] = PartialFunction.condOpt(expr) {
+        case u: LogicUnaryExpr => (u.arg, u.op)
+      }
+
     }
 
     // // // Compare // // //
