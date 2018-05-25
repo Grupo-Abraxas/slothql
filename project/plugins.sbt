@@ -1,0 +1,1 @@
+addSbtPlugin("com.github.hirofumi" % "sbt-amm" % "0.1.0")
