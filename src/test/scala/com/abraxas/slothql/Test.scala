@@ -18,7 +18,7 @@ object Test1 extends App {
       optional = false,
       where = None
     ),
-    Query.Return(Return.Expr(Expr.Var[Any]("n"), as = None))
+    Query.Return(Return.Expr(Expr.Var[Any]("n")))
   )
 
   println("query = " + query.known.toCypher)
@@ -74,9 +74,9 @@ object Test3 extends App {
     ),
     Query.Return(
       Return.List(
-        Return.Expr(Expr.Key[String](n, "email"), as = None),
-        Return.Expr(Expr.Key[String](n, "name"), as = None) :: HNil
-      ).known
+        Return.Expr(Expr.Key[String](n, "email")),
+        Return.Expr(Expr.Key[String](n, "name")) :: HNil
+      )
     )
   )
 

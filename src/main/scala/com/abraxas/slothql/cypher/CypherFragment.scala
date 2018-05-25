@@ -86,8 +86,17 @@ object CypherFragment {
     }
 
   sealed trait Known[+A] {
+    self =>
+
     val fragment: A
     def toCypher: String
+
+    def map[B](f: A => B): Known[B] = new Known[B] {
+      val fragment: B = f(self.fragment)
+      def toCypher: String = self.toCypher
+    }
+
+    def widen[B](implicit ev: A <:< B): Known[B] = this.asInstanceOf[Known[B]]
   }
   object Known {
     implicit def apply[A](f: A)(implicit cypherFragment: CypherFragment[A]): Known[A] =
@@ -108,9 +117,9 @@ object CypherFragment {
   sealed trait Expr[+T]
   object Expr {
     // // // Values and Variables // // //
-    case class Lit[A](value: A)(implicit val m: Manifest[A]) extends Expr[A]
-    case class Var[A](name: String)(implicit val m: Manifest[A]) extends Expr[A]
-    case class Call[A](func: String, params: NonEmptyList[Known[Expr[_]]]) extends Expr[A]
+    case class Lit[+A](value: A) extends Expr[A]
+    case class Var[+A](name: String) extends Expr[A]
+    case class Call[+A](func: String, params: NonEmptyList[Known[Expr[_]]]) extends Expr[A]
 
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
@@ -139,7 +148,7 @@ object CypherFragment {
     case class Map(get: Predef.Map[String, Known[Expr[_]]]) extends Expr[Predef.Map[String, Expr[_]]]
     type MapExpr = Expr[MapExpr0]
     type MapExpr0 = Predef.Map[String, Known[Expr[_]]]
-    case class Key[A](map: Known[MapExpr], key: String)(implicit val m: Manifest[A]) extends Expr[A]
+    case class Key[+A](map: Known[MapExpr], key: String) extends Expr[A]
 
     object Map {
       implicit lazy val fragment: CypherFragment[Map] = define(m => mapStr(m.get))
@@ -267,8 +276,104 @@ object CypherFragment {
     case class Union[+A, +B](left: Known[Query[A]], right: Known[Query[B]], all: Boolean) extends Query[(A, B)] // TODO
 
     sealed trait Query0[+A] extends Query[A]
-    case class Return[+A](ret: Known[CypherFragment.Return[A]]) extends Query0[A]
-    case class Clause[+A](clause: Known[CypherFragment.Clause], query: Known[Query0[A]]) extends Query0[A]
+
+    sealed trait Return[+A] extends Query0[A] {
+      type Expr <: CypherFragment.Return[_]
+      val ret: Known[CypherFragment.Return[A]]
+    }
+
+    sealed trait Clause[+A] extends Query0[A] {
+      type Clause <: CypherFragment.Clause
+      type Query <: Query0[_]
+      val clause: Known[Clause]
+      val query: Known[Query0[A]]
+    }
+
+
+    object Return {
+      type Aux[+A, R <: CypherFragment.Return[_]] = Return[A]{ type Expr = R }
+      def apply[R <: CypherFragment.Return[_]](ret: R)(implicit build: Build[R]): build.Out = build(ret)
+
+      sealed trait Build[R <: CypherFragment.Return[_]] extends DepFn1[R] { type Out <: Return[_] }
+      object Build {
+        type Aux[R <: CypherFragment.Return[_], Out0 <: Return[_]] = Build[R]{ type Out = Out0 }
+
+        implicit def all: Aux[CypherFragment.Return.All, Return.Aux[Any, CypherFragment.Return.All]] =
+          new Build[CypherFragment.Return.All] {
+            type Out = Return.Aux[Any, CypherFragment.Return.All]
+            def apply(t: CypherFragment.Return.All): Return.Aux[Any, CypherFragment.Return.All] = new Return[Any] {
+              type Expr = CypherFragment.Return.All
+              val ret: Known[Expr] = Known(CypherFragment.Return.All)
+            }
+          }
+
+        implicit def expr[A, E <: CypherFragment.Expr[_], As <: Option[String]](
+          implicit
+          ev: E <:< CypherFragment.Expr[A],
+          fragment: CypherFragment[CypherFragment.Return.Expr.Aux[A, E, As]]
+        ): Aux[CypherFragment.Return.Expr.Aux[A, E, As], Return.Aux[A, CypherFragment.Return.Expr.Aux[A, E, As]]] =
+          new Build[CypherFragment.Return.Expr.Aux[A, E, As]] {
+            type Out = Return.Aux[A, CypherFragment.Return.Expr.Aux[A, E, As]]
+            def apply(t: CypherFragment.Return.Expr.Aux[A, E, As]): Return.Aux[A, CypherFragment.Return.Expr.Aux[A, E, As]] =
+              new Return[A] {
+                type Expr = CypherFragment.Return.Expr.Aux[A, E, As]
+                val ret: Known[Expr] = t
+              }
+          }
+
+        implicit def list[H, T <: HList, HE <: CypherFragment.Return.Return0[_], TE <: HList](
+          implicit
+          ev: HE <:< CypherFragment.Return.Return0[H],
+          fragment: CypherFragment[CypherFragment.Return.List.Aux[H, T, HE, TE]]
+        ): Aux[CypherFragment.Return.List.Aux[H, T, HE, TE], Return.Aux[H #: T, CypherFragment.Return.List.Aux[H, T, HE, TE]]] =
+          new Build[CypherFragment.Return.List.Aux[H, T, HE, TE]] {
+            type Out = Return.Aux[H #: T, CypherFragment.Return.List.Aux[H, T, HE, TE]]
+            def apply(t: CypherFragment.Return.List.Aux[H, T, HE, TE]): Return.Aux[H #: T, CypherFragment.Return.List.Aux[H, T, HE, TE]] =
+              new Return[H #: T] {
+                type Expr = CypherFragment.Return.List.Aux[H, T, HE, TE]
+                val ret: Known[CypherFragment.Return.List.Aux[H, T, HE, TE]] = t
+              }
+          }
+      }
+      def unapply[A](query: Query[A]): Option[Known[CypherFragment.Return[A]]] = PartialFunction.condOpt(query) {
+        case ret: Return[A @unchecked] => ret.ret
+      }
+    }
+
+    object Clause {
+      type Aux[+A, C <: CypherFragment.Clause, Q <: Query0[_]] = Clause[A] { type Clause = C; type Query = Q }
+      def apply[C <: CypherFragment.Clause, Q <: Query0[_]](clause: C, query: Q)(implicit build: Build[C, Q]): build.Out = build(clause, query)
+      def unapply[A](query: Query[A]): Option[(Known[CypherFragment.Clause], Known[Query0[A]])] = PartialFunction.condOpt(query) {
+        case clause: Clause[_] => clause.clause -> clause.query
+      }
+
+      sealed trait Build[C <: CypherFragment.Clause, Q <: Query0[_]] extends DepFn2[C, Q]{ type Out <: Clause[_] }
+      object Build {
+        type Aux[C <: CypherFragment.Clause, Q <: Query0[_], Out0 <: Clause[_]] = Build[C, Q] { type Out = Out0 }
+
+        implicit def ret[C <: CypherFragment.Clause, A, R <: CypherFragment.Return[_]](
+          implicit
+          ev: R <:< CypherFragment.Return[A],
+          cFragment: CypherFragment[C],
+          qFragment: CypherFragment[Query.Return.Aux[A, R]]
+        ): Aux[C, Query.Return.Aux[A, R], Clause.Aux[A, C, Query.Return.Aux[A, R]]] =
+          new Build[C, Query.Return.Aux[A, R]] {
+            type Out = Clause.Aux[A, C, Query.Return.Aux[A, R]]
+            def apply(t: C, u: Query.Return.Aux[A, R]): Clause.Aux[A, C, Return.Aux[A, R]] =
+              new Clause[A] {
+                type Clause = C
+                type Query = Return.Aux[A, R]
+                val clause: Known[C] = Known(t)(cFragment)
+                val query: Known[Return.Aux[A, R]] = Known(u)(qFragment)
+              }
+          }
+
+// TODO ================================================================================================================
+//        implicit def clause[C <: CypherFragment.Clause, A, Q <: Query.Clause[A]]: Aux[C, Q, Clause.Aux[A, C, Q]] = ???
+
+      }
+    }
+
 
     implicit def fragment[A]: CypherFragment[Query[A]] = instance.asInstanceOf[CypherFragment[Query[A]]]
     private lazy val instance = define[Query[Any]] {
@@ -285,37 +390,59 @@ object CypherFragment {
     case object All extends Return0[Any]
     type All = All.type
 
-    case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return0[A]
+    sealed trait Expr[+A] extends Return0[A] {
+      type Expr <: CypherFragment.Expr[_]
+      type Alias <: Option[String]
+      val expr: Known[CypherFragment.Expr[A]]
+      val alias: Alias
+    }
 
     sealed trait List[Head, Tail <: HList] extends Return[Head #: Tail] {
-      type HeadExpr <: Return0[Head]
+      type HeadExpr <: Return0[_]
       type KnownTailExpr <: HList
 
       type Cons = Head #: Tail
       type ConsExpr = HeadExpr #: KnownTailExpr
 
-      val head: Known[HeadExpr]
+      val head: Known[Return0[Head]]
       val tail: KnownTailExpr
       val listTail: scala.List[Known[Expr[_]]]
     }
+
+    object Expr {
+      type Aux[+A, Expr0 <: CypherFragment.Expr[_], As <: Option[String]] = Expr[A] { type Expr = Expr0; type Alias = As }
+
+      def apply[A, E[+x] <: CypherFragment.Expr[x]](expr0: E[A])(implicit fragment: CypherFragment[E[A]]): Aux[A, E[A], None.type] =
+        new Expr[A] {
+          type Expr = E[A]
+          type Alias = None.type
+          val expr: Known[E[A]] = expr0
+          val alias: None.type = None
+        }
+      def unapply[A](ret: Return[A]): Option[(Known[CypherFragment.Expr[A]], Option[String])] = PartialFunction.condOpt(ret) {
+        case expr: Expr[A @unchecked] => expr.expr -> expr.alias
+      }
+    }
+
     object List {
       private object KnownHList extends Poly1 {
         implicit def impl[A: CypherFragment]: Case.Aux[A, Known[A]] = at[A](Known(_))
       }
 
-      type Aux[H, T <: HList, HE <: Return0[H], TE <: HList] = List[H, T] { type HeadExpr = HE; type KnownTailExpr = TE }
+      type Aux[H, T <: HList, HE <: Return0[_], TE <: HList] = List[H, T] { type HeadExpr = HE; type KnownTailExpr = TE }
 
-      def apply[H, HE[x] <: Return0[x], TE <: HList, T <: HList, TKnown <: HList](h: HE[H], t: TE)(
+      def apply[H, HE <: Return0[_], TE <: HList, T <: HList, TKnown <: HList](h: HE, t: TE)(
         implicit
-        headFragment: CypherFragment[HE[H]],
+        ev: HE <:< Return0[H],
+        headFragment: CypherFragment[HE],
         stripExpr: ComappedCov.Aux[TE, Expr, T],
         tKnown: ops.hlist.Mapper.Aux[KnownHList.type, TE, TKnown],
         toList: ops.hlist.ToTraversable.Aux[TKnown, scala.List, Known[Expr[_]]]
-      ): List.Aux[H, T, HE[H], TKnown] =
+      ): List.Aux[H, T, HE, TKnown] =
         new List[H, T] {
-          type HeadExpr = HE[H]
+          type HeadExpr = HE
           type KnownTailExpr = TKnown
-          val head: Known[HE[H]] = Known(h)(headFragment)
+          val head: Known[Return0[H]] = Known(h)(headFragment).widen
           val tail: TKnown = tKnown(t)
           lazy val listTail: scala.List[Known[Expr[_]]] = tail.toList
         }
