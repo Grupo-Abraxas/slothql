@@ -97,6 +97,8 @@ object CypherFragment {
     }
 
     def widen[B](implicit ev: A <:< B): Known[B] = this.asInstanceOf[Known[B]]
+
+    override def toString: String = s"Known$fragment{ $toCypher }"
   }
   object Known {
     implicit def apply[A](f: A)(implicit cypherFragment: CypherFragment[A]): Known[A] =
@@ -120,18 +122,22 @@ object CypherFragment {
     // // // Values and Variables // // //
     case class Lit[+A](value: A) extends Expr[A]
 
-    sealed trait Var[+A] extends Expr[A] {
+    trait Var[+A] extends Expr[A] {
       type Name <: String
       val name: Name
+
+      override def toString: String = s"Var($name)"
     }
 
-    sealed trait Call[+A] extends Expr[A] {
+    trait Call[+A] extends Expr[A] {
       type Name <: String
       val name: Name
 
       type Params <: HList
       val params: Params
       val paramsList: scala.List[Known[Expr[_]]]
+
+      override def toString: String = s"Call($name, ${paramsList.mkString(", ")})"
     }
 
 
@@ -192,21 +198,25 @@ object CypherFragment {
     }
 
     // // // Maps // // //
-    sealed trait Map extends Expr[Predef.Map[String, Expr[_]]] {
+    trait Map extends Expr[Predef.Map[String, Expr[_]]] {
       type Records <: HList
       val records: Records
       val asMap: Predef.Map[String, Known[Expr[_]]]
+
+      override def toString: String = s"Map($asMap)"
     }
     type MapExpr = Expr[MapExpr0]
     type MapExpr0 = Predef.Map[String, Known[Expr[_]]]
 
-    sealed trait Key[+A] extends Expr[A] {
+    trait Key[+A] extends Expr[A] {
       type Key <: String
       val key: Key
 
       type Map <: MapExpr
       val target: Map
       val targetKnown: Known[Map]
+
+      override def toString: String = s"$target.$key"
     }
 
 
@@ -285,13 +295,15 @@ object CypherFragment {
     }
 
     // // // Strings // // //
-    sealed trait StringExpr extends Expr[Boolean] {
+    trait StringExpr extends Expr[Boolean] {
       type Left  <: Expr[String]
       type Right <: Expr[String]
       type Op    <: StringExpr.Op
       val left:  Known[Left]
       val right: Known[Right]
       val op: Op
+
+      override def toString: String = s"StringExpr($left, $op, $right)"
     }
     object StringExpr {
       type Aux[L <: Expr[String], P <: Op, R <: Expr[String]] = StringExpr { type Left = L; type Right = R; type Op = P }
@@ -327,22 +339,26 @@ object CypherFragment {
     }
 
     // // // Logic // // //
-    sealed trait LogicExpr extends Expr[Boolean]
+    trait LogicExpr extends Expr[Boolean]
 
-    sealed trait LogicBinaryExpr extends LogicExpr {
+    trait LogicBinaryExpr extends LogicExpr {
       type Left  <: Expr[Boolean]
       type Right <: Expr[Boolean]
       type Op    <: LogicExpr.BinaryOp
       val left:  Known[Left]
       val right: Known[Right]
       val op: Op
+
+      override def toString: String = s"LogicExpr2($left, $op, $right)"
     }
 
-    sealed trait LogicUnaryExpr extends LogicExpr {
+    trait LogicUnaryExpr extends LogicExpr {
       type Arg <: Expr[Boolean]
       type Op  <: LogicExpr.UnaryOp
       val arg: Known[Arg]
       val op: Op
+
+      override def toString: String = s"LogicExpr1($arg, $op)"
     }
 
     object LogicExpr {
@@ -443,16 +459,20 @@ object CypherFragment {
     sealed trait Query0[+A] extends Query[A]
     type Query0Inv[A] = Query0[A]
 
-    sealed trait Return[+A] extends Query0[A] {
+    trait Return[+A] extends Query0[A] {
       type Expr <: CypherFragment.Return[_]
       val ret: Known[CypherFragment.Return[A]]
+
+      override def toString: String = s"QReturn($ret)"
     }
 
-    sealed trait Clause[+A] extends Query0[A] {
+    trait Clause[+A] extends Query0[A] {
       type Clause <: CypherFragment.Clause
       type Query <: Query0[_]
       val clause: Known[Clause]
       val query: Known[Query0[A]]
+
+      override def toString: String = s"QClause($clause, $query)"
     }
 
 
@@ -527,14 +547,16 @@ object CypherFragment {
     case object All extends Return0[Any]
     type All = All.type
 
-    sealed trait Expr[+A] extends Return0[A] {
+    trait Expr[+A] extends Return0[A] {
       type Expr <: CypherFragment.Expr[_]
       type Alias <: Option[String]
       val expr: Known[CypherFragment.Expr[A]]
       val alias: Alias
+
+      override def toString: String = s"RetExpr($expr${alias.map(" as " + _).getOrElse("")})"
     }
 
-    sealed trait List[Head, Tail <: HList] extends Return[Head #: Tail] {
+    trait List[Head, Tail <: HList] extends Return[Head #: Tail] {
       type HeadExpr <: Return0[_]
       type KnownTailExpr <: HList
 
@@ -544,6 +566,8 @@ object CypherFragment {
       val head: Known[Return0[Head]]
       val tail: KnownTailExpr
       val listTail: scala.List[Known[Expr[_]]]
+
+      override def toString: String = s"RetList(${(head :: listTail).mkString(", ")})"
     }
 
     object Expr {
