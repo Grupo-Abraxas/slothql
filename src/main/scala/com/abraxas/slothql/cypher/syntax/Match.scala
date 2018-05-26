@@ -113,6 +113,25 @@ object Match {
         val p = extractPatternRev(pattern0)
         val pattern = toFragment(p)
 
+        val bindNames = p.collect {
+          case Node(Bind(name, _)) => name
+          case Edge(_, Some(Bind(name, _))) => name
+        }.toSet
+
+        object fTransormer extends Transformer {
+          override def transform(tree0: c.universe.Tree): c.universe.Tree = {
+            val tree = tree0 match {
+              case i@Ident(name) if i.tpe <:< typeOf[GraphElem] && bindNames.contains(name) =>
+                c.typecheck(q"""$i.setAlias(${name.decodedName.toString})""")
+              case other =>
+                super.transform(other)
+            }
+            tree
+          }
+        }
+
+        val f2 = c.Expr[Graph => CypherFragment.Return[R]](fTransormer.transform(f.tree))
+
         val res = reify {
           Query.Clause(
             Clause.Match(
@@ -120,7 +139,7 @@ object Match {
               optional = false,
               where = None
             ),
-            Query.Return(f.splice.apply(Graph))
+            Query.Return(f2.splice.apply(Graph))
           )
         }
 

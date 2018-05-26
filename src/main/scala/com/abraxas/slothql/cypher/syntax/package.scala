@@ -1,5 +1,7 @@
 package com.abraxas.slothql.cypher
 
+import java.util.UUID
+
 import scala.language.implicitConversions
 
 import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
@@ -9,8 +11,11 @@ package object syntax {
 
   sealed trait Graph
 
+  // not thread safe
   sealed trait GraphElem {
-    def alias: String = "???"
+    private var _alias: String = UUID.randomUUID().toString // TODO
+    def alias: String = _alias
+    def setAlias(as: String): this.type = { _alias = as; this }
 
     def prop[A]: GraphElem.PropBuilder[A, this.type] = new GraphElem.PropBuilder[A, this.type](this)
   }
