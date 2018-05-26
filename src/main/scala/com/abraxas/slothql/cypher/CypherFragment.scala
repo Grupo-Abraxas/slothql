@@ -86,8 +86,19 @@ object CypherFragment {
     }
 
   sealed trait Known[+A] {
+    self =>
+
     val fragment: A
     def toCypher: String
+
+    def map[B](f: A => B): Known[B] = new Known[B] {
+      val fragment: B = f(self.fragment)
+      def toCypher: String = self.toCypher
+    }
+
+    def widen[B](implicit ev: A <:< B): Known[B] = this.asInstanceOf[Known[B]]
+
+    override def toString: String = s"Known$fragment{ $toCypher }"
   }
   object Known {
     implicit def apply[A](f: A)(implicit cypherFragment: CypherFragment[A]): Known[A] =
@@ -280,6 +291,7 @@ object CypherFragment {
 
   sealed trait Return[+A]
   object Return {
+
     sealed trait Return0[+A] extends Return[A]
 
     case object All extends Return0[Any]
@@ -288,7 +300,7 @@ object CypherFragment {
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return0[A]
 
     sealed trait List[Head, Tail <: HList] extends Return[Head #: Tail] {
-      type HeadExpr <: Return0[Head]
+      type HeadExpr <: Return0[_]
       type KnownTailExpr <: HList
 
       type Cons = Head #: Tail
@@ -297,25 +309,28 @@ object CypherFragment {
       val head: Known[HeadExpr]
       val tail: KnownTailExpr
       val listTail: scala.List[Known[Expr[_]]]
+
+      override def toString: String = s"RetList(${(head :: listTail).mkString(", ")})"
     }
     object List {
       private object KnownHList extends Poly1 {
         implicit def impl[A: CypherFragment]: Case.Aux[A, Known[A]] = at[A](Known(_))
       }
 
-      type Aux[H, T <: HList, HE <: Return0[H], TE <: HList] = List[H, T] { type HeadExpr = HE; type KnownTailExpr = TE }
+      type Aux[H, T <: HList, HE <: Return0[_], TE <: HList] = List[H, T] { type HeadExpr = HE; type KnownTailExpr = TE }
 
-      def apply[H, HE[x] <: Return0[x], TE <: HList, T <: HList, TKnown <: HList](h: HE[H], t: TE)(
+      def apply[H, HE <: Return0[_], TE <: HList, T <: HList, TKnown <: HList](h: HE, t: TE)(
         implicit
-        headFragment: CypherFragment[HE[H]],
+        ev: HE <:< Return0[H],
+        headFragment: CypherFragment[HE],
         stripExpr: ComappedCov.Aux[TE, Expr, T],
         tKnown: ops.hlist.Mapper.Aux[KnownHList.type, TE, TKnown],
         toList: ops.hlist.ToTraversable.Aux[TKnown, scala.List, Known[Expr[_]]]
-      ): List.Aux[H, T, HE[H], TKnown] =
+      ): List.Aux[H, T, HE, TKnown] =
         new List[H, T] {
-          type HeadExpr = HE[H]
+          type HeadExpr = HE
           type KnownTailExpr = TKnown
-          val head: Known[HE[H]] = Known(h)(headFragment)
+          val head: Known[HE] = Known(h)(headFragment)
           val tail: TKnown = tKnown(t)
           lazy val listTail: scala.List[Known[Expr[_]]] = tail.toList
         }
