@@ -25,9 +25,63 @@ object Match {
     val `syntax V-E` = typeOf[VE]
     val `syntax E-V` = typeOf[EV]
 
-    sealed trait Pattern
-    case class Node(tree: Tree) extends Pattern
-    case class Edge(dir: c.Expr[Rel.Direction], tree: Option[Tree]) extends Pattern
+    object ExtractNode {
+      def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = PartialFunction.condOpt(tree) {
+        case Bind(termNames.EMPTY, _) =>
+          None -> reify {
+            Known{ Pattern.Node(alias = None, labels = Nil, map = Map()) } // TODO: alias
+          }
+        case Bind(name, _) =>
+          Some(name) -> reify {
+            val nme = c.Expr[String](Literal(Constant(name.decodedName.toString))).splice
+            Known { Pattern.Node(alias = Some(nme), labels = Nil, map = Map()) } // TODO: alias
+          }
+      }
+    }
+
+    object ExtractRel {
+      type Build = c.Expr[Rel.Direction] => NamedKnownExpr[Pattern.Rel]
+
+      def unapply(tree: Tree): Option[Build] = PartialFunction.condOpt(tree) {
+        case Bind(termNames.EMPTY, _) =>
+          dir =>
+            None -> reify {
+              Rel(alias = None, types = Nil, map = Map(), length = None, dir = dir.splice)
+            }
+        case Bind(name, _) =>
+          dir =>
+            Some(name) -> reify {
+              val nme = c.Expr[String](Literal(Constant(name.decodedName.toString))).splice
+              Rel(alias = Some(nme), types = Nil, map = Map(), length = None, dir = dir.splice)
+            }
+      }
+    }
+
+    type NamedKnownExpr[A] = (Option[Name], c.Expr[Known[A]])
+    type KnownVertexEdgeExpr = Either[NamedKnownExpr[Pattern.Node], NamedKnownExpr[Pattern.Rel]]
+
+    object V {
+      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+        case ExtractNode(node) => Left(node) :: Nil
+      }
+    }
+
+    object VOrDashEV {
+      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+        case Apply(tt, List(ExtractRel(rel), ExtractNode(node))) if tt.tpe.resultType =:= `syntax E-V` =>
+          Left(node) :: Right(rel(reify(Rel.Incoming))) :: Nil
+        case ExtractNode(node) =>
+          Left(node) :: Nil
+      }
+    }
+    object VOrDashVE {
+      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+        case Apply(tt: TypeTree, List(ExtractNode(node), ExtractRel(rel))) if tt.tpe.resultType =:= `syntax V-E` =>
+          Right(rel(reify(Rel.Outgoing))) :: Left(node) :: Nil
+        case ExtractNode(node) =>
+          Left(node) :: Nil
+      }
+    }
 
     (f.tree: @unchecked) match {
       case Function(
@@ -40,83 +94,37 @@ object Match {
           case _ => c.abort(c.enclosingPosition, "Only one case is permitted in `Match`.")
         }
 
-        object VOrDashEV {
-          def unapply(tree: Tree): Option[List[Pattern]] = PartialFunction.condOpt(tree) {
-            case Apply(tt, List(l, r)) if tt.tpe.resultType =:= `syntax E-V` =>
-              Node(r) :: Edge(reify(Rel.Incoming), Some(l)) :: Nil
-            case _ if tree.tpe <:< typeOf[Vertex] =>
-              Node(tree) :: Nil
-          }
-        }
-        object VOrDashVE {
-          def unapply(tree: Tree): Option[List[Pattern]] = PartialFunction.condOpt(tree) {
-            case Apply(tt: TypeTree, List(l, r)) if tt.tpe.resultType =:= `syntax V-E` =>
-              Edge(reify(Rel.Outgoing), Some(r)) :: Node(l) :: Nil
-            case _ if tree.tpe <:< typeOf[Vertex] =>
-              Node(tree) :: Nil
-          }
-        }
-
-        def extractPatternRev(tree: Tree): List[Pattern] = tree match {
-          case UnApply(Apply(Select(arrow, TermName("unapply")), _), args) =>
-            (arrow.tpe: @unchecked) match {
-              case t if t =:= `syntax <` =>
-                (args: @unchecked) match {
-                  case List(l, VOrDashEV(revHead)) => revHead ::: extractPatternRev(l)
-                }
-              case t if t =:= `syntax >` =>
-                (args: @unchecked) match {
-                  case List(VOrDashVE(revHead1), VOrDashVE(revHead2)) => revHead2 ::: revHead1
-                  case List(l,                   VOrDashVE(revHead))  => revHead ::: extractPatternRev(l)
-                }
+        def extractPatternRev(tree: Tree): List[KnownVertexEdgeExpr] = tree match {
+          case ua@UnApply(Apply(Select(arrow, TermName("unapply")), _), args) =>
+            (args: @unchecked) match {
+              case List(V(v),                VOrDashEV(revHead))  if arrow.tpe =:= `syntax <` => revHead ::: v
+              case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <` => revHead ::: extractPatternRev(l)
+              case List(VOrDashVE(revHead1), VOrDashVE(revHead2)) if arrow.tpe =:= `syntax >` => revHead2 ::: revHead1
+              case List(l,                   VOrDashVE(revHead))  if arrow.tpe =:= `syntax >` => revHead ::: extractPatternRev(l)
+              case _ =>
+                c.abort(c.enclosingPosition, s"Failed to parse pattern of ${showCode(ua)}\n\n${showRaw(ua)}")
             }
         }
 
-        def extractNode(tree: Tree): c.Expr[Known[Pattern.Node]] = tree match {
-          case Bind(termNames.EMPTY, _) => reify {
-            Pattern.Node(alias = None, labels = Nil, map = Map()) // TODO: alias
-          }
-          case Bind(name, _) => reify {
-            val nme = c.Expr[String](Literal(Constant(name.decodedName.toString))).splice
-            Pattern.Node(alias = Some(nme), labels = Nil, map = Map()) // TODO: alias
-          }
-        }
 
-        def extractRel(dir: c.Expr[Rel.Direction], tree: Option[Tree]): c.Expr[Known[Pattern.Rel]] = tree match {
-          case Some(Bind(name, body)) => reify {
-            val nme = c.Expr[String](Literal(Constant(name.decodedName.toString))).splice
-            Rel(alias = Some(nme), types = Nil, map = Map(), length = None, dir = dir.splice)
-          }
-          case None => reify {
-            Rel(alias = None, types = Nil, map = Map(), length = None, dir = dir.splice)
-          }
-        }
-
-        def toFragment0(patternRev: List[Pattern], acc: c.Expr[Known[Pattern.Pattern0]]): c.Expr[Known[Pattern.Pattern0]] = patternRev match {
+        def toFragment0(patternRev: List[KnownVertexEdgeExpr], acc: c.Expr[Known[Pattern.Pattern0]]): c.Expr[Known[Pattern.Pattern0]] = patternRev match {
           case Nil => acc
-          case Edge(dir, edge) :: Node(node) :: tail =>
+          case Right((_, relExpr)) :: Left((_, nodeExpr)) :: tail =>
             val newAcc = reify {
               Known(
-                Pattern.Path(
-                  extractNode(node).splice,
-                  extractRel(dir, edge).splice,
-                  acc.splice
-                )
+                Pattern.Path(nodeExpr.splice, relExpr.splice, acc.splice)
               )
             }
             toFragment0(tail, newAcc)
         }
-        def toFragment(patternRev: List[Pattern]): c.Expr[Known[Pattern.Pattern0]] = (patternRev: @unchecked) match {
-          case Node(node) :: tail => toFragment0(tail, extractNode(node))
+        def toFragment(patternRev: List[KnownVertexEdgeExpr]): c.Expr[Known[Pattern.Pattern0]] = (patternRev: @unchecked) match {
+          case Left((_, node)) :: tail => toFragment0(tail, node)
         }
 
         val p = extractPatternRev(pattern0)
         val pattern = toFragment(p)
 
-        val bindNames = p.collect {
-          case Node(Bind(name, _)) => name
-          case Edge(_, Some(Bind(name, _))) => name
-        }.toSet
+        val bindNames = p.flatMap(_.left.map(_._1).right.map(_._1).merge).toSet
 
         object fTransormer extends Transformer {
           override def transform(tree0: c.universe.Tree): c.universe.Tree = {
@@ -143,13 +151,34 @@ object Match {
           )
         }
 
-        c.info(NoPosition, showCode(res.tree), force = true)
-        c.info(NoPosition, showRaw(res.tree), force = true)
+//        c.info(NoPosition, showCode(res.tree), force = true)
+//        c.info(NoPosition, showRaw(res.tree), force = true)
 
         res
     }
   }
 }
+
+/* SyntaxTest3:
+
+case user <(role)- x <(y)- group =>
+
+(user < (role - x)) < (y - group)
+
+
+             [<]        |
+             / \        |
+            /   \       |
+          [<] (y-group) | right of [<] => -[Edge, Vertex] => y: Edge, group: Vertex
+          / \           |
+         /   \          |
+        /  (role-x)     | right of [<] => -[Edge, Vertex] => role: Edge, x: Vertex
+    (user)              | left  of [<] => Vertex
+
+*/
+
+
+
 
 
 /* SyntaxTest2:

@@ -11,6 +11,6 @@
     +-------------+   members   +-----------+    Admin
           (g1)
 */
-CREATE (:User {id: "u1", email: "john@example.com", name: "John"}) <-[:Admin]- (:Members) <-[:members]- (_:Group{id: "g1", name: "Root Group"});
+CREATE (:User {id: "u1", email: "john@example.com", name: "John", age: 28, confirmed: true}) <-[:Admin]- (:Members) <-[:members]- (_:Group{id: "g1", name: "Root Group"});
 MATCH (g:Group { id: "g1"}) CREATE (:Group { id: "g2", name: "Sub Group" }) -[:parent]-> (g);
 MATCH (u: User { id: "u1" }),(g:Group { id: "g2"}) CREATE (u) <-[:Edit]- (:Members) <-[:members]- (g);

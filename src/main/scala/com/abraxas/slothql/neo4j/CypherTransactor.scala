@@ -89,7 +89,13 @@ object CypherTransactor {
 
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
 
+    implicit def option[A, R](implicit reader: Aux[A, R]): Aux[Option[A], Option[R]] = ValueReader define { v =>
+      if (v.isNull) None else Some(reader(v))
+    }
+
     implicit lazy val string: Aux[String, String] = ValueReader define (_.asString())
+    implicit lazy val int: Aux[Int, Int] = ValueReader define (_.asInt())
+    implicit lazy val boolean: Aux[Boolean, Boolean] = ValueReader define (_.asBoolean())
 
   }
 

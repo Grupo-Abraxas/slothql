@@ -2,7 +2,9 @@ package com.abraxas.slothql.cypher.syntax
 
 import shapeless.HNil
 
+import com.abraxas.slothql.Connection
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
+import com.abraxas.slothql.neo4j.CypherTransactor
 
 
 object SyntaxTest {
@@ -45,3 +47,45 @@ object SyntaxTest2 extends App {
   // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(Some(a),List(),Map()){ (`a`) },KnownRel(Some(b),List(),Map(),None,Outgoing){ -[`b`]-> },KnownPath(KnownNode(Some(c),List(),Map()){ (`c`) },KnownRel(Some(d),List(),Map(),None,Outgoing){ -[`d`]-> },KnownPath(KnownNode(Some(e),List(),Map()){ (`e`) },KnownRel(Some(f),List(),Map(),None,Incoming){ <-[`f`]- },KnownNode(Some(g),List(),Map()){ (`g`) }){ (`e`) <-[`f`]- (`g`) }){ (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) }){ (`a`) -[`b`]-> (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) }),false,None){ MATCH (`a`) -[`b`]-> (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar(a){ `a` },count){ `a`.`count` },None){ `a`.`count` }, KnownExpr(KnownKey(KnownVar(f){ `f` },name){ `f`.`name` },None){ `f`.`name` }){ `a`.`count`, `f`.`name` }){ RETURN `a`.`count`, `f`.`name` })
   // MATCH (`a`) -[`b`]-> (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) RETURN `a`.`count`, `f`.`name`
 }
+
+object SyntaxTest3 extends App {
+  val query = Match {
+    case user <(role)- x <(y)- group =>
+      Return.List(
+        Return.Expr(user.propOpt[String]("email"), as = None),
+        Return.Expr(user.propOpt[String]("name"), as = None) ::
+        Return.Expr(user.propOpt[Int]("age"), as = None) ::
+        Return.Expr(user.propOpt[Boolean]("confirmed"), as = None) ::
+        Return.Expr(group.prop[String]("name"), as = None) :: HNil
+//        Return.Expr(role.prop[String]("name"), as = None) :: HNil TODO
+      )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(Some(user),List(),Map()){ (`user`) },KnownRel(Some(role),List(),Map(),None,Incoming){ <-[`role`]- },KnownPath(KnownNode(Some(x),List(),Map()){ (`x`) },KnownRel(Some(y),List(),Map(),None,Incoming){ <-[`y`]- },KnownNode(Some(group),List(),Map()){ (`group`) }){ (`x`) <-[`y`]- (`group`) }){ (`user`) <-[`role`]- (`x`) <-[`y`]- (`group`) }),false,None){ MATCH (`user`) <-[`role`]- (`x`) <-[`y`]- (`group`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar(user){ `user` },email){ `user`.`email` },None){ `user`.`email` }, KnownExpr(KnownKey(KnownVar(user){ `user` },name){ `user`.`name` },None){ `user`.`name` }, KnownExpr(KnownKey(KnownVar(user){ `user` },age){ `user`.`age` },None){ `user`.`age` }, KnownExpr(KnownKey(KnownVar(user){ `user` },confirmed){ `user`.`confirmed` },None){ `user`.`confirmed` }, KnownExpr(KnownKey(KnownVar(group){ `group` },name){ `group`.`name` },None){ `group`.`name` }){ `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name` }){ RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name` })
+  // MATCH (`user`) <-[`role`]- (`x`) <-[`y`]- (`group`) RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Option[String], Option[String], Option[Int], Option[Boolean], String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+
+
+/*
+
+
+*/

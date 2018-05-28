@@ -18,6 +18,7 @@ package object syntax {
     def setAlias(as: String): this.type = { _alias = as; this }
 
     def prop[A]: GraphElem.PropBuilder[A, this.type] = new GraphElem.PropBuilder[A, this.type](this)
+    def propOpt[A]: GraphElem.PropBuilder[Option[A], this.type] = new GraphElem.PropBuilder[Option[A], this.type](this)
   }
   sealed trait Vertex extends GraphElem
   sealed trait Edge   extends GraphElem
