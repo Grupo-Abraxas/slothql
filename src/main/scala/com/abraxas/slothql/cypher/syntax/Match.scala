@@ -27,7 +27,7 @@ object Match {
 
     object ExtractNode {
       def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = PartialFunction.condOpt(tree) {
-        case Bind(termNames.EMPTY, _) =>
+        case Ident(termNames.WILDCARD) =>
           None -> reify {
             Known{ Pattern.Node(alias = None, labels = Nil, map = Map()) } // TODO: alias
           }
@@ -43,7 +43,7 @@ object Match {
       type Build = c.Expr[Rel.Direction] => NamedKnownExpr[Pattern.Rel]
 
       def unapply(tree: Tree): Option[Build] = PartialFunction.condOpt(tree) {
-        case Bind(termNames.EMPTY, _) =>
+        case Ident(termNames.WILDCARD) =>
           dir =>
             None -> reify {
               Rel(alias = None, types = Nil, map = Map(), length = None, dir = dir.splice)
