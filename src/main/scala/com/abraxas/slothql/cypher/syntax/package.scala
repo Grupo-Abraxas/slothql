@@ -78,6 +78,6 @@ package object syntax {
   lazy val ⟷ : --.type = --
 
 
-  implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr.Inv[A], fragment: CypherFragment[E]): Return.Expr[A] =
+  implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
     Return.Expr(CypherFragment.Known(e).widen, as = None)
 }
