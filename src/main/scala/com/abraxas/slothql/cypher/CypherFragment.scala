@@ -299,44 +299,61 @@ object CypherFragment {
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return0[A]
 
-    sealed trait List[Head, Tail <: HList] extends Return[Head #: Tail] {
-      type HeadExpr <: Return0[_]
-      type KnownTailExpr <: HList
+    /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
+    sealed trait List[L <: HList] extends Return[L] {
+      type Expressions <: HList
+      val expressions: Expressions
+      val toList: scala.List[Known[Expr[_]]]
 
-      type Cons = Head #: Tail
-      type ConsExpr = HeadExpr #: KnownTailExpr
-
-      val head: Known[HeadExpr]
-      val tail: KnownTailExpr
-      val listTail: scala.List[Known[Expr[_]]]
-
-      override def toString: String = s"RetList(${(head :: listTail).mkString(", ")})"
+      override def toString: String = s"RetList(${toList.mkString(", ")})"
     }
-    object List {
-      private object KnownHList extends Poly1 {
-        implicit def impl[A: CypherFragment]: Case.Aux[A, Known[A]] = at[A](Known(_))
+    object List extends ProductArgs {
+      type Aux[L <: HList, E <: HList] = List[L] { type Expressions = E }
+
+      sealed trait Build[L <: HList] {
+        type Ret  <: HList
+        type Expr <: HList
+        type Out = List.Aux[Ret, Expr]
+        def apply(l: L): Out
       }
+      object Build {
+        type Aux[L <: HList, R <: HList, E <: HList] = Build[L] { type Ret = R; type Expr = E }
 
-      type Aux[H, T <: HList, HE <: Return0[_], TE <: HList] = List[H, T] { type HeadExpr = HE; type KnownTailExpr = TE }
-
-      def apply[H, HE <: Return0[_], TE <: HList, T <: HList, TKnown <: HList](h: HE, t: TE)(
-        implicit
-        ev: HE <:< Return0[H],
-        headFragment: CypherFragment[HE],
-        stripExpr: ComappedCov.Aux[TE, Expr, T],
-        tKnown: ops.hlist.Mapper.Aux[KnownHList.type, TE, TKnown],
-        toList: ops.hlist.ToTraversable.Aux[TKnown, scala.List, Known[Expr[_]]]
-      ): List.Aux[H, T, HE, TKnown] =
-        new List[H, T] {
-          type HeadExpr = HE
-          type KnownTailExpr = TKnown
-          val head: Known[HE] = Known(h)(headFragment)
-          val tail: TKnown = tKnown(t)
-          lazy val listTail: scala.List[Known[Expr[_]]] = tail.toList
+        object KnownHList extends Poly2 {
+          implicit def impl[A, E <: CypherFragment.Expr[_]](
+            implicit ev: E <:< CypherFragment.Expr[A], fragment: CypherFragment[E]
+          ): Case.Aux[A, E, Known[Return.Expr[A]]] =
+            at[A, E]((_, e) => Known(Return.Expr(Known(e).widen, None)))
         }
 
-      def unapply(ret: Return[_]): Option[(Known[Return0[_]], scala.List[Known[Expr[_]]])] = PartialFunction.condOpt(ret) {
-        case list: List[_, _] => list.head -> list.listTail
+        object NullF extends Poly0 {
+          implicit def impl[A]: Case0[A] = at[A](null.asInstanceOf[A])
+        }
+
+        implicit def listOfExpressions[L <: HList, RT <: HList, RE <: HList, RK <: HList](
+          implicit
+          nonEmpty: ops.hlist.IsHCons[L],
+          stripExpr: ComappedCov.Aux[L, CypherFragment.Expr, RT],
+          nulls: ops.hlist.FillWith[NullF.type, RT],
+          known: ops.hlist.ZipWith.Aux[RT, L, KnownHList.type, RK],
+          list: ops.hlist.ToTraversable.Aux[RK, scala.List, Known[Return.Expr[_]]]
+        ): Aux[L, RT, RK] =
+          new Build[L] {
+            type Ret = RT
+            type Expr = RK
+            def apply(l: L): Out =
+              new List[RT] {
+                type Expressions = RK
+                val expressions: RK = known(nulls(), l)
+                val toList: scala.List[Known[Return.Expr[_]]] = expressions.toList
+              }
+          }
+      }
+
+      def apply[L <: HList](l: L)(implicit build: Build[L]): build.Out = build(l)
+
+      def unapply(ret: Return[_]): Option[scala.List[Known[Expr[_]]]] = PartialFunction.condOpt(ret) {
+        case list: List[_] => list.toList
       }
     }
 
@@ -344,8 +361,8 @@ object CypherFragment {
     private lazy val instance = define[Return[Any]] {
       case All => "*"
       case Expr(expr, as) => expr.toCypher + asStr(as)
-      case List(head, Nil) => head.toCypher
-      case List(head, tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
+      case List(head :: Nil) => head.toCypher
+      case List(head :: tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
     }
   }
 

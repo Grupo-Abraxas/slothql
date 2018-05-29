@@ -48,12 +48,12 @@ object SyntaxTest3 extends App {
   val query = Match {
     case user < _ - _ < _ - group =>
       Return.List(
-        Return.Expr(user.propOpt[String]("email"), as = None),
-        Return.Expr(user.propOpt[String]("name"), as = None) ::
-        Return.Expr(user.propOpt[Int]("age"), as = None) ::
-        Return.Expr(user.propOpt[Boolean]("confirmed"), as = None) ::
-        Return.Expr(group.prop[String]("name"), as = None) :: HNil
-//        Return.Expr(role.prop[String]("name"), as = None) :: HNil TODO
+        user.propOpt[String]("email") ::
+        user.propOpt[String]("name") ::
+        user.propOpt[Int]("age") ::
+        user.propOpt[Boolean]("confirmed") ::
+        group.prop[String]("name") :: HNil
+//        role.prop[String]("name") :: HNil TODO
       )
   }
 
