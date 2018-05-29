@@ -118,6 +118,7 @@ object CypherFragment {
 
   sealed trait Expr[+T]
   object Expr {
+    type Inv[T] = Expr[T]
     // // // Values and Variables // // //
     case class Lit[A](value: A)(implicit val m: Manifest[A]) extends Expr[A]
     case class Var[A](name: String)(implicit val m: Manifest[A]) extends Expr[A]

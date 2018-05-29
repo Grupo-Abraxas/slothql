@@ -34,11 +34,7 @@ object SyntaxTest {
 
 object SyntaxTest2 extends App {
   val query = Match {
-    case a -(b)> c -(d)> e <(f)- g =>
-      Return.List(
-        Return.Expr(a.prop[Int]("count"), as = None),
-        Return.Expr(f.prop[String]("name"), as = None) :: HNil
-      )
+    case a -(b)> c -(d)> e <(f)- g => a.prop[Int]("count")
   }
 
   println(query)
