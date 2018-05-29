@@ -79,6 +79,41 @@ object SyntaxTest3 extends App {
 
 }
 
+object SyntaxTest4 extends App {
+  val query = Match {
+    case (u@Vertex("User", "id" := "u1")) < _ - Vertex("Members") < _ - group =>
+      (
+        u.prop[String]("email"),
+        u.prop[String]("name"),
+        u.prop[Int]("age"),
+        u.prop[Boolean]("confirmed"),
+        group.prop[String]("name")
+      )
+//        role.prop[String]("name") TODO
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(Some(u),List(User),Map(id -> KnownLit(u1){ "u1" })){ (`u`:`User`{ `id`: "u1" }) },KnownRel(None,List(),Map(),None,Incoming){ <-[]- },KnownPath(KnownNode(None,List(Members),Map()){ (:`Members`) },KnownRel(None,List(),Map(),None,Incoming){ <-[]- },KnownNode(Some(group),List(),Map()){ (`group`) }){ (:`Members`) <-[]- (`group`) }){ (`u`:`User`{ `id`: "u1" }) <-[]- (:`Members`) <-[]- (`group`) }),false,None){ MATCH (`u`:`User`{ `id`: "u1" }) <-[]- (:`Members`) <-[]- (`group`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar(u){ `u` },email){ `u`.`email` },None){ `u`.`email` }, KnownExpr(KnownKey(KnownVar(u){ `u` },name){ `u`.`name` },None){ `u`.`name` }, KnownExpr(KnownKey(KnownVar(u){ `u` },age){ `u`.`age` },None){ `u`.`age` }, KnownExpr(KnownKey(KnownVar(u){ `u` },confirmed){ `u`.`confirmed` },None){ `u`.`confirmed` }, KnownExpr(KnownKey(KnownVar(group){ `group` },name){ `group`.`name` },None){ `group`.`name` }){ `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name` }){ RETURN `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name` })
+  // MATCH (`u`:`User`{ `id`: "u1" }) <-[]- (:`Members`) <-[]- (`group`) RETURN `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name`
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(String, String, Int, Boolean, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 
 /*

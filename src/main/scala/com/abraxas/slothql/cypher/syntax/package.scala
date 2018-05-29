@@ -15,7 +15,7 @@ package object syntax {
 
   // not thread safe
   sealed trait GraphElem {
-    private var _alias: String = UUID.randomUUID().toString // TODO
+    private var _alias: String = UUID.randomUUID().toString // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO
     def alias: String = _alias
     def setAlias(as: String): this.type = { _alias = as; this }
 
@@ -30,9 +30,12 @@ package object syntax {
   }
   protected[syntax] object Vertex {
     def apply(): Vertex = new Vertex {}
+    def unapplySeq(v: Vertex): Option[Seq[AnyRef]] = Some(???)
+    // TODO: use union if possible: {{{ String |∨| (String, Expr.Lit[_]) }}}
   }
   protected[syntax] object Edge {
     def apply(): Edge = new Edge {}
+    def unapplySeq(v: Edge): Option[Seq[AnyRef]] = Some(???)
   }
 
   object GraphElem {
@@ -41,6 +44,13 @@ package object syntax {
         Expr.Key[A](Expr.Var[MapExpr0](elem.alias), k)
     }
   }
+
+  object := {
+    def unapply(arg: Any): Option[(String, Any)] = Some(???) // TODO
+  }
+
+
+  // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
 
   object -> {
@@ -78,6 +88,9 @@ package object syntax {
   lazy val ⟶ : ->.type = ->
   lazy val ⟵ : `<-`.type = `<-`
   lazy val ⟷ : --.type = --
+
+
+  implicit def makeLit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
 
 
   implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
