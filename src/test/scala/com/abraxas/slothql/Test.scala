@@ -74,8 +74,8 @@ object Test3 extends App {
     ),
     Query.Return(
       Return.List(
-        Expr.Key[String](n, "email") ::
-        Expr.Key[String](n, "name") :: HNil
+        Expr.Key[String](n, "email"),
+        Expr.Key[String](n, "name")
       ).known
     )
   )

@@ -47,14 +47,14 @@ object SyntaxTest2 extends App {
 object SyntaxTest3 extends App {
   val query = Match {
     case user < _ - _ < _ - group =>
-      Return.List(
-        user.propOpt[String]("email") ::
-        user.propOpt[String]("name") ::
-        user.propOpt[Int]("age") ::
-        user.propOpt[Boolean]("confirmed") ::
-        group.prop[String]("name") :: HNil
-//        role.prop[String]("name") :: HNil TODO
+      (
+        user.propOpt[String]("email"),
+        user.propOpt[String]("name"),
+        user.propOpt[Int]("age"),
+        user.propOpt[Boolean]("confirmed"),
+        group.prop[String]("name")
       )
+//        role.prop[String]("name") TODO
   }
 
   println(query)

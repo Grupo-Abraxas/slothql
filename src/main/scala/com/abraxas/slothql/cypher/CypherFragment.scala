@@ -350,7 +350,8 @@ object CypherFragment {
           }
       }
 
-      def apply[L <: HList](l: L)(implicit build: Build[L]): build.Out = build(l)
+      def applyProduct[L <: HList](l: L)(implicit build: Build[L]): build.Out = build(l)
+      def fromHList[L <: HList](l: L)(implicit build: Build[L]): build.Out = build(l)
 
       def unapply(ret: Return[_]): Option[scala.List[Known[Expr[_]]]] = PartialFunction.condOpt(ret) {
         case list: List[_] => list.toList
