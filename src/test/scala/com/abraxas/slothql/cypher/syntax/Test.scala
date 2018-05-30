@@ -80,8 +80,9 @@ object SyntaxTest3 extends App {
 }
 
 object SyntaxTest4 extends App {
+  val id = "u1"
   val query = Match {
-    case (u@Vertex("User", "id" := "u1")) < _ - Vertex("Members") < _ - group =>
+    case (u@Vertex("User", "id" := `id`)) < _ - Vertex("Members") < _ - group =>
       (
         u.prop[String]("email"),
         u.prop[String]("name"),
@@ -106,6 +107,33 @@ object SyntaxTest4 extends App {
 
   val io = tx.read(query)
   val result: Seq[(String, String, Int, Boolean, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest5 extends App {
+  val id = "g1"
+  val query = Match {
+    case Vertex("Group", "id" := "g1") < Edge("parent") - (g@Vertex("Group")) => g.prop[String]("name")
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),None,Incoming){ <-[:`parent`]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownKey(KnownVar(g){ `g` },name){ `g`.`name` },None){ `g`.`name` }){ RETURN `g`.`name` })
+  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`]- (`g`:`Group`) RETURN `g`.`name`
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[String] = io.unsafeRunSync()
 
   println("result = " + result)
 

@@ -31,38 +31,58 @@ object Match {
     val `syntax V-E` = typeOf[VE]
     val `syntax E-V` = typeOf[EV]
 
-    def extractBindParams(body: Tree): List[Either[String, (String, Literal)]] = body match {
-      case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] =>
-        args map {
-          case Literal(Constant(label: String)) => Left(label)
+    def extractBindParams(body: Tree): (List[String], List[Tree], Option[Tree]) = body match {
+      case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args)
+          if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
+        val labels = args.collect{ case Literal(Constant(label: String)) => label }
+        val values = args.collect{
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= typeOf[:=.type] =>
-            args2 match {
-              case List(Literal(Constant(k: String)), v@Literal(Constant(_))) => Right(k -> v)
+            (args2: @unchecked) match {
+              case List(Literal(Constant(k: String)), v) =>
+                q"($k, _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
             }
         }
-      case _ => Nil
+        val length = None // TODO
+        (labels, values, length)
+      case _ => (Nil, Nil, None)
+    }
+
+
+    def aliasTree(name: Name): Tree = name match {
+      case termNames.WILDCARD => q"_root_.scala.None"
+      case _ => q"_root_.scala.Some(${name.decodedName.toString})"
     }
 
     def knownNodeExpr(name: Name, body: Tree): c.Expr[Known[Pattern.Node]] = {
-      val alias = name match {
-        case termNames.WILDCARD => q"_root_.scala.None"
-        case _ => q"_root_.scala.Some(${name.decodedName.toString})"
-      }
-      val params = extractBindParams(body)
-      val labelsTrees = params.flatMap(_.left.toSeq)
-      val valuesTrees = params.flatMap(_.right.toSeq.map{ case (k, v) =>
-        q"($k, _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
-      })
+      val (labelsTrees, valuesTrees, lengthTree) = extractBindParams(body)
+      if (lengthTree.isDefined) c.abort(body.pos, s"Vertex cannot have length!")
+
       val tree = q"""
         _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(
-            alias = $alias,
+            alias = ${aliasTree(name)},
             labels = _root_.scala.List(..$labelsTrees),
             map = _root_.scala.Predef.Map(..$valuesTrees)
           )
         )
       """
       c.Expr[Known[Pattern.Node]](tree)
+    }
+
+    def knownRelExpr(name: Option[Name], body: Tree, dir: c.Expr[Rel.Direction]): c.Expr[Known[Pattern.Rel]] = {
+      val (labelsTrees, valuesTrees, lengthTree) = extractBindParams(body)
+      val tree = q"""
+        _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
+          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel(
+            alias = ${name.map(aliasTree(_)).getOrElse(q"_root_.scala.None")},
+            types = _root_.scala.List(..$labelsTrees),
+            map = _root_.scala.Predef.Map(..$valuesTrees),
+            length = ${lengthTree.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None")},
+            dir = ${dir.tree}
+          )
+        )
+      """
+      c.Expr[Known[Pattern.Rel]](tree)
     }
 
     object ExtractNode {
@@ -81,16 +101,11 @@ object Match {
 
       def unapply(tree: Tree): Option[Build] = PartialFunction.condOpt(tree) {
         case Ident(termNames.WILDCARD) =>
-          dir =>
-            (tree.symbol, None) -> reify {
-              Rel(alias = None, types = Nil, map = Map(), length = None, dir = dir.splice)
-            }
-        case Bind(name, _) =>
-          dir =>
-            (tree.symbol, Some(name)) -> reify {
-              val nme = c.Expr[String](Literal(Constant(name.decodedName.toString))).splice
-              Rel(alias = Some(nme), types = Nil, map = Map(), length = None, dir = dir.splice)
-            }
+          dir => (tree.symbol, None) -> knownRelExpr(None, EmptyTree, dir)
+        case Bind(name, body) =>
+          dir => (tree.symbol, Some(name)) -> knownRelExpr(Some(name), body, dir)
+        case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
+          dir => (tree.symbol, None) -> knownRelExpr(None, ua, dir)
       }
     }
 
