@@ -52,6 +52,11 @@ object CypherTransactor {
     implicit lazy val anyList: Aux[List[Any], List[AnyRef]] =
       RecordReader define (_.values().asScala.map(_.asObject()).toList)
 
+    implicit def singleValue[A](implicit vr: ValueReader[A]): Aux[A, vr.Out] =
+      RecordReader define { rec =>
+        vr(rec.ensuring(_.size() == 1).values().get(0))
+      }
+
     private object ReadValue extends Poly2 {
       implicit def impl[A](implicit reader: ValueReader[A]): Case.Aux[A, Value, reader.Out] =
         at[A, Value]((_, v) => reader(v))

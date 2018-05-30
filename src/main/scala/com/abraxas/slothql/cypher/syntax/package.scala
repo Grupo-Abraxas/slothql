@@ -2,7 +2,7 @@ package com.abraxas.slothql.cypher
 
 import scala.language.implicitConversions
 
-import shapeless.{ Generic, HList }
+import shapeless.{ <:!<, Generic, HList }
 
 import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
 import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Return }
@@ -91,7 +91,7 @@ package object syntax {
     Return.Expr(CypherFragment.Known(e).widen, as = None)
 
   implicit def returnTuple[P <: Product, L <: HList](p: P)(
-    implicit gen: Generic.Aux[P, L], build: Return.List.Build[L]
+    implicit gen: Generic.Aux[P, L], build: Return.List.Build[L], ev: P <:!< Expr[_]
   ): build.Out = build(gen.to(p))
 
 }
