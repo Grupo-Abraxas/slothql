@@ -17,6 +17,12 @@ object Match {
   private type VE = Vertex - Edge
   private type EV = Edge - Vertex
 
+  // The definitions that should be package-private but cannot be
+  object Internal {
+    @inline def setAlias(e: GraphElem, alias: String): Unit = e._alias = alias
+    @inline def graph: Graph = Graph
+  }
+
   def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Return[R]]): c.Expr[Query[R]] = {
     import c.universe._
 
@@ -62,11 +68,11 @@ object Match {
     object ExtractNode {
       def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = PartialFunction.condOpt(tree) {
         case Ident(termNames.WILDCARD) =>
-          None -> reify { Known{ Pattern.Node(alias = None, labels = Nil, map = Map()) } }
+          (tree.symbol, None) -> reify { Known{ Pattern.Node(alias = None, labels = Nil, map = Map()) } }
         case Bind(name, body) =>
-          Some(name) -> knownNodeExpr(name, body)
+          (tree.symbol, Some(name)) -> knownNodeExpr(name, body)
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
-          None -> knownNodeExpr(termNames.WILDCARD, ua)
+          (tree.symbol, None) -> knownNodeExpr(termNames.WILDCARD, ua)
       }
     }
 
@@ -76,19 +82,19 @@ object Match {
       def unapply(tree: Tree): Option[Build] = PartialFunction.condOpt(tree) {
         case Ident(termNames.WILDCARD) =>
           dir =>
-            None -> reify {
+            (tree.symbol, None) -> reify {
               Rel(alias = None, types = Nil, map = Map(), length = None, dir = dir.splice)
             }
         case Bind(name, _) =>
           dir =>
-            Some(name) -> reify {
+            (tree.symbol, Some(name)) -> reify {
               val nme = c.Expr[String](Literal(Constant(name.decodedName.toString))).splice
               Rel(alias = Some(nme), types = Nil, map = Map(), length = None, dir = dir.splice)
             }
       }
     }
 
-    type NamedKnownExpr[A] = (Option[Name], c.Expr[Known[A]])
+    type NamedKnownExpr[A] = ((Symbol, Option[Name]), c.Expr[Known[A]])
     type KnownVertexEdgeExpr = Either[NamedKnownExpr[Pattern.Node], NamedKnownExpr[Pattern.Rel]]
 
     object V {
@@ -114,6 +120,9 @@ object Match {
       }
     }
 
+    def failedToParse(tree: Tree) =
+      c.abort(c.enclosingPosition, s"Failed to parse pattern of ${showCode(tree)}\n\n${showRaw(tree)}")
+
     (f.tree: @unchecked) match {
       case Function(
             List(ValDef(_, arg0Name1, _, EmptyTree)),
@@ -132,9 +141,9 @@ object Match {
               case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <` => revHead ::: extractPatternRev(l)
               case List(VOrDashVE(revHead1), VOrDashVE(revHead2)) if arrow.tpe =:= `syntax >` => revHead2 ::: revHead1
               case List(l,                   VOrDashVE(revHead))  if arrow.tpe =:= `syntax >` => revHead ::: extractPatternRev(l)
-              case _ =>
-                c.abort(c.enclosingPosition, s"Failed to parse pattern of ${showCode(ua)}\n\n${showRaw(ua)}")
+              case _ => failedToParse(ua)
             }
+          case _ => failedToParse(tree)
         }
 
 
@@ -155,23 +164,33 @@ object Match {
         val p = extractPatternRev(pattern0)
         val pattern = toFragment(p)
 
-        val bindNames = p.flatMap(_.left.map(_._1).right.map(_._1).merge).toSet
+        val bindSymbols = p.map(_.left.map(_._1).right.map(_._1).merge).toSet
+
+        val setAliases = bindSymbols.withFilter(_._2.isDefined).map{
+          case (symbol, name) =>
+            q"_root_.com.abraxas.slothql.cypher.syntax.Match.Internal.setAlias($symbol, ${name.get.decodedName.toString})"
+        }.toList
 
         object fTransormer extends Transformer {
-          override def transform(tree0: c.universe.Tree): c.universe.Tree = {
-            val tree = tree0 match {
-              case i@Ident(name) if i.tpe <:< typeOf[GraphElem] && bindNames.contains(name) =>
-                c.typecheck(q"""$i.setAlias(${name.decodedName.toString})""")
-              case b@Bind(name, _) =>
-                val newBind = Bind(name, Ident(termNames.WILDCARD))
-                c.internal.setSymbol(newBind, b.symbol)
-              case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
-                Bind(termNames.WILDCARD, Ident(termNames.WILDCARD))
-              case other =>
-                super.transform(other)
-            }
-            tree
+          override def transform(tree: c.universe.Tree): c.universe.Tree = tree match {
+            case b@Bind(name, _) =>
+              val newBind = Bind(name, Ident(termNames.WILDCARD))
+              c.internal.setSymbol(newBind, b.symbol)
+            case UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
+              Bind(termNames.WILDCARD, Ident(termNames.WILDCARD))
+            case other =>
+              super.transform(other)
           }
+
+          override def transformCaseDefs(trees: List[c.universe.CaseDef]): List[c.universe.CaseDef] =
+            super.transformCaseDefs(trees).map {
+              case CaseDef(pat, guard, b0) =>
+                val b = b0 match {
+                  case Block(stats, expr) => Block(setAliases ::: stats, expr)
+                  case expr               => Block(setAliases, expr)
+                }
+                CaseDef(pat, guard, b)
+            }
         }
 
         val f2 = c.Expr[Graph => CypherFragment.Return[R]](fTransormer.transform(f.tree))
@@ -183,7 +202,7 @@ object Match {
               optional = false,
               where = None
             ),
-            Query.Return(f2.splice.apply(Graph))
+            Query.Return(f2.splice.apply(Internal.graph))
           )
         }
 

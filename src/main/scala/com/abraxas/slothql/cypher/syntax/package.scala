@@ -1,7 +1,5 @@
 package com.abraxas.slothql.cypher
 
-import java.util.UUID
-
 import scala.language.implicitConversions
 
 import shapeless.{ Generic, HList }
@@ -13,11 +11,9 @@ package object syntax {
 
   sealed trait Graph
 
-  // not thread safe
   sealed trait GraphElem {
-    private var _alias: String = UUID.randomUUID().toString // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO
+    private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
     def alias: String = _alias
-    def setAlias(as: String): this.type = { _alias = as; this }
 
     def prop[A]: GraphElem.PropBuilder[A, this.type] = new GraphElem.PropBuilder[A, this.type](this)
     def propOpt[A]: GraphElem.PropBuilder[Option[A], this.type] = new GraphElem.PropBuilder[Option[A], this.type](this)
@@ -25,16 +21,14 @@ package object syntax {
   sealed trait Vertex extends GraphElem
   sealed trait Edge   extends GraphElem
 
-  protected[syntax] object Graph extends Graph {
-    def apply(): Graph = this
-  }
-  protected[syntax] object Vertex {
-    def apply(): Vertex = new Vertex {}
+  private[syntax] object Graph extends Graph
+
+  object Vertex {
+    @inline private[syntax] def apply(): Vertex = new Vertex {}
     def unapplySeq(v: Vertex): Option[Seq[AnyRef]] = Some(???)
-    // TODO: use union if possible: {{{ String |∨| (String, Expr.Lit[_]) }}}
   }
-  protected[syntax] object Edge {
-    def apply(): Edge = new Edge {}
+  object Edge {
+    @inline private[syntax] def apply(): Edge = new Edge {}
     def unapplySeq(v: Edge): Option[Seq[AnyRef]] = Some(???)
   }
 
@@ -46,7 +40,7 @@ package object syntax {
   }
 
   object := {
-    def unapply(arg: Any): Option[(String, Any)] = Some(???) // TODO
+    def unapply(arg: Any): Option[(String, Any)] = Some(???)
   }
 
 
