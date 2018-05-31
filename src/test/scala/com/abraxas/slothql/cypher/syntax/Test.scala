@@ -118,14 +118,43 @@ object SyntaxTest4 extends App {
 object SyntaxTest5 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < Edge("parent") - (g@Vertex("Group")) => g.prop[String]("name")
+    case Vertex("Group", "id" := "g1") < Edge("parent", 0 ** _) - (g@Vertex("Group")) => g.prop[String]("name")
   }
 
   println(query)
   println(query.known.toCypher)
 
-  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),None,Incoming){ <-[:`parent`]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownKey(KnownVar(g){ `g` },name){ `g`.`name` },None){ `g`.`name` }){ RETURN `g`.`name` })
-  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`]- (`g`:`Group`) RETURN `g`.`name`
+  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),Some(Range(Left(0))),Incoming){ <-[:`parent`*0..]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownKey(KnownVar(g){ `g` },name){ `g`.`name` },None){ `g`.`name` }){ RETURN `g`.`name` })
+  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) RETURN `g`.`name`
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[String] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest6 extends App {
+  val id = "g1"
+  val query = Match {
+    case Vertex("Group", "id" := "g1") < Edge("parent", **) - (g@Vertex("Group")) => g.prop[String]("name")
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),Some(All),Incoming){ <-[:`parent`*]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownKey(KnownVar(g){ `g` },name){ `g`.`name` },None){ `g`.`name` }){ RETURN `g`.`name` })
+  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) RETURN `g`.`name`
+
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 

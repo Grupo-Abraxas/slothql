@@ -43,6 +43,10 @@ package object syntax {
     def unapply(arg: Any): Option[(String, Any)] = Some(???)
   }
 
+  object ** {
+    def unapply(arg: Any): Option[(Int, Int)] = Some(???)
+  }
+
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 

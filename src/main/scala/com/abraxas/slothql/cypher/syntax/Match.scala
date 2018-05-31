@@ -42,7 +42,25 @@ object Match {
                 q"($k, _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
             }
         }
-        val length = None // TODO
+        val length = args.collect {
+          case sel2@Select(_, _) if sel2.tpe == typeOf[**.type] =>
+            q"_root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel.All"
+          case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= typeOf[**.type] =>
+            (args2: @unchecked) match {
+              case List(lTree, rTree) =>
+                def extractInt(tree: Tree) = (tree: @unchecked) match {
+                  case Literal(Constant(i: Int)) => Some(i)
+                  case Ident(termNames.WILDCARD) => None
+                }
+                val iorTree = extractInt(lTree) -> extractInt(rTree) match {
+                  case (Some(l), Some(r)) => q"_root_.cats.data.Ior.Both($l, $r)"
+                  case (Some(l), None)    => q"_root_.cats.data.Ior.Left($l)"
+                  case (None,    Some(r)) => q"_root_.cats.data.Ior.Right($r)"
+                }
+                q"_root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel.Range($iorTree)"
+            }
+        }.ensuring(_.size <= 1).headOption
+
         (labels, values, length)
       case _ => (Nil, Nil, None)
     }
