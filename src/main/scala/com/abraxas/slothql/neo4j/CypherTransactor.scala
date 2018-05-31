@@ -99,9 +99,13 @@ object CypherTransactor {
       ValueReader define (_.asMap(reader.apply(_: Value)).asScala.toMap)
 
     implicit lazy val any: ValueReader[Any] = ValueReader define (_.asObject())
-    implicit lazy val string: ValueReader[String] = ValueReader define (_.asString())
-    implicit lazy val int: ValueReader[Int] = ValueReader define (_.asInt())
     implicit lazy val boolean: ValueReader[Boolean] = ValueReader define (_.asBoolean())
+    implicit lazy val string: ValueReader[String] = ValueReader define (_.asString())
+
+    implicit lazy val int: ValueReader[Int] = ValueReader define (_.asInt())
+    implicit lazy val long: ValueReader[Long] = ValueReader define (_.asLong())
+    implicit lazy val float: ValueReader[Float] = ValueReader define (_.asFloat())
+    implicit lazy val double: ValueReader[Double] = ValueReader define (_.asDouble())
 
   }
 

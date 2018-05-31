@@ -16,8 +16,20 @@ package object syntax {
     lazy val name: String = _alias
     lazy val m: Manifest[Map[String, Any]] = manifest[Map[String, Any]]
 
+    /** Select vertex/edge property. */
     def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](this, k)
+    /** Select vertex/edge property as [[Option]]. */
     def propOpt[A: Manifest](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
+
+    /** Alias for [[prop]]. */
+    def apply[A: Manifest](k: String): Expr.Key[A] = prop(k)
+    /** Alias for [[propOpt]]. */
+    def opt[A: Manifest](k: String): Expr.Key[Option[A]] = propOpt(k)
+
+    /** Call built-in function `func` passing `this` expression as first argument. */
+    def call[R: Manifest](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
+      Expr.Call(func, this.known :: args.toList)
+
   }
   sealed trait Vertex extends GraphElem
   sealed trait Edge   extends GraphElem
@@ -42,6 +54,12 @@ package object syntax {
     def unapply(arg: Any): Option[(Int, Int)] = Some(???)
   }
 
+
+  // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+
+  implicit class CallExprOps(func: Symbol) {
+    def call[R](args: Known[Expr[_]]*): Expr.Call[R] = Expr.Call(func.name, args.toList)
+  }
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 

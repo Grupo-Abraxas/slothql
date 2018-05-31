@@ -126,7 +126,7 @@ object CypherFragment {
 
       override def toString: String = s"Var[$m]($name)"
     }
-    case class Call[A](func: String, params: NonEmptyList[Known[Expr[_]]]) extends Expr[A]
+    case class Call[A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
@@ -153,7 +153,7 @@ object CypherFragment {
     object Call {
       implicit def fragment[A]: CypherFragment[Call[A]] = instance.asInstanceOf[CypherFragment[Call[A]]]
       private lazy val instance = define[Call[_]] {
-        case Call(func, params) => s"${escapeName(func)}(${params.toList.map(_.toCypher).mkString(", ")})"
+        case Call(func, params) => s"${escapeName(func)}(${params.map(_.toCypher).mkString(", ")})"
       }
     }
 

@@ -117,7 +117,7 @@ object SyntaxTest4 extends App {
 object SyntaxTest5 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < Edge("parent", 0 ** _) - (g@Vertex("Group")) => g.prop[String]("name")
+    case Vertex("Group", "id" := "g1") < Edge("parent", 0 ** _) - (g@Vertex("Group")) => g[String]("name")
   }
 
   println(query)
@@ -145,14 +145,15 @@ object SyntaxTest5 extends App {
 object SyntaxTest6 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < Edge("parent", **) - (g@Vertex("Group")) => g
+    case Vertex("Group", "id" := "g1") < Edge("parent", **) - (g@Vertex("Group")) =>
+      (g, g.call[Map[String, Any]]("properties"), 'pi.call[Double]())
   }
 
   println(query)
   println(query.known.toCypher)
 
-  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) RETURN `g`
-  // result = Buffer(Map(name -> Sub Group, id -> g2))
+  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) RETURN `g`, `properties`(`g`), `pi`()
+  // result = Buffer((Map(name -> Sub Group, id -> g2),Map(name -> Sub Group, id -> g2),3.141592653589793))
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
@@ -161,7 +162,7 @@ object SyntaxTest6 extends App {
   import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
-  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
+  val result: Seq[(Map[String, Any], Map[String, Any], Double)] = io.unsafeRunSync()
 
   println("result = " + result)
 
