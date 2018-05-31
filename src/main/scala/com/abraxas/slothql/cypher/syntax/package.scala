@@ -30,9 +30,24 @@ package object syntax {
     def call[R: Manifest](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
       Expr.Call(func, this.known :: args.toList)
 
+    /** Call built-in `id` function. */
+    def id: Expr.Call[Long] = call("id")
+    /** Call built-in `count` function. */
+    def count: Expr.Call[Long] = call("count")
+    /** Call built-in `keys` function. */
+    def keys: Expr.Call[List[String]] = call("keys")
+
   }
-  sealed trait Vertex extends GraphElem
-  sealed trait Edge   extends GraphElem
+  sealed trait Vertex extends GraphElem {
+    /** Call built-in `labels` function. */
+    def labels: Expr.Call[List[String]] = call("labels")
+  }
+  sealed trait Edge extends GraphElem {
+    /** Call built-in `type` function. */
+    def tpe: Expr.Call[String] = call("type")
+    /** Call built-in `type` function. */
+    def `type`: Expr.Call[String] = tpe
+  }
 
   private[syntax] object Graph extends Graph
 

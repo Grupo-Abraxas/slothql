@@ -171,6 +171,80 @@ object SyntaxTest6 extends App {
 
 }
 
+object SyntaxTest7 extends App {
+  val id = "g1"
+  val query = Match {
+    case Vertex("Group", "id" := "g1") < (e@Edge("parent")) - (g@Vertex("Group")) => (
+      g.id,
+      g.count,
+      g.keys,
+      g.labels,
+      e.id,
+      e.count,
+      e.keys,
+      e.tpe
+    )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (:`Group`{ `id`: "g1" }) <-[`e`:`parent`]- (`g`:`Group`) RETURN `id`(`g`), `count`(`g`), `keys`(`g`), `labels`(`g`), `id`(`e`), `count`(`e`), `keys`(`e`), `type`(`e`)
+  // result = Buffer((3,1,List(name, id),List(Group),2,1,List(),parent))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Long, Long, List[String], List[String], Long, Long, List[String], String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+// TODO: failing - Type mismatch: expected Node or Relationship but was List<Relationship> (line 1, column 133 (offset: 132))
+object SyntaxTest8 extends App {
+  val id = "g1"
+  val query = Match {
+    case Vertex("Group", "id" := "g1") < (e@Edge("parent", 0 ** _)) - (g@Vertex("Group")) => (
+      g.id,
+      g.count,
+      g.keys,
+      g.labels,
+      e.id,
+      e.count,
+      e.keys,
+      e.tpe
+    )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) RETURN `g`.`name`
+  // result = Buffer(Root Group, Sub Group)
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Long, Long, List[String], List[String], Long, Long, List[String], String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
 
 
 /*
