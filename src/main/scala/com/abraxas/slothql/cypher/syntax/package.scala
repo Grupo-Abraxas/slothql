@@ -11,12 +11,14 @@ package object syntax {
 
   sealed trait Graph
 
-  sealed trait GraphElem {
+  sealed trait GraphElem extends Expr.Var[MapExpr0] {
     private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
-    def alias: String = _alias
 
-    def prop[A]: GraphElem.PropBuilder[A, this.type] = new GraphElem.PropBuilder[A, this.type](this)
-    def propOpt[A]: GraphElem.PropBuilder[Option[A], this.type] = new GraphElem.PropBuilder[Option[A], this.type](this)
+    lazy val name: String = _alias
+    lazy val m: Manifest[MapExpr0] = manifest[MapExpr0]
+
+    def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](this, k)
+    def propOpt[A: Manifest](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
   }
   sealed trait Vertex extends GraphElem
   sealed trait Edge   extends GraphElem
@@ -32,12 +34,6 @@ package object syntax {
     def unapplySeq(v: Edge): Option[Seq[AnyRef]] = Some(???)
   }
 
-  object GraphElem {
-    class PropBuilder[A, E <: GraphElem](elem: E) {
-      def apply(k: String)(implicit m: Manifest[A]): Expr.Key[A] =
-        Expr.Key[A](Expr.Var[MapExpr0](elem.alias), k)
-    }
-  }
 
   object := {
     def unapply(arg: Any): Option[(String, Any)] = Some(???)
@@ -90,9 +86,6 @@ package object syntax {
 
   implicit def makeLit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
 
-
-  implicit def returnGraphElem[E <: GraphElem](e: E)(implicit fragment: CypherFragment[Expr.Var[E]]): Return.Expr[E] =
-    Return.Expr(CypherFragment.Known(Expr.Var(e.alias)).widen, as = None)
 
   implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
     Return.Expr(CypherFragment.Known(e).widen, as = None)

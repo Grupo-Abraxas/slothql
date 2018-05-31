@@ -6,7 +6,7 @@ import cats.effect.IO
 import org.neo4j.driver.v1._
 import shapeless._
 
-import com.abraxas.slothql.cypher
+import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
 import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.neo4j.util.JavaExt._
 
@@ -99,10 +99,7 @@ object CypherTransactor {
       if (v.isNull) None else Some(reader(v))
     }
 
-    /** Returns map of values. */ // TODO: should it return labels?
-    implicit lazy val vertex: Aux[cypher.syntax.Vertex, Map[String, AnyRef]] = ValueReader define (_.asMap().asScala.toMap)
-    /** Returns map of values. */ // TODO: should it return type?
-    implicit lazy val edge: Aux[cypher.syntax.Edge, Map[String, AnyRef]] = ValueReader define (_.asMap().asScala.toMap)
+    implicit lazy val map: Aux[MapExpr0, Map[String, AnyRef]] = ValueReader define (_.asMap().asScala.toMap)
 
     implicit lazy val string: Aux[String, String] = ValueReader define (_.asString())
     implicit lazy val int: Aux[Int, Int] = ValueReader define (_.asInt())
