@@ -48,13 +48,13 @@ object CypherTransactor {
       }
 
 
-    implicit def singleValue[A](implicit vr: ValueReader[A]): Aux[A, vr.Out] =
+    implicit def singleValue[A](implicit vr: ValueReader[A]): Aux[A, A] =
       RecordReader define { rec =>
         vr(rec.ensuring(_.size() == 1).values().get(0))
       }
 
     private object ReadValue extends Poly2 {
-      implicit def impl[A](implicit reader: ValueReader[A]): Case.Aux[A, Value, reader.Out] =
+      implicit def impl[A](implicit reader: ValueReader[A]): Case.Aux[A, Value, A] =
         at[A, Value]((_, v) => reader(v))
     }
 
@@ -78,32 +78,30 @@ object CypherTransactor {
 
   }
 
-  type ValueReader[A] = Reader[Value, A]
+  type ValueReader[A] = Reader.Aux[Value, A, A]
   object ValueReader {
-    type Aux[A, R] = Reader.Aux[Value, A, R]
-
-    def define[A, R](f: Value => R): Aux[A, R] =
+    def define[A](f: Value => A): ValueReader[A] =
       new Reader[Value, A] {
-        type Out = R
-        def apply(rec: Value): R = f(rec)
+        type Out = A
+        def apply(rec: Value): A = f(rec)
       }
 
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
 
-    implicit def option[A, R](implicit reader: Aux[A, R]): Aux[Option[A], Option[R]] = ValueReader define { v =>
+    implicit def option[A](implicit reader: ValueReader[A]): ValueReader[Option[A]] = ValueReader define { v =>
       if (v.isNull) None else Some(reader(v))
     }
 
-    implicit def list[A](implicit reader: ValueReader[A]): Aux[List[A], List[reader.Out]] =
+    implicit def list[A](implicit reader: ValueReader[A]): ValueReader[List[A]] =
       ValueReader define (_.values(reader.apply(_: Value)).asScala.toList )
 
-    implicit def map[A](implicit reader: ValueReader[A]): Aux[Map[String, A], Map[String, reader.Out]] =
+    implicit def map[A](implicit reader: ValueReader[A]): ValueReader[Map[String, A]] =
       ValueReader define (_.asMap(reader.apply(_: Value)).asScala.toMap)
 
-    implicit lazy val any: Aux[Any, Any] = ValueReader define (_.asObject())
-    implicit lazy val string: Aux[String, String] = ValueReader define (_.asString())
-    implicit lazy val int: Aux[Int, Int] = ValueReader define (_.asInt())
-    implicit lazy val boolean: Aux[Boolean, Boolean] = ValueReader define (_.asBoolean())
+    implicit lazy val any: ValueReader[Any] = ValueReader define (_.asObject())
+    implicit lazy val string: ValueReader[String] = ValueReader define (_.asString())
+    implicit lazy val int: ValueReader[Int] = ValueReader define (_.asInt())
+    implicit lazy val boolean: ValueReader[Boolean] = ValueReader define (_.asBoolean())
 
   }
 
