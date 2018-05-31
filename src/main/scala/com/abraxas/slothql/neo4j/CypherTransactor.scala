@@ -6,7 +6,6 @@ import cats.effect.IO
 import org.neo4j.driver.v1._
 import shapeless._
 
-import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
 import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.neo4j.util.JavaExt._
 
@@ -48,10 +47,6 @@ object CypherTransactor {
         def apply(rec: Record): R = f(rec)
       }
 
-    implicit lazy val any: Aux[Any, Map[String, AnyRef]] =
-      RecordReader define (_.asMap().asScala.toMap)
-    implicit lazy val anyList: Aux[List[Any], List[AnyRef]] =
-      RecordReader define (_.values().asScala.map(_.asObject()).toList)
 
     implicit def singleValue[A](implicit vr: ValueReader[A]): Aux[A, vr.Out] =
       RecordReader define { rec =>
@@ -99,8 +94,13 @@ object CypherTransactor {
       if (v.isNull) None else Some(reader(v))
     }
 
-    implicit lazy val map: Aux[MapExpr0, Map[String, AnyRef]] = ValueReader define (_.asMap().asScala.toMap)
+    implicit def list[A](implicit reader: ValueReader[A]): Aux[List[A], List[reader.Out]] =
+      ValueReader define (_.values(reader.apply(_: Value)).asScala.toList )
 
+    implicit def map[A](implicit reader: ValueReader[A]): Aux[Map[String, A], Map[String, reader.Out]] =
+      ValueReader define (_.asMap(reader.apply(_: Value)).asScala.toMap)
+
+    implicit lazy val any: Aux[Any, Any] = ValueReader define (_.asObject())
     implicit lazy val string: Aux[String, String] = ValueReader define (_.asString())
     implicit lazy val int: Aux[Int, Int] = ValueReader define (_.asInt())
     implicit lazy val boolean: Aux[Boolean, Boolean] = ValueReader define (_.asBoolean())

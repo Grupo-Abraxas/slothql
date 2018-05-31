@@ -161,7 +161,7 @@ object SyntaxTest6 extends App {
   import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
-  val result: Seq[Map[String, AnyRef]] = io.unsafeRunSync()
+  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
 
   println("result = " + result)
 

@@ -3,7 +3,6 @@ package com.abraxas.slothql
 import cats.data.NonEmptyList
 import shapeless._
 
-import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
 import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.neo4j.CypherTransactor
 
@@ -24,6 +23,7 @@ object Test1 extends App {
   println("query = " + query.known.toCypher)
 
   import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result = io.unsafeRunSync()
@@ -50,6 +50,7 @@ object Test2 extends App {
   println("query = " + query.known.toCypher)
 
   import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result = io.unsafeRunSync()
@@ -65,7 +66,7 @@ object Test3 extends App {
   val tx = CypherTransactor.Default(driver.session())
 
   val pattern = Pattern.Node(alias = Some("n"), labels = List("User"), map = Map())
-  val n = Expr.Var[MapExpr0]("n")
+  val n = Expr.Var[Map[String, Any]]("n")
   val query = Query.Clause(
     Clause.Match(
       NonEmptyList(pattern, Nil),

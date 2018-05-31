@@ -4,18 +4,17 @@ import scala.language.implicitConversions
 
 import shapeless.{ <:!<, Generic, HList }
 
-import com.abraxas.slothql.cypher.CypherFragment.Expr.MapExpr0
-import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Return }
+import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Return }
 
 package object syntax {
 
   sealed trait Graph
 
-  sealed trait GraphElem extends Expr.Var[MapExpr0] {
+  sealed trait GraphElem extends Expr.Var[Map[String, Any]] {
     private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
 
     lazy val name: String = _alias
-    lazy val m: Manifest[MapExpr0] = manifest[MapExpr0]
+    lazy val m: Manifest[Map[String, Any]] = manifest[Map[String, Any]]
 
     def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](this, k)
     def propOpt[A: Manifest](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
@@ -88,7 +87,7 @@ package object syntax {
 
 
   implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
-    Return.Expr(CypherFragment.Known(e).widen, as = None)
+    Return.Expr(Known(e).widen, as = None)
 
   implicit def returnTuple[P <: Product, L <: HList](p: P)(
     implicit gen: Generic.Aux[P, L], build: Return.List.Build[L], ev: P <:!< Expr[_]
