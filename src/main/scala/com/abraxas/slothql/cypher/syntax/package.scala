@@ -91,6 +91,9 @@ package object syntax {
   implicit def makeLit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
 
 
+  implicit def returnGraphElem[E <: GraphElem](e: E)(implicit fragment: CypherFragment[Expr.Var[E]]): Return.Expr[E] =
+    Return.Expr(CypherFragment.Known(Expr.Var(e.alias)).widen, as = None)
+
   implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
     Return.Expr(CypherFragment.Known(e).widen, as = None)
 

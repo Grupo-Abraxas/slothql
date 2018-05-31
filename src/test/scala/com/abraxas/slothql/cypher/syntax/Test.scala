@@ -62,6 +62,7 @@ object SyntaxTest3 extends App {
 
   // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(Some(user),List(),Map()){ (`user`) },KnownRel(None,List(),Map(),None,Incoming){ <-[]- },KnownPath(KnownNode(None,List(),Map()){ () },KnownRel(None,List(),Map(),None,Incoming){ <-[]- },KnownNode(Some(group),List(),Map()){ (`group`) }){ () <-[]- (`group`) }){ (`user`) <-[]- () <-[]- (`group`) }),false,None){ MATCH (`user`) <-[]- () <-[]- (`group`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar(user){ `user` },email){ `user`.`email` },None){ `user`.`email` }, KnownExpr(KnownKey(KnownVar(user){ `user` },name){ `user`.`name` },None){ `user`.`name` }, KnownExpr(KnownKey(KnownVar(user){ `user` },age){ `user`.`age` },None){ `user`.`age` }, KnownExpr(KnownKey(KnownVar(user){ `user` },confirmed){ `user`.`confirmed` },None){ `user`.`confirmed` }, KnownExpr(KnownKey(KnownVar(group){ `group` },name){ `group`.`name` },None){ `group`.`name` }){ `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name` }){ RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name` })
   // MATCH (`user`) <-[]- () <-[]- (`group`) RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`
+  // result = Buffer((Some(john@example.com),Some(John),Some(28),Some(true),Root Group), (None,None,None,None,Sub Group), (Some(john@example.com),Some(John),Some(28),Some(true),Sub Group))
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
@@ -98,6 +99,7 @@ object SyntaxTest4 extends App {
 
   // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(Some(u),List(User),Map(id -> KnownLit(u1){ "u1" })){ (`u`:`User`{ `id`: "u1" }) },KnownRel(None,List(),Map(),None,Incoming){ <-[]- },KnownPath(KnownNode(None,List(Members),Map()){ (:`Members`) },KnownRel(None,List(),Map(),None,Incoming){ <-[]- },KnownNode(Some(group),List(),Map()){ (`group`) }){ (:`Members`) <-[]- (`group`) }){ (`u`:`User`{ `id`: "u1" }) <-[]- (:`Members`) <-[]- (`group`) }),false,None){ MATCH (`u`:`User`{ `id`: "u1" }) <-[]- (:`Members`) <-[]- (`group`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar(u){ `u` },email){ `u`.`email` },None){ `u`.`email` }, KnownExpr(KnownKey(KnownVar(u){ `u` },name){ `u`.`name` },None){ `u`.`name` }, KnownExpr(KnownKey(KnownVar(u){ `u` },age){ `u`.`age` },None){ `u`.`age` }, KnownExpr(KnownKey(KnownVar(u){ `u` },confirmed){ `u`.`confirmed` },None){ `u`.`confirmed` }, KnownExpr(KnownKey(KnownVar(group){ `group` },name){ `group`.`name` },None){ `group`.`name` }){ `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name` }){ RETURN `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name` })
   // MATCH (`u`:`User`{ `id`: "u1" }) <-[]- (:`Members`) <-[]- (`group`) RETURN `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name`
+  // result = Buffer((john@example.com,John,28,true,Sub Group), (john@example.com,John,28,true,Root Group))
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
@@ -126,6 +128,7 @@ object SyntaxTest5 extends App {
 
   // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),Some(Range(Left(0))),Incoming){ <-[:`parent`*0..]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownKey(KnownVar(g){ `g` },name){ `g`.`name` },None){ `g`.`name` }){ RETURN `g`.`name` })
   // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) RETURN `g`.`name`
+  // result = Buffer(Root Group, Sub Group)
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
@@ -146,14 +149,15 @@ object SyntaxTest5 extends App {
 object SyntaxTest6 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < Edge("parent", **) - (g@Vertex("Group")) => g.prop[String]("name")
+    case Vertex("Group", "id" := "g1") < Edge("parent", **) - (g@Vertex("Group")) => g
   }
 
   println(query)
   println(query.known.toCypher)
 
-  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),Some(All),Incoming){ <-[:`parent`*]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownKey(KnownVar(g){ `g` },name){ `g`.`name` },None){ `g`.`name` }){ RETURN `g`.`name` })
-  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) RETURN `g`.`name`
+  // Clause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Group),Map(id -> KnownLit(g1){ "g1" })){ (:`Group`{ `id`: "g1" }) },KnownRel(None,List(parent),Map(),Some(All),Incoming){ <-[:`parent`*]- },KnownNode(Some(g),List(Group),Map()){ (`g`:`Group`) }){ (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) }),false,None){ MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) },KnownReturn(KnownExpr(KnownVar(g){ `g` },None){ `g` }){ RETURN `g` })
+  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*]- (`g`:`Group`) RETURN `g`
+  // result = Buffer(Map(name -> Sub Group, id -> g2))
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
@@ -162,7 +166,7 @@ object SyntaxTest6 extends App {
   import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
-  val result: Seq[String] = io.unsafeRunSync()
+  val result: Seq[Map[String, AnyRef]] = io.unsafeRunSync()
 
   println("result = " + result)
 
