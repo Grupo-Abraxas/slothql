@@ -117,7 +117,7 @@ object SyntaxTest4 extends App {
 object SyntaxTest5 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < Edge("parent", 0 ** _) - (g@Vertex("Group")) => g[String]("name")
+    case Vertex("Group", "id" := `id`) < Edge("parent", 0 ** _) - (g@Vertex("Group")) => g[String]("name")
   }
 
   println(query)
@@ -145,7 +145,7 @@ object SyntaxTest5 extends App {
 object SyntaxTest6 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < Edge("parent", **) - (g@Vertex("Group")) =>
+    case Vertex("Group", "id" := `id`) < Edge("parent", **) - (g@Vertex("Group")) =>
       (g, g.call[Map[String, Any]]("properties"), 'pi.call[Double]())
   }
 
@@ -174,7 +174,7 @@ object SyntaxTest6 extends App {
 object SyntaxTest7 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < (e@Edge("parent")) - (g@Vertex("Group")) => (
+    case Vertex("Group", "id" := `id`) < (e@Edge("parent")) - (g@Vertex("Group")) => (
       g.id,
       g.count,
       g.keys,
@@ -212,7 +212,7 @@ object SyntaxTest7 extends App {
 object SyntaxTest8 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := "g1") < (e@Edge("parent", 0 ** _)) - (g@Vertex("Group")) => (
+    case Vertex("Group", "id" := `id`) < (e@Edge("parent", 0 ** _)) - (g@Vertex("Group")) => (
       g.id,
       g.count,
       g.keys,
