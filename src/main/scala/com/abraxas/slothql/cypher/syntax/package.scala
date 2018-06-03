@@ -91,7 +91,7 @@ package object syntax {
   }
 
   implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) {
-    def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0.known.widen)
+    def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0.known)
 
     def and[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.And)
     def or [E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Or)
@@ -101,7 +101,7 @@ package object syntax {
     def ||[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = or (expr1)
 
     private def binary[E1 <: Expr[Boolean]: CypherFragment](expr1: E1, op: Expr.LogicExpr.BinaryOp) =
-      Expr.LogicBinaryExpr(expr0.known.widen, expr1.known.widen, op)
+      Expr.LogicBinaryExpr(expr0.known, expr1.known, op)
   }
 
   implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) {
@@ -114,9 +114,9 @@ package object syntax {
     def isNull  : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.IsNull)
     def notNull : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.NotNull)
 
-    private def unary(op: Expr.CompareExpr.UnaryOp) = Expr.CompareUnaryExpr(expr0.known.widen, op)
+    private def unary(op: Expr.CompareExpr.UnaryOp) = Expr.CompareUnaryExpr(expr0.known, op)
     private def binary[E1 <: Expr[_]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryAnyOp) =
-      Expr.CompareBinaryAnyExpr(expr0.known.widen, expr1.known.widen, op)
+      Expr.CompareBinaryAnyExpr(expr0.known, expr1.known, op)
   }
 
   implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) {
@@ -131,7 +131,7 @@ package object syntax {
     def > [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
 
     private def binary[E1 <: Expr[A]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryOp) =
-      Expr.CompareBinaryExpr(expr0.known.widen, expr1.known.widen, op)
+      Expr.CompareBinaryExpr(expr0.known, expr1.known, op)
   }
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
