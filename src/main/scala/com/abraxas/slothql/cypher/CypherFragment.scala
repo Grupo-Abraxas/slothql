@@ -246,7 +246,8 @@ object CypherFragment {
 
     // // // Compare // // //
     sealed trait CompareExpr extends Expr[Boolean]
-    case class CompareBinaryExpr(left: Known[Expr[Any]], right: Known[Expr[Any]], op: CompareExpr.BinaryOp) extends CompareExpr
+    case class CompareBinaryExpr[A](left: Known[Expr[A]], right: Known[Expr[A]], op: CompareExpr.BinaryOp) extends CompareExpr
+    case class CompareBinaryAnyExpr(left: Known[Expr[Any]], right: Known[Expr[Any]], op: CompareExpr.BinaryAnyOp) extends CompareExpr
     case class CompareUnaryExpr(expr: Known[Expr[Any]], op: CompareExpr.UnaryOp) extends CompareExpr
 
     object CompareExpr {
@@ -255,8 +256,10 @@ object CypherFragment {
       case object Lte extends BinaryOp
       case object Gte extends BinaryOp
       case object Gt  extends BinaryOp
-      case object Eq  extends BinaryOp
-      case object Neq extends BinaryOp
+
+      sealed trait BinaryAnyOp
+      case object Eq  extends BinaryAnyOp
+      case object Neq extends BinaryAnyOp
 
       sealed trait UnaryOp
       case object IsNull  extends UnaryOp
@@ -269,6 +272,10 @@ object CypherFragment {
             case Lte => "<="
             case Gte => ">="
             case Gt  => ">"
+          }
+          s"${left.toCypher} $opStr ${right.toCypher}"
+        case CompareBinaryAnyExpr(left, right, op) =>
+          val opStr = op match {
             case Eq  => "="
             case Neq => "<>"
           }
