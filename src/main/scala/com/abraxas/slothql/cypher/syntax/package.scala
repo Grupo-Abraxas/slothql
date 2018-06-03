@@ -10,25 +10,34 @@ package object syntax {
 
   sealed trait Graph
 
-  sealed trait GraphElem extends Expr.Var[Map[String, Any]] {
-    private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
+  type GraphElem = Expr.Var[Map[String, Any]] with Graph.Elem
+  type Vertex    = Expr.Var[Map[String, Any]] with Graph.Vertex
+  type Edge      = Expr.Var[Map[String, Any]] with Graph.Edge
 
-    lazy val name: String = _alias
-    lazy val m: Manifest[Map[String, Any]] = manifest[Map[String, Any]]
+  object GraphElem {
+    private[syntax] class Impl extends Expr.Var[Map[String, Any]] {
+      private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
 
+      lazy val name: String = _alias
+      lazy val m: Manifest[Map[String, Any]] = manifest[Map[String, Any]]
+    }
+  }
+
+  final implicit class GraphElemOps(e: GraphElem) {
     /** Select vertex/edge property. */
-    def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](this, k)
+    def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](e, k)
     /** Select vertex/edge property as [[Option]]. */
     def propOpt[A: Manifest](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
 
     /** Alias for [[prop]]. */
+    @deprecated("seems to break query type resolution", since = "03.06.18")
     def apply[A: Manifest](k: String): Expr.Key[A] = prop(k)
     /** Alias for [[propOpt]]. */
     def opt[A: Manifest](k: String): Expr.Key[Option[A]] = propOpt(k)
 
     /** Call built-in function `func` passing `this` expression as first argument. */
     def call[R: Manifest](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
-      Expr.Call(func, this.known :: args.toList)
+      Expr.Call(func, e.known :: args.toList)
 
     /** Call built-in `id` function. */
     def id: Expr.Call[Long] = call("id")
@@ -38,25 +47,31 @@ package object syntax {
     def keys: Expr.Call[List[String]] = call("keys")
 
   }
-  sealed trait Vertex extends GraphElem {
+
+  final implicit class VertexOps(v: Vertex) {
     /** Call built-in `labels` function. */
-    def labels: Expr.Call[List[String]] = call("labels")
+    def labels: Expr.Call[List[String]] = v.call("labels")
   }
-  sealed trait Edge extends GraphElem {
+
+  final implicit class EdgeOps(e: Edge) {
     /** Call built-in `type` function. */
-    def tpe: Expr.Call[String] = call("type")
+    def tpe: Expr.Call[String] = e.call("type")
     /** Call built-in `type` function. */
     def `type`: Expr.Call[String] = tpe
   }
 
-  private[syntax] object Graph extends Graph
+  private[syntax] object Graph extends Graph {
+    sealed trait Elem
+    sealed trait Vertex extends Elem
+    sealed trait Edge   extends Elem
+  }
 
   object Vertex {
-    @inline private[syntax] def apply(): Vertex = new Vertex {}
+    @inline private[syntax] def apply(): Vertex = (new GraphElem.Impl).asInstanceOf[Vertex]
     def unapplySeq(v: Vertex): Option[Seq[AnyRef]] = Some(???)
   }
   object Edge {
-    @inline private[syntax] def apply(): Edge = new Edge {}
+    @inline private[syntax] def apply(): Edge = (new GraphElem.Impl).asInstanceOf[Edge]
     def unapplySeq(v: Edge): Option[Seq[AnyRef]] = Some(???)
   }
 
@@ -65,10 +80,9 @@ package object syntax {
     def unapply(arg: Any): Option[(String, Any)] = Some(???)
   }
 
-  object ** {
-    def unapply(arg: Any): Option[(Int, Int)] = Some(???)
+  object *: {
+    def unapply(edge: Edge): Option[(Expr.Var[List[Map[String, Any]]], -[Int, Int], Edge)] = Some(???)
   }
-
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 

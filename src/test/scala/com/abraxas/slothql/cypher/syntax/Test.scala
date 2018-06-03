@@ -40,7 +40,7 @@ object SyntaxTest2 extends App {
   println(query)
   println(query.known.toCypher)
 
-  // MATCH (`a`) -[`b`]-> (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) RETURN `a`.`count`, `f`.`name`
+  // MATCH (`a`) -[`b`]-> (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) RETURN `a`.`count`
 }
 
 object SyntaxTest3 extends App {
@@ -53,7 +53,6 @@ object SyntaxTest3 extends App {
         user.propOpt[Boolean]("confirmed"),
         group.prop[String]("name")
       )
-//        role.prop[String]("name") TODO
   }
 
   println(query)
@@ -89,7 +88,6 @@ object SyntaxTest4 extends App {
         u.prop[Boolean]("confirmed"),
         group.prop[String]("name")
       )
-//        role.prop[String]("name") TODO
   }
 
   println(query)
@@ -117,7 +115,7 @@ object SyntaxTest4 extends App {
 object SyntaxTest5 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := `id`) < Edge("parent", 0 ** _) - (g@Vertex("Group")) => g[String]("name")
+    case Vertex("Group", "id" := `id`) < (_ *: (0 - _, Edge("parent"))) - (g@Vertex("Group")) => g.prop[String]("name")
   }
 
   println(query)
@@ -145,7 +143,7 @@ object SyntaxTest5 extends App {
 object SyntaxTest6 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := `id`) < Edge("parent", **) - (g@Vertex("Group")) =>
+    case Vertex("Group", "id" := `id`) < (_ *: (_, Edge("parent"))) - (g@Vertex("Group")) =>
       (g, g.call[Map[String, Any]]("properties"), 'pi.call[Double]())
   }
 
@@ -208,27 +206,23 @@ object SyntaxTest7 extends App {
 
 }
 
-// TODO: failing - Type mismatch: expected Node or Relationship but was List<Relationship> (line 1, column 133 (offset: 132))
 object SyntaxTest8 extends App {
   val id = "g1"
   val query = Match {
-    case Vertex("Group", "id" := `id`) < (e@Edge("parent", 0 ** _)) - (g@Vertex("Group")) => (
+    case Vertex("Group", "id" := `id`) < (es *:(0 - _, Edge("parent"))) - (g@Vertex("Group")) => (
       g.id,
       g.count,
       g.keys,
       g.labels,
-      e.id,
-      e.count,
-      e.keys,
-      e.tpe
+      es
     )
   }
 
   println(query)
   println(query.known.toCypher)
 
-  // MATCH (:`Group`{ `id`: "g1" }) <-[:`parent`*0..]- (`g`:`Group`) RETURN `g`.`name`
-  // result = Buffer(Root Group, Sub Group)
+  // MATCH (:`Group`{ `id`: "g1" }) <-[`es`:`parent`*0..]- (`g`:`Group`) RETURN `id`(`g`), `count`(`g`), `keys`(`g`), `labels`(`g`), `es`
+  // result = Buffer((3,1,List(name, id),List(Group),List(Map())), (2,1,List(name, id),List(Group),List()))
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
@@ -237,7 +231,7 @@ object SyntaxTest8 extends App {
   import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
-  val result: Seq[(Long, Long, List[String], List[String], Long, Long, List[String], String)] = io.unsafeRunSync()
+  val result: Seq[(Long, Long, List[String], List[String], List[Map[String, Any]])] = io.unsafeRunSync()
 
   println("result = " + result)
 
