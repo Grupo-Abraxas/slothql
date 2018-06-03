@@ -225,19 +225,15 @@ object CypherFragment {
     // // // Logic // // //
     sealed trait LogicExpr extends Expr[Boolean]
     case class LogicBinaryExpr(left: Known[Expr[Boolean]], right: Known[Expr[Boolean]], op: LogicExpr.BinaryOp) extends LogicExpr
-    case class LogicUnaryExpr(expr: Known[Expr[Boolean]], op: LogicExpr.UnaryOp) extends LogicExpr
+    case class LogicNegationExpr(expr: Known[Expr[Boolean]]) extends LogicExpr
     object LogicExpr {
       sealed trait BinaryOp
       case object Or  extends BinaryOp
       case object And extends BinaryOp
       case object Xor extends BinaryOp
 
-      sealed trait UnaryOp
-      case object Not     extends UnaryOp
-      case object IsNull  extends UnaryOp
-      case object NotNull extends UnaryOp
-
       implicit lazy val fragment: CypherFragment[LogicExpr] = define {
+        case LogicNegationExpr(expr) => s"NOT ${expr.toCypher}"
         case LogicBinaryExpr(left, right, op) =>
           val opStr = op match {
             case Or  => "OR"
@@ -245,30 +241,29 @@ object CypherFragment {
             case Xor => "XOR"
           }
           s"${left.toCypher} $opStr ${right.toCypher}"
-        case LogicUnaryExpr(expr, Not) =>
-          s"NOT ${expr.toCypher}"
-        case LogicUnaryExpr(expr, op) =>
-          val opStr = (op: @unchecked) match {
-            case IsNull  => "IS NULL"
-            case NotNull => "IS NOT NULL"
-          }
-          s"${expr.toCypher} $opStr"
       }
     }
 
     // // // Compare // // //
-    case class CompareExpr(left: Known[Expr[Any]], right: Known[Expr[Any]], op: CompareExpr.Op) extends Expr[Boolean]
+    sealed trait CompareExpr extends Expr[Boolean]
+    case class CompareBinaryExpr(left: Known[Expr[Any]], right: Known[Expr[Any]], op: CompareExpr.BinaryOp) extends CompareExpr
+    case class CompareUnaryExpr(expr: Known[Expr[Any]], op: CompareExpr.UnaryOp) extends CompareExpr
+
     object CompareExpr {
-      sealed trait Op
-      case object Lt  extends Op
-      case object Lte extends Op
-      case object Gte extends Op
-      case object Gt  extends Op
-      case object Eq  extends Op
-      case object Neq extends Op
+      sealed trait BinaryOp
+      case object Lt  extends BinaryOp
+      case object Lte extends BinaryOp
+      case object Gte extends BinaryOp
+      case object Gt  extends BinaryOp
+      case object Eq  extends BinaryOp
+      case object Neq extends BinaryOp
+
+      sealed trait UnaryOp
+      case object IsNull  extends UnaryOp
+      case object NotNull extends UnaryOp
 
       implicit lazy val fragment: CypherFragment[CompareExpr] = define {
-        case CompareExpr(left, right, op) =>
+        case CompareBinaryExpr(left, right, op) =>
           val opStr = op match {
             case Lt  => "<"
             case Lte => "<="
@@ -278,6 +273,12 @@ object CypherFragment {
             case Neq => "<>"
           }
           s"${left.toCypher} $opStr ${right.toCypher}"
+        case CompareUnaryExpr(expr, op) =>
+          val opStr = op match {
+            case IsNull  => "IS NULL"
+            case NotNull => "IS NOT NULL"
+          }
+          s"${expr.toCypher} $opStr"
       }
     }
   }
