@@ -172,24 +172,25 @@ object CypherFragment {
     }
 
     // // // Lists // // //
-    case class List(get: scala.List[Known[Expr[_]]]) extends Expr[scala.List[Expr[_]]]
-    type ListExpr = Expr[scala.List[_]] // TODO
-    type IndexExpr = Expr[Long]         // TODO
-    case class In(elem: Known[Expr[_]], list: Known[ListExpr]) extends Expr[Boolean]
-    case class AtIndex[A](list: Known[ListExpr], index: Known[IndexExpr])(implicit val m: Manifest[A]) extends Expr[A]
-    case class AtRange[A](list: Known[ListExpr], limits: Ior[Known[IndexExpr], Known[IndexExpr]])(implicit val m: Manifest[A]) extends Expr[scala.List[A]]
+    case class List[A](get: scala.List[Known[Expr[A]]]) extends Expr[scala.List[A]]
+    case class In[A](elem: Known[Expr[A]], list: Known[Expr[scala.List[A]]]) extends Expr[Boolean]
+    case class AtIndex[A](list: Known[Expr[scala.List[A]]], index: Known[Expr[Long]]) extends Expr[A]
+    case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends Expr[scala.List[A]]
+    case class Concat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends Expr[scala.List[A]]
 
     object List {
-      implicit lazy val fragment: CypherFragment[List] = define {
+      implicit def fragment[A]: CypherFragment[List[A]] = instance.asInstanceOf[CypherFragment[List[A]]]
+      private lazy val instance: CypherFragment[List[_]] = define {
         _.get.map(_.toCypher).mkString("[ ", ", ", " ]")
       }
     }
     object In {
-      implicit lazy val fragment: CypherFragment[In] = define {
+      implicit def fragment[A]: CypherFragment[In[A]] = instance.asInstanceOf[CypherFragment[In[A]]]
+      private lazy val instance: CypherFragment[In[_]] = define {
         case In(elem, list) => s"${elem.toCypher} IN ${list.toCypher}"
       }
     }
-    private def atIndex(list: Known[ListExpr], index: String) = s"${list.toCypher}[$index]"
+    private def atIndex(list: Known[Expr[scala.List[_]]], index: String) = s"${list.toCypher}[$index]"
     object AtIndex {
       implicit def fragment[A]: CypherFragment[AtIndex[A]] = instance.asInstanceOf[CypherFragment[AtIndex[A]]]
       private lazy val instance = define[AtIndex[_]] {
@@ -200,6 +201,12 @@ object CypherFragment {
       implicit def fragment[A]: CypherFragment[AtRange[A]] = instance.asInstanceOf[CypherFragment[AtRange[A]]]
       private lazy val instance = define[AtRange[_]] {
         case AtRange(list, range) => atIndex(list, rangeStr(range))
+      }
+    }
+    object Concat {
+      implicit def fragment[A]: CypherFragment[Concat[A]] = instance.asInstanceOf[CypherFragment[Concat[A]]]
+      private lazy val instance = define[Concat[_]] {
+        case Concat(list0, list1) => s"${list0.toCypher} + ${list1.toCypher}"
       }
     }
 
