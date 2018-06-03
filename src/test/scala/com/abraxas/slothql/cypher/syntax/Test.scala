@@ -282,6 +282,57 @@ object SyntaxTest9 extends App {
 
 }
 
+object SyntaxTest10 extends App {
+  val l = list("Admin", "Share", "Create")
+  val query = Match {
+    case v < e - _ => (
+      list(v.id, e.id),
+      l,
+      v.labels ++ list(e.tpe),
+      e.tpe in l,
+      v.labels at lit(0),
+      l at (lit(1), lit(2L)),
+      l from lit(2),
+      l to lit(2L)
+    )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v`) <-[`e`]- ()
+  // RETURN [ `id`(`v`), `id`(`e`) ],
+  //        [ "Admin", "Share", "Create" ],
+  //        `labels`(`v`) + [ `type`(`e`) ],
+  //        `type`(`e`) IN [ "Admin", "Share", "Create" ],
+  //        `labels`(`v`)[0],
+  //        [ "Admin", "Share", "Create" ][1..2],
+  //        [ "Admin", "Share", "Create" ][2..],
+  //        [ "Admin", "Share", "Create" ][..2]
+  // result = Buffer(
+  //    (List(0, 0),List(Admin, Share, Create),List(User, Admin),     true, User,   List(Share),List(Create),List(Admin, Share)),
+  //    (List(1, 1),List(Admin, Share, Create),List(Members, members),false,Members,List(Share),List(Create),List(Admin, Share)),
+  //    (List(4, 4),List(Admin, Share, Create),List(Members, members),false,Members,List(Share),List(Create),List(Admin, Share)),
+  //    (List(2, 2),List(Admin, Share, Create),List(Group, parent),   false,Group,  List(Share),List(Create),List(Admin, Share)),
+  //    (List(0, 3),List(Admin, Share, Create),List(User, Edit),      false,User,   List(Share),List(Create),List(Admin, Share))
+  //  )
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 /*
 

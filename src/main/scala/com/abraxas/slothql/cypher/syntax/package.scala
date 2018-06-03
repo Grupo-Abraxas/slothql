@@ -2,7 +2,8 @@ package com.abraxas.slothql.cypher
 
 import scala.language.{ higherKinds, implicitConversions }
 
-import shapeless.{ <:!<, Generic, HList }
+import cats.data.Ior
+import shapeless.{ <:!<, Generic, HList, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Return }
 
@@ -130,8 +131,34 @@ package object syntax {
     def >=[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
     def > [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
 
+    def in[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.In[A] = Expr.In(expr0.known, expr1.known)
+
     private def binary[E1 <: Expr[A]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryOp) =
       Expr.CompareBinaryExpr(expr0.known, expr1.known, op)
+  }
+
+  implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]]) {
+    def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =
+      Expr.Concat(expr0.known.widen, expr1.known)
+    def ++[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] = concat(expr1)
+
+    def at[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtIndex[A] =
+      Expr.AtIndex(expr0.known.widen, i.asInstanceOf[E1[Long]].known)
+
+    def at[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](range: Ior[E1, E2]): Expr.AtRange[A] =
+      Expr.AtRange(expr0.known.widen, range.bimap(_.known, _.known))
+
+    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](l: E1[I1], r: E2[I2])(
+      implicit frag1: CypherFragment[E1[Long]], frag2: CypherFragment[E2[Long]]
+    ): Expr.AtRange[A] =
+      at(Ior.Both(l.asInstanceOf[E1[Long]], r.asInstanceOf[E2[Long]]))
+
+    def from[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
+      at[E1[Long], E1[Long]](Ior.Left(i.asInstanceOf[E1[Long]]))
+
+    def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
+      at[E1[Long], E1[Long]](Ior.Right(i.asInstanceOf[E1[Long]]))
+
   }
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
@@ -175,6 +202,9 @@ package object syntax {
 
 
   implicit def lit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
+  implicit def knownLit[A: Manifest](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
+
+  implicit def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
 
 
   implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
