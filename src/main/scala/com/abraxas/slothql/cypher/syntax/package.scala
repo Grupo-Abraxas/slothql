@@ -1,6 +1,6 @@
 package com.abraxas.slothql.cypher
 
-import scala.language.implicitConversions
+import scala.language.{ higherKinds, implicitConversions }
 
 import shapeless.{ <:!<, Generic, HList }
 
@@ -90,6 +90,50 @@ package object syntax {
     def call[R](args: Known[Expr[_]]*): Expr.Call[R] = Expr.Call(func.name, args.toList)
   }
 
+  implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) {
+    def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0.known.widen)
+
+    def and[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.And)
+    def or [E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Or)
+    def xor[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Xor)
+
+    def &&[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = and(expr1)
+    def ||[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = or (expr1)
+
+    private def binary[E1 <: Expr[Boolean]: CypherFragment](expr1: E1, op: Expr.LogicExpr.BinaryOp) =
+      Expr.LogicBinaryExpr(expr0.known.widen, expr1.known.widen, op)
+  }
+
+  implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) {
+    def eq [E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Eq)
+    def neq[E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Neq)
+
+    def ===[E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = eq(expr1)
+    def <> [E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = neq(expr1)
+
+    def isNull  : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.IsNull)
+    def notNull : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.NotNull)
+
+    private def unary(op: Expr.CompareExpr.UnaryOp) = Expr.CompareUnaryExpr(expr0.known.widen, op)
+    private def binary[E1 <: Expr[_]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryAnyOp) =
+      Expr.CompareBinaryAnyExpr(expr0.known.widen, expr1.known.widen, op)
+  }
+
+  implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) {
+    def lt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
+    def lte[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
+    def gte[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
+    def gt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
+
+    def < [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
+    def <=[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
+    def >=[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
+    def > [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
+
+    private def binary[E1 <: Expr[A]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryOp) =
+      Expr.CompareBinaryExpr(expr0.known.widen, expr1.known.widen, op)
+  }
+
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
 
@@ -130,7 +174,7 @@ package object syntax {
   lazy val ⟷ : --.type = --
 
 
-  implicit def makeLit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
+  implicit def lit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
 
 
   implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =

@@ -240,6 +240,48 @@ object SyntaxTest8 extends App {
 
 }
 
+object SyntaxTest9 extends App {
+  val query = Match {
+    case v < _ - _ => (
+      v.id,
+      v.id === lit(2),
+      v.id === lit("QWERTY"),
+      v.id > lit(2L),
+      !(v.id > lit(2L)),
+      v.id > lit(2L) && v.id <= lit(4L),
+      (v.id > lit(2L)) xor (v.id <= lit(4L)),
+      v.isNull
+    )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v`) <-[]- () RETURN `id`(`v`), `id`(`v`) = 2, `id`(`v`) = "QWERTY", `id`(`v`) > 2, NOT `id`(`v`) > 2, `id`(`v`) > 2 AND `id`(`v`) <= 4, `id`(`v`) > 2 XOR `id`(`v`) <= 4, `v` IS NULL
+  // result = Buffer(
+  //    (0,false,false,false,true,false,true,false),
+  //    (0,false,false,false,true,false,true,false),
+  //    (1,false,false,false,true,false,true,false),
+  //    (2,true, false,false,true,false,true,false),
+  //    (4,false,false,true,false,true,false,false)
+  //  )
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 /*
 
