@@ -360,6 +360,87 @@ object SyntaxTest11 extends App {
 
 }
 
+object SyntaxTest12 extends App {
+  val query = Match {
+    case v1 -> v2 `<-` v3 => list(v1, v2, v3)
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v1`) -[]-> (`v2`) <-[]- (`v3`) RETURN [ `v1`, `v2`, `v3` ]
+  // result = Buffer(List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()), List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[List[Map[String, Any]]] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest13 extends App {
+  val query = Match {
+    case v1 -> v2 -(e)> v3 `<-` v4 => list(v1, v2, v3, v4) -> e.tpe
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v1`) -[]-> (`v2`) -[`e`]-> (`v3`) <-[]- (`v4`) RETURN [ `v1`, `v2`, `v3`, `v4` ], `type`(`e`)
+  // result = Buffer((List(Map(name -> Root Group, id -> g1), Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()),Admin), (List(Map(name -> Sub Group, id -> g2), Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()),Edit))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(List[Map[String, Any]], String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest14 extends App {
+  val query = Match {
+    case v1 -> v2 <(e)- v3 `<-` v4 => list(v1, v2, v3, v4) -> e.tpe
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v1`) -[]-> (`v2`) <-[`e`]- (`v3`) <-[]- (`v4`) RETURN [ `v1`, `v2`, `v3`, `v4` ], `type`(`e`)
+  // result = Buffer((List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(), Map(name -> Root Group, id -> g1)),Admin), (List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(), Map(name -> Sub Group, id -> g2)),Edit))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(List[Map[String, Any]], String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 /*
 

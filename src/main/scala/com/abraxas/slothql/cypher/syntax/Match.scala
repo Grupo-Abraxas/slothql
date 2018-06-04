@@ -28,6 +28,8 @@ object Match {
     import c.universe._
 
     val `syntax pkg` = c.typeOf[com.abraxas.slothql.cypher.syntax.`package`.type]
+    val `syntax <-` = typeOf[`<-`.type]
+    val `syntax ->` = typeOf[->.type]
     val `syntax <` = typeOf[<.type]
     val `syntax >` = typeOf[>.type]
     val `syntax V-E` = typeOf[VE]
@@ -159,6 +161,12 @@ object Match {
     type NamedKnownExpr[A] = ((Symbol, Option[Name]), c.Expr[Known[A]])
     type KnownVertexEdgeExpr = Either[NamedKnownExpr[Pattern.Node], NamedKnownExpr[Pattern.Rel]]
 
+    object V1 {
+      def unapply(tree: Tree): Option[KnownVertexEdgeExpr] = PartialFunction.condOpt(tree) {
+        case ExtractNode(node) => Left(node)
+      }
+    }
+
     object V {
       def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
         case ExtractNode(node) => Left(node) :: Nil
@@ -182,6 +190,17 @@ object Match {
       }
     }
 
+    object DashListE {
+      def unapply(tree: Tree): Option[(Tree, c.Expr[Rel.Direction] => KnownVertexEdgeExpr)] = PartialFunction.condOpt(tree) {
+        case Apply(tt: TypeTree, List(t, ExtractRel(rel))) if tt.tpe.resultType =:= `syntax V-E` =>
+          t -> (dir => Right(rel(dir)))
+      }
+    }
+
+    def simpleRel(dir: c.Expr[Rel.Direction]): KnownVertexEdgeExpr = Right {
+      (NoSymbol, None) -> knownRelExpr(None, EmptyTree, None, dir)
+    }
+
     def failedToParse(tree: Tree) =
       c.abort(c.enclosingPosition, s"Failed to parse pattern of ${showCode(tree)}\n\n${showRaw(tree)}")
 
@@ -199,10 +218,15 @@ object Match {
         def extractPatternRev(tree: Tree): List[KnownVertexEdgeExpr] = tree match {
           case ua@UnApply(Apply(Select(arrow, TermName("unapply")), _), args) =>
             (args: @unchecked) match {
-              case List(V(v),                VOrDashEV(revHead))  if arrow.tpe =:= `syntax <` => revHead ::: v
-              case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <` => revHead ::: extractPatternRev(l)
-              case List(VOrDashVE(revHead1), VOrDashVE(revHead2)) if arrow.tpe =:= `syntax >` => revHead2 ::: revHead1
-              case List(l,                   VOrDashVE(revHead))  if arrow.tpe =:= `syntax >` => revHead ::: extractPatternRev(l)
+              case List(V1(v1),              V1(v2))              if arrow.tpe =:= `syntax <-` => v2 :: simpleRel(reify(Rel.Incoming)) :: v1 :: Nil
+              case List(l,                   V1(v))               if arrow.tpe =:= `syntax <-` => v  :: simpleRel(reify(Rel.Incoming)) :: extractPatternRev(l)
+              case List(V1(v1),              V1(v2))              if arrow.tpe =:= `syntax ->` => v2 :: simpleRel(reify(Rel.Outgoing)) :: v1 :: Nil
+              case List(l,                   V1(v))               if arrow.tpe =:= `syntax ->` => v  :: simpleRel(reify(Rel.Outgoing)) :: extractPatternRev(l)
+              case List(DashListE(l, e),     V1(v))               if arrow.tpe =:= `syntax >`  => v  :: e        (reify(Rel.Outgoing)) :: extractPatternRev(l)
+              case List(VOrDashVE(revHead1), VOrDashVE(revHead2)) if arrow.tpe =:= `syntax >`  => revHead2 ::: revHead1
+              case List(l,                   VOrDashVE(revHead))  if arrow.tpe =:= `syntax >`  => revHead  ::: extractPatternRev(l)
+              case List(V(v),                VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: v
+              case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: extractPatternRev(l)
               case _ => failedToParse(ua)
             }
           case _ => failedToParse(tree)
