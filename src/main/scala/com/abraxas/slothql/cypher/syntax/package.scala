@@ -209,13 +209,39 @@ package object syntax extends LowPriorityImplicits {
   implicit def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
 
 
-  implicit def returnExpr[A, E <: Expr[_]](e: E)(implicit ev: E <:< Expr[A], fragment: CypherFragment[E]): Return.Expr[A] =
-    Return.Expr(Known(e).widen, as = None)
+  implicit def queryReturn[T](t: T)(implicit qr: QueryReturn[T]): qr.Out = qr(t)
 
-  implicit def returnTuple[P <: Product, L <: HList](p: P)(
-    implicit gen: Generic.Aux[P, L], build: Return.List.Build[L], ev: P <:!< Expr[_]
-  ): build.Out = build(gen.to(p))
+  sealed trait QueryReturn[T]{
+    type Ret
+    type Out <: Return[Ret]
+    def apply(t: T): Out
+  }
+  object QueryReturn {
+    type Aux[T, R, O <: Return[R]] = QueryReturn[T] { type Ret = R; type Out = O }
 
+    implicit def returnExpr[A, E <: Expr[_]](
+      implicit
+      ev: E <:< Expr.Inv[A],
+      fragment: CypherFragment[E]
+    ): Aux[E, A, Return.Expr[A]] =
+      new QueryReturn[E] {
+        type Ret = A
+        type Out = Return.Expr[A]
+        def apply(e: E): Return.Expr[A] = Return.Expr(Known(e).widen, as = None)
+      }
+
+    implicit def returnTuple[P <: Product, L <: HList](
+      implicit
+      ev: P <:!< Expr[_],
+      gen: Generic.Aux[P, L],
+      build: Return.List.Build[L]
+    ): Aux[P, build.Ret, build.Out] =
+      new QueryReturn[P] {
+        type Ret = build.Ret
+        type Out = build.Out
+        def apply(p: P): build.Out = build(gen.to(p))
+      }
+  }
 }
 
 trait LowPriorityImplicits {
