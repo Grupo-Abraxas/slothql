@@ -9,7 +9,7 @@ import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Return }
 
 package object syntax extends LowPriorityImplicits {
 
-  sealed trait Graph
+  sealed trait Graph extends Expr.Var[Map[String, Any]] with Graph.Vertex
 
   type GraphElem = Expr.Var[Map[String, Any]] with Graph.Elem
   type Vertex    = Expr.Var[Map[String, Any]] with Graph.Vertex
@@ -61,10 +61,12 @@ package object syntax extends LowPriorityImplicits {
     def `type`: Expr.Call[String] = tpe
   }
 
-  private[syntax] object Graph extends Graph {
+  private[syntax] object Graph{
     sealed trait Elem
     sealed trait Vertex extends Elem
     sealed trait Edge   extends Elem
+
+    val instance: Graph = new GraphElem.Impl with Graph {}
   }
 
   object Vertex {

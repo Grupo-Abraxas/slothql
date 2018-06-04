@@ -441,6 +441,33 @@ object SyntaxTest14 extends App {
 
 }
 
+object SyntaxTest15 extends App {
+  val query = Match {
+    case v@Vertex("Group") => (v.id, v.prop[String]("name"))
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v`:`Group`) RETURN `id`(`v`), `v`.`name`
+  // result = Buffer((2,Root Group), (3,Sub Group))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Long, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 /*
 
