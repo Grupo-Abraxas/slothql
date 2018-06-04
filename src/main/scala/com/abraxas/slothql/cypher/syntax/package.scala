@@ -7,7 +7,7 @@ import shapeless.{ <:!<, Generic, HList, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Return }
 
-package object syntax {
+package object syntax extends LowPriorityImplicits {
 
   sealed trait Graph
 
@@ -214,4 +214,8 @@ package object syntax {
     implicit gen: Generic.Aux[P, L], build: Return.List.Build[L], ev: P <:!< Expr[_]
   ): build.Out = build(gen.to(p))
 
+}
+
+trait LowPriorityImplicits {
+  implicit def unwrapBooleanExprInIfGuard(e: Expr[Boolean]): Boolean = ???
 }

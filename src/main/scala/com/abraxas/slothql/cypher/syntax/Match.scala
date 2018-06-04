@@ -27,6 +27,7 @@ object Match {
   def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Return[R]]): c.Expr[Query[R]] = {
     import c.universe._
 
+    val `syntax pkg` = c.typeOf[com.abraxas.slothql.cypher.syntax.`package`.type]
     val `syntax <` = typeOf[<.type]
     val `syntax >` = typeOf[>.type]
     val `syntax V-E` = typeOf[VE]
@@ -233,6 +234,26 @@ object Match {
             q"_root_.com.abraxas.slothql.cypher.syntax.Match.Internal.setAlias($symbol, ${name.get.decodedName.toString})"
         }.toList
 
+
+        val whereVarExpr0 = reify {
+          var where: Option[Known[CypherFragment.Expr[Boolean]]] = null
+        }
+        val whereVarDefTree = c.typecheck{ whereVarExpr0.tree.asInstanceOf[Block].stats.head }
+        val whereVarSymbol  = whereVarDefTree.symbol
+        val whereIdent      = Ident(whereVarSymbol)
+        val whereIdentExpr  = c.Expr[Option[Known[CypherFragment.Expr[Boolean]]]](whereIdent)
+        val whereVarExpr    = c.Expr[Unit](Block(whereVarDefTree :: Nil, EmptyTree))
+
+        val whereClause = guard0 match {
+          case Apply(Select(pkg, TermName("unwrapBooleanExprInIfGuard")), List(cond)) if pkg.tpe =:= `syntax pkg` =>
+            q"_root_.scala.Some(_root_.com.abraxas.slothql.cypher.CypherFragment.Known($cond))"
+          case EmptyTree => q"_root_.scala.None"
+          case _ => c.abort(guard0.pos, "`if` contents cannot be transformed to WHERE clause:\n" + showRaw(guard0))
+        }
+
+        val setWhereVar = Assign(whereIdent, whereClause)
+
+
         object fTransormer extends Transformer {
           override def transform(tree: c.universe.Tree): c.universe.Tree = tree match {
             case b@Bind(name, _) =>
@@ -248,25 +269,27 @@ object Match {
 
           override def transformCaseDefs(trees: List[c.universe.CaseDef]): List[c.universe.CaseDef] =
             super.transformCaseDefs(trees).map {
-              case CaseDef(pat, guard, b0) =>
+              case CaseDef(pat, _, b0) =>
                 val b = b0 match {
-                  case Block(stats, expr) => Block(setAliases ::: stats, expr)
-                  case expr               => Block(setAliases, expr)
+                  case Block(stats, expr) => Block(setAliases ::: setWhereVar :: stats, expr)
+                  case expr               => Block(setAliases ::: setWhereVar :: Nil,   expr)
                 }
-                CaseDef(pat, guard, b)
+                CaseDef(pat, EmptyTree, b)
             }
         }
 
         val f2 = c.Expr[Graph => CypherFragment.Return[R]](fTransormer.transform(f.tree))
 
         val res = reify {
+          whereVarExpr.splice
+          val ret = f2.splice.apply(Internal.graph)
           Query.Clause(
             Clause.Match(
               NonEmptyList(pattern.splice, Nil),
               optional = false,
-              where = None
+              where = whereIdentExpr.splice
             ),
-            Query.Return(f2.splice.apply(Internal.graph))
+            Query.Return(ret)
           )
         }
 

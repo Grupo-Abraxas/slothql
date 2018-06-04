@@ -333,6 +333,33 @@ object SyntaxTest10 extends App {
 
 }
 
+object SyntaxTest11 extends App {
+  val query = Match {
+    case v < e - _ if e.tpe in list("Admin", "Share") => v
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v`) <-[`e`]- () WHERE `type`(`e`) IN [ "Admin", "Share" ] RETURN `v`
+  // result = Buffer(Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 /*
 
