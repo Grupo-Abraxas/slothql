@@ -468,6 +468,67 @@ object SyntaxTest15 extends App {
 
 }
 
+object SyntaxTest16 extends App {
+  val query = Match {
+    case v@Vertex("Group") =>
+      val name = v.prop[String]("name")
+      (v.id, name)
+        .orderBy(name, v.id)
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v`:`Group`) RETURN `id`(`v`), `v`.`name` ORDER BY `v`.`name`, `id`(`v`)
+  // result = Buffer((2,Root Group), (3,Sub Group))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Long, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest17 extends App {
+  val query = Match {
+    case v@Vertex("Group") =>
+      val name = v.prop[String]("name")
+      (v.id, name)
+        .orderBy(name.desc)
+        .orderBy(v.id)
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`v`:`Group`) RETURN `id`(`v`), `v`.`name` ORDER BY `v`.`name` DESC, `id`(`v`)
+  // result = Buffer((3,Sub Group), (2,Root Group))
+
+  val driver = Connection.driver
+  val tx = CypherTransactor.Default(driver.session())
+
+  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
+  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
+
+  val io = tx.read(query)
+  val result: Seq[(Long, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 
 /*
 

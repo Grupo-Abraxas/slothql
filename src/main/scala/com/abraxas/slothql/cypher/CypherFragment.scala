@@ -325,6 +325,9 @@ object CypherFragment {
     type Order = Map[Known[CypherFragment.Expr[_]], Ascending]
 
     case class Options[+A](ret: Known[Return0[A]], order: Order, skip: Option[Long], limit: Option[Long]) extends Return[A]
+    object Options {
+      type Inv[A] = Options[A]
+    }
 
     case object All extends Return1[Any]
     type All = All.type

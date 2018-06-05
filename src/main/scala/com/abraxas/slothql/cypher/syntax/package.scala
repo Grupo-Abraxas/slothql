@@ -241,6 +241,41 @@ package object syntax extends LowPriorityImplicits {
         type Out = build.Out
         def apply(p: P): build.Out = build(gen.to(p))
       }
+
+    implicit def returnOptions[A, E <: Return.Options[_]](implicit ev: E <:< Return.Options.Inv[A]): Aux[E, A, Return.Options[A]] =
+      _retOptions.asInstanceOf[Aux[E, A, Return.Options[A]]]
+    private lazy val _retOptions = new QueryReturn[Return.Options[_]] {
+      type Ret = Any
+      type Out = Return.Options[_]
+      def apply(t: Return.Options[_]): Return.Options[_] = t
+    }
+  }
+
+
+  implicit class ReturnOps[E](ret: E) {
+    def orderBy(by: ReturnOps.OrderBy*)(implicit qr: QueryReturn[E]): Return.Options[qr.Ret] = {
+      val order = by.map(_.asPair).toMap
+      qr(ret) match {
+        case ops:  Return.Options[qr.Ret @unchecked] => ops.copy(order = ops.order ++ order)
+        case expr: Return.Return0[qr.Ret @unchecked] => Return.Options(expr, order, None, None)
+      }
+    }
+  }
+
+  object ReturnOps {
+    sealed trait OrderBy{
+      val expr: Known[Expr[_]]
+      def isAscending: Boolean = this.isInstanceOf[Ascending]
+      def asPair: (Known[Expr[_]], Boolean) = expr -> isAscending
+    }
+    case class Ascending(expr: Known[Expr[_]]) extends OrderBy
+    case class Descending(expr: Known[Expr[_]]) extends OrderBy
+
+    implicit def defaultOrderingIsAscending[E <: Expr[_]](e: E)(implicit frag: CypherFragment[E]): Ascending = Ascending(e)
+  }
+
+  implicit class OrderDescendingOps[E <: Expr[_]: CypherFragment](e: E) {
+    def desc: ReturnOps.Descending = ReturnOps.Descending(e)
   }
 }
 
