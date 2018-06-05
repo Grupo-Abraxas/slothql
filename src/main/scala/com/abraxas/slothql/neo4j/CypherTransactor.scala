@@ -18,7 +18,7 @@ object CypherTransactor {
   type Aux[R] = CypherTransactor { type Result = R }
 
   trait Reader[Src, A] extends DepFn1[Src]
-  object Reader {
+  object Reader extends RecordReaders with ValueReaders {
     type Aux[Src, A, R] = Reader[Src, A] { type Out = R }
     def apply[Src, A](implicit reader: Reader[Src, A]): Aux[Src, A, reader.Out] = reader
   }
@@ -46,9 +46,10 @@ object CypherTransactor {
         type Out = R
         def apply(rec: Record): R = f(rec)
       }
+  }
 
-
-    implicit def singleValue[A](implicit vr: ValueReader[A]): Aux[A, A] =
+  protected trait RecordReaders {
+    implicit def singleValue[A](implicit vr: ValueReader[A]): RecordReader.Aux[A, A] =
       RecordReader define { rec =>
         vr(rec.ensuring(_.size() == 1).values().get(0))
       }
@@ -70,7 +71,7 @@ object CypherTransactor {
       values: ops.traversable.FromTraversable[Values],
       zipApply: ops.hlist.ZipWith.Aux[L, Values, ReadValue.type, Read],
       toTuple: ops.hlist.Tupler[Read]
-    ): Aux[L, toTuple.Out] =
+    ): RecordReader.Aux[L, toTuple.Out] =
       RecordReader define { record =>
         val Some(vs) = values(record.values().asScala)
         toTuple(zipApply(stubL(), vs))
@@ -85,7 +86,9 @@ object CypherTransactor {
         type Out = A
         def apply(rec: Value): A = f(rec)
       }
+  }
 
+  protected trait ValueReaders {
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
 
     implicit def option[A](implicit reader: ValueReader[A]): ValueReader[Option[A]] = ValueReader define { v =>

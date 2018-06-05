@@ -64,9 +64,6 @@ object SyntaxTest3 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(Option[String], Option[String], Option[Int], Option[Boolean], String)] = io.unsafeRunSync()
 
@@ -99,9 +96,6 @@ object SyntaxTest4 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(String, String, Int, Boolean, String)] = io.unsafeRunSync()
 
@@ -126,9 +120,6 @@ object SyntaxTest5 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[String] = io.unsafeRunSync()
@@ -155,9 +146,6 @@ object SyntaxTest6 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(Map[String, Any], Map[String, Any], Double)] = io.unsafeRunSync()
@@ -193,9 +181,6 @@ object SyntaxTest7 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(Long, Long, List[String], List[String], Long, Long, List[String], String)] = io.unsafeRunSync()
 
@@ -226,9 +211,6 @@ object SyntaxTest8 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(Long, Long, List[String], List[String], List[Map[String, Any]])] = io.unsafeRunSync()
@@ -268,9 +250,6 @@ object SyntaxTest9 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)] = io.unsafeRunSync()
@@ -320,9 +299,6 @@ object SyntaxTest10 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])] = io.unsafeRunSync()
 
@@ -346,9 +322,6 @@ object SyntaxTest11 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[Map[String, Any]] = io.unsafeRunSync()
@@ -374,9 +347,6 @@ object SyntaxTest12 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[List[Map[String, Any]]] = io.unsafeRunSync()
 
@@ -400,9 +370,6 @@ object SyntaxTest13 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(List[Map[String, Any]], String)] = io.unsafeRunSync()
@@ -428,9 +395,6 @@ object SyntaxTest14 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(List[Map[String, Any]], String)] = io.unsafeRunSync()
 
@@ -454,9 +418,6 @@ object SyntaxTest15 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
@@ -485,9 +446,6 @@ object SyntaxTest16 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
 
@@ -515,9 +473,6 @@ object SyntaxTest17 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
@@ -548,9 +503,6 @@ object SyntaxTest18 extends App {
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
 
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
-
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
 
@@ -579,9 +531,6 @@ object SyntaxTest19 extends App {
 
   val driver = Connection.driver
   val tx = CypherTransactor.Default(driver.session())
-
-  import com.abraxas.slothql.neo4j.CypherTransactor.RecordReader._
-  import com.abraxas.slothql.neo4j.CypherTransactor.ValueReader._
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
