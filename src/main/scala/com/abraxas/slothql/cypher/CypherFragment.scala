@@ -319,14 +319,20 @@ object CypherFragment {
   object Return {
 
     sealed trait Return0[+A] extends Return[A]
+    sealed trait Return1[+A] extends Return0[A]
 
-    case object All extends Return0[Any]
+    type Ascending = Boolean
+    type Order = Map[Known[CypherFragment.Expr[_]], Ascending]
+
+    case class Options[+A](ret: Known[Return0[A]], order: Order, skip: Option[Long], limit: Option[Long]) extends Return[A]
+
+    case object All extends Return1[Any]
     type All = All.type
 
-    case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return0[A]
+    case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A]
 
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
-    sealed trait List[L <: HList] extends Return[L] {
+    sealed trait List[L <: HList] extends Return0[L] {
       type Expressions <: HList
       val expressions: Expressions
       val toList: scala.List[Known[Expr[_]]]
@@ -390,6 +396,19 @@ object CypherFragment {
       case Expr(expr, as) => expr.toCypher + asStr(as)
       case List(head :: Nil) => head.toCypher
       case List(head :: tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
+      case Options(expr, order, skip, limit) =>
+        val orderFrag =
+          if (order.isEmpty) ""
+          else {
+            val by = order.map{
+              case (e, true)  => e.toCypher
+              case (e, false) => s"${e.toCypher} DESC"
+            }
+            " ORDER BY " + by.mkString(", ")
+          }
+        val skipFrag = skip map (" SKIP " + _) getOrElse ""
+        val limitFrag = limit map (" LIMIT " + _) getOrElse ""
+        s"${expr.toCypher}$orderFrag$skipFrag$limitFrag"
     }
   }
 
