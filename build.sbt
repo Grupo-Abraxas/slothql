@@ -16,3 +16,16 @@ libraryDependencies ++= Seq(
   "org.typelevel"   %% "cats-effect"        % "0.10.1",
   "org.neo4j.driver" % "neo4j-java-driver"  % "1.6.1"
 )
+
+// // // REPL // // //
+
+initialCommands in console :=
+  """
+    |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
+    |import com.abraxas.slothql.cypher.syntax._
+    |import com.abraxas.slothql.neo4j.CypherTransactor;
+  """.stripMargin
+
+
+// Ammonite
+ammHome := Some((baseDirectory.value / ".amm").getAbsolutePath)
