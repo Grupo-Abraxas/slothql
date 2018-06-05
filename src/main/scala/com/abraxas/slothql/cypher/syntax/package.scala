@@ -228,16 +228,16 @@ package object syntax extends LowPriorityImplicits {
         def apply(e: E): Return.Expr[A] = Return.Expr(Known(e).widen, as = None)
       }
 
-    implicit def returnTuple[P <: Product, L <: HList](
+    implicit def returnTuple[P <: Product, L <: HList, R <: HList, E <: HList](
       implicit
       ev: P <:!< Expr[_],
       gen: Generic.Aux[P, L],
-      build: Return.List.Build[L]
-    ): Aux[P, build.Ret, build.Out] =
+      build: Return.List.Build.Aux[L, R, E]
+    ): Aux[P, R, Return.List.Aux[R, E]] =
       new QueryReturn[P] {
-        type Ret = build.Ret
-        type Out = build.Out
-        def apply(p: P): build.Out = build(gen.to(p))
+        type Ret = R
+        type Out = Return.List.Aux[R, E]
+        def apply(p: P): Return.List.Aux[R, E] = build(gen.to(p))
       }
 
     implicit def returnOptions[A, E <: Return.Options[_]](implicit ev: E <:< Return.Options.Inv[A]): Aux[E, A, Return.Options[A]] =
