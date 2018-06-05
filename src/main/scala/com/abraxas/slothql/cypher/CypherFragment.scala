@@ -324,9 +324,34 @@ object CypherFragment {
     type Ascending = Boolean
     type Order = Map[Known[CypherFragment.Expr[_]], Ascending]
 
-    case class Options[+A](ret: Known[Return0[A]], order: Order, skip: Option[Long], limit: Option[Long]) extends Return[A]
+    trait Options[+A] extends Return[A] {
+      val ret: Known[Return0[A]]
+      val distinct: Boolean
+      val order: Order
+      val skip: Option[Long]
+      val limit: Option[Long]
+    }
     object Options {
       type Inv[A] = Options[A]
+
+      def apply[A](ret0: Known[Return0[A]], distinct0: Boolean, order0: Order, skip0: Option[Long], limit0: Option[Long]): Options[A] =
+        new Options[A] {
+          val ret: Known[Return0[A]] = ret0
+          val distinct: Boolean = distinct0
+          val order: Order = order0
+          val skip: Option[Long] = skip0
+          val limit: Option[Long] = limit0
+        }
+
+      def unapply[A](ret: Return[A]): Option[(Known[Return0[A]], Boolean, Order, Option[Long], Option[Long])] = PartialFunction.condOpt(ret) {
+        case ops: Options[A @unchecked] => (ops.ret, ops.distinct, ops.order, ops.skip, ops.limit)
+      }
+
+      protected[slothql] object Internal {
+        trait Ops[+A] extends Return[A] {
+          protected[slothql] val options: Known[Options[A]]
+        }
+      }
     }
 
     case object All extends Return1[Any]
@@ -399,7 +424,8 @@ object CypherFragment {
       case Expr(expr, as) => expr.toCypher + asStr(as)
       case List(head :: Nil) => head.toCypher
       case List(head :: tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
-      case Options(expr, order, skip, limit) =>
+      case Options(expr, distinct, order, skip, limit) =>
+        val distinctFrag = if (distinct) "DISTINCT " else ""
         val orderFrag =
           if (order.isEmpty) ""
           else {
@@ -411,7 +437,8 @@ object CypherFragment {
           }
         val skipFrag = skip map (" SKIP " + _) getOrElse ""
         val limitFrag = limit map (" LIMIT " + _) getOrElse ""
-        s"${expr.toCypher}$orderFrag$skipFrag$limitFrag"
+        s"$distinctFrag${expr.toCypher}$orderFrag$skipFrag$limitFrag"
+      case ops: Options.Internal.Ops[_] => ops.options.toCypher
     }
   }
 

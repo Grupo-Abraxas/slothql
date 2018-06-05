@@ -209,8 +209,6 @@ package object syntax extends LowPriorityImplicits {
   implicit def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
 
 
-  implicit def queryReturn[T](t: T)(implicit qr: QueryReturn[T]): qr.Out = qr(t)
-
   sealed trait QueryReturn[T]{
     type Ret
     type Out <: Return[Ret]
@@ -252,14 +250,23 @@ package object syntax extends LowPriorityImplicits {
   }
 
 
-  implicit class ReturnOps[E](ret: E) {
-    def orderBy(by: ReturnOps.OrderBy*)(implicit qr: QueryReturn[E]): Return.Options[qr.Ret] = {
-      val order = by.map(_.asPair).toMap
-      qr(ret) match {
-        case ops:  Return.Options[qr.Ret @unchecked] => ops.copy(order = ops.order ++ order)
-        case expr: Return.Return0[qr.Ret @unchecked] => Return.Options(expr, order, None, None)
-      }
-    }
+  implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e), false, Map(), None, None)
+
+
+  final case class ReturnOps[A] protected[syntax](
+      private val _ret: Known[Return.Return0[A]],
+      private val _distinct: Boolean,
+      private val _order: Return.Order,
+      private val _skip: Option[Long],
+      private val _limit: Option[Long]
+  ) extends Return.Options.Internal.Ops[A]
+  {
+    protected[slothql] lazy val options: Known[Return.Options[A]] = Known(Return.Options(_ret, _distinct, _order, _skip, _limit))
+
+    def orderBy(by: ReturnOps.OrderBy*): ReturnOps[A] = copy(_order = _order ++ by.map(_.asPair).toMap)
+    def skip(n: Long): ReturnOps[A] = copy(_skip = Some(n))
+    def limit(n: Long): ReturnOps[A] = copy(_limit = Some(n))
+    def distinct: ReturnOps[A] = copy(_distinct = true)
   }
 
   object ReturnOps {
