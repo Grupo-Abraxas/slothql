@@ -7,48 +7,37 @@ import org.neo4j.driver.v1._
 import shapeless._
 
 import com.abraxas.slothql.cypher.CypherFragment._
+import com.abraxas.slothql.cypher.CypherTransactor
+import com.abraxas.slothql.cypher.CypherTransactor.Reader
 import com.abraxas.slothql.neo4j.util.JavaExt._
 
-trait CypherTransactor {
-  type Result
-  def read[A](query: Known[Query[A]])(implicit read: CypherTransactor.Reader[Result, A]): IO[Seq[read.Out]]
+
+class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
+  import Neo4jCypherTransactor._
+
+  type Result = Record
+  type Reader[A] = RecordReader[A]
+  def read[A](query: Known[Query[A]])(implicit read: RecordReader[A]): IO[Seq[read.Out]] =
+    IO {
+      session().readTransaction(new TransactionWork[Seq[read.Out]] {
+        def execute(tx: Transaction): Seq[read.Out] = tx.run(new Statement(query.toCypher)).list(read(_: Record)).asScala // TODO
+      })
+    }
 }
 
-object CypherTransactor {
-  type Aux[R] = CypherTransactor { type Result = R }
+object Neo4jCypherTransactor {
+  def apply(session: => Session): Neo4jCypherTransactor = new Neo4jCypherTransactor(() => session)
 
-  trait Reader[Src, A] extends DepFn1[Src]
-  object Reader extends RecordReaders with ValueReaders {
-    type Aux[Src, A, R] = Reader[Src, A] { type Out = R }
-    def apply[Src, A](implicit reader: Reader[Src, A]): Aux[Src, A, reader.Out] = reader
-  }
-
-  class Default(protected val session: () => Session) extends CypherTransactor {
-    type Result = Record
-    def read[A](query: Known[Query[A]])(implicit read: Reader[Result, A]): IO[Seq[read.Out]] =
-      IO {
-        session().readTransaction(new TransactionWork[Seq[read.Out]] {
-          def execute(tx: Transaction): Seq[read.Out] = tx.run(new Statement(query.toCypher)).list(read(_: Record)).asScala // TODO
-        })
-      }
-  }
-  object Default {
-    def apply(session: => Session): Default = new Default(() => session)
-  }
-
-
-  type RecordReader[A] = Reader[Record, A]
+  trait RecordReader[A] extends Reader[Record, A]
   object RecordReader {
-    type Aux[A, R] = Reader.Aux[Record, A, R]
+    type Aux[A, R] = RecordReader[A] { type Out = R }
 
     def define[A, R](f: Record => R): Aux[A, R] =
-      new Reader[Record, A] {
+      new RecordReader[A] {
         type Out = R
         def apply(rec: Record): R = f(rec)
       }
-  }
 
-  protected trait RecordReaders {
     implicit def singleValue[A](implicit vr: ValueReader[A]): RecordReader.Aux[A, A] =
       RecordReader define { rec =>
         vr(rec.ensuring(_.size() == 1).values().get(0))
@@ -79,16 +68,13 @@ object CypherTransactor {
 
   }
 
-  type ValueReader[A] = Reader.Aux[Value, A, A]
+  trait ValueReader[A] extends Reader[Value, A] { type Out = A }
   object ValueReader {
     def define[A](f: Value => A): ValueReader[A] =
-      new Reader[Value, A] {
-        type Out = A
+      new ValueReader[A] {
         def apply(rec: Value): A = f(rec)
       }
-  }
 
-  protected trait ValueReaders {
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
 
     implicit def option[A](implicit reader: ValueReader[A]): ValueReader[Option[A]] = ValueReader define { v =>

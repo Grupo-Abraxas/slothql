@@ -4,7 +4,7 @@ import shapeless.HNil
 
 import com.abraxas.slothql.Connection
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
-import com.abraxas.slothql.neo4j.CypherTransactor
+import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
 
 object SyntaxTest {
@@ -62,7 +62,7 @@ object SyntaxTest3 extends App {
   // result = Buffer((Some(john@example.com),Some(John),Some(28),Some(true),Root Group), (None,None,None,None,Sub Group), (Some(john@example.com),Some(John),Some(28),Some(true),Sub Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Option[String], Option[String], Option[Int], Option[Boolean], String)] = io.unsafeRunSync()
@@ -94,7 +94,7 @@ object SyntaxTest4 extends App {
   // result = Buffer((john@example.com,John,28,true,Sub Group), (john@example.com,John,28,true,Root Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(String, String, Int, Boolean, String)] = io.unsafeRunSync()
@@ -119,7 +119,7 @@ object SyntaxTest5 extends App {
   // result = Buffer(Root Group, Sub Group)
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[String] = io.unsafeRunSync()
@@ -145,7 +145,7 @@ object SyntaxTest6 extends App {
   // result = Buffer((Map(name -> Sub Group, id -> g2),Map(name -> Sub Group, id -> g2),3.141592653589793))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Map[String, Any], Map[String, Any], Double)] = io.unsafeRunSync()
@@ -179,7 +179,7 @@ object SyntaxTest7 extends App {
   // result = Buffer((3,1,List(name, id),List(Group),2,1,List(),parent))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, Long, List[String], List[String], Long, Long, List[String], String)] = io.unsafeRunSync()
@@ -210,7 +210,7 @@ object SyntaxTest8 extends App {
   // result = Buffer((3,1,List(name, id),List(Group),List(Map())), (2,1,List(name, id),List(Group),List()))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, Long, List[String], List[String], List[Map[String, Any]])] = io.unsafeRunSync()
@@ -249,7 +249,7 @@ object SyntaxTest9 extends App {
   //  )
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)] = io.unsafeRunSync()
@@ -297,7 +297,7 @@ object SyntaxTest10 extends App {
   //  )
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])] = io.unsafeRunSync()
@@ -321,7 +321,7 @@ object SyntaxTest11 extends App {
   // result = Buffer(Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[Map[String, Any]] = io.unsafeRunSync()
@@ -345,7 +345,7 @@ object SyntaxTest12 extends App {
   // result = Buffer(List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()), List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[List[Map[String, Any]]] = io.unsafeRunSync()
@@ -369,7 +369,7 @@ object SyntaxTest13 extends App {
   // result = Buffer((List(Map(name -> Root Group, id -> g1), Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()),Admin), (List(Map(name -> Sub Group, id -> g2), Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map()),Edit))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(List[Map[String, Any]], String)] = io.unsafeRunSync()
@@ -393,7 +393,7 @@ object SyntaxTest14 extends App {
   // result = Buffer((List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(), Map(name -> Root Group, id -> g1)),Admin), (List(Map(), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(), Map(name -> Sub Group, id -> g2)),Edit))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(List[Map[String, Any]], String)] = io.unsafeRunSync()
@@ -417,7 +417,7 @@ object SyntaxTest15 extends App {
   // result = Buffer((2,Root Group), (3,Sub Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
@@ -444,7 +444,7 @@ object SyntaxTest16 extends App {
   // result = Buffer((2,Root Group), (3,Sub Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
@@ -472,7 +472,7 @@ object SyntaxTest17 extends App {
   // result = Buffer((3,Sub Group), (2,Root Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
@@ -501,7 +501,7 @@ object SyntaxTest18 extends App {
   // result = Buffer((2,Root Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
@@ -530,7 +530,7 @@ object SyntaxTest19 extends App {
   // result = Buffer((2,Root Group), (3,Sub Group))
 
   val driver = Connection.driver
-  val tx = CypherTransactor.Default(driver.session())
+  val tx = Neo4jCypherTransactor(driver.session())
 
   val io = tx.read(query)
   val result: Seq[(Long, String)] = io.unsafeRunSync()
