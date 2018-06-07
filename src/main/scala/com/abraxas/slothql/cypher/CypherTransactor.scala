@@ -16,10 +16,9 @@ trait CypherQueryExecutor {
   def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]]
 }
 
-trait CypherTransactor extends CypherQueryExecutor {
+trait CypherTransactor extends CypherQueryExecutor with CypherTxBuilder {
+  type Transactor = this.type
 
-  def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] =
-    liftF[Read, read.Out](Read[A](query))
   def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]] =
     runRead(read(query))
 
@@ -28,30 +27,6 @@ trait CypherTransactor extends CypherQueryExecutor {
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]]
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]]
 
-
-  sealed trait Operation[R]
-  sealed trait Read[R] extends Operation[Seq[R]] {
-    type A
-    val query: Known[Query[A]]
-    val reader: CypherTransactor.Reader.Aux[Result, A, R]
-  }
-  sealed trait ReadWrite[R] extends Read[R] {
-    override val query: Known[Query[A]] // TODO: `Query[A]`
-  }
-
-  protected object Read {
-    type Aux[R, A0] = Read[R] { type A = A0 }
-    def apply[A0](q: Known[Query[A0]])(implicit r: Reader[A0]): Aux[r.Out, A0] =
-      new Read[r.Out] {
-        type A = A0
-        val query: Known[Query[A]] = q
-        val reader: CypherTransactor.Reader.Aux[Result, A, r.Out] = r
-      }
-  }
-
-  type Tx[R] = Free[Operation, R]
-  type ReadTx[R] = Free[Read, R]
-  type WriteTx[R] = Free[ReadWrite, R]
 }
 
 object CypherTransactor {
@@ -62,4 +37,39 @@ object CypherTransactor {
     type Aux[Src, A, R] = Reader[Src, A] { type Out = R }
     def apply[Src, A](implicit reader: Reader[Src, A]): Aux[Src, A, reader.Out] = reader
   }
+}
+
+
+trait CypherTxBuilder {
+  type Transactor <: CypherTransactor
+
+  sealed trait Operation[R]
+  sealed trait Read[R] extends Operation[Seq[R]] {
+    type A
+    val query: Known[Query[A]]
+    val reader: CypherTransactor.Reader.Aux[Transactor#Result, A, R]
+  }
+  sealed trait ReadWrite[R] extends Read[R] {
+    override val query: Known[Query[A]] // TODO: `Query[A]`
+  }
+
+  protected object Read {
+    type Aux[R, A0] = Read[R] { type A = A0 }
+    def apply[A0](q: Known[Query[A0]])(implicit r: Transactor#Reader[A0]): Aux[r.Out, A0] =
+      new Read[r.Out] {
+        type A = A0
+        val query: Known[Query[A]] = q
+        val reader: CypherTransactor.Reader.Aux[Transactor#Result, A, r.Out] =
+          r.asInstanceOf[CypherTransactor.Reader.Aux[Transactor#Result, A, r.Out]]
+      }
+  }
+
+
+  type Tx[R] = Free[Operation, R]
+  type ReadTx[R] = Free[Read, R]
+  type WriteTx[R] = Free[ReadWrite, R]
+
+
+  def read[A](query: Known[Query[A]])(implicit read: Transactor#Reader[A]): ReadTx[read.Out] =
+    liftF[Read, read.Out](Read[A](query))
 }

@@ -10,15 +10,22 @@ import org.neo4j.driver.v1._
 import shapeless._
 
 import com.abraxas.slothql.cypher.CypherFragment._
-import com.abraxas.slothql.cypher.CypherTransactor
+import com.abraxas.slothql.cypher.{ CypherTransactor, CypherTxBuilder }
 import com.abraxas.slothql.cypher.CypherTransactor.Reader
 import com.abraxas.slothql.neo4j.util.JavaExt._
 
+trait Neo4jTxBuilder extends CypherTxBuilder {
+  type Transactor <: Neo4jCypherTransactor
+}
+object Neo4jTxBuilder extends Neo4jTxBuilder
 
-class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
+
+class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor with Neo4jTxBuilder {
   tx0 =>
 
   import Neo4jCypherTransactor._
+
+  override type Transactor = this.type
 
   type Result = Record
   type Reader[A] = RecordReader[A]
@@ -111,4 +118,6 @@ object Neo4jCypherTransactor {
     λ[FunctionK[t.Read, Vector]](fa =>
       tx.run(new Statement(fa.query.toCypher)).list(fa.reader(_: Record)).asScala.toVector // TODO: issue #8
     )
+
+  def tx: Neo4jTxBuilder = Neo4jTxBuilder
 }
