@@ -2,7 +2,10 @@ package com.abraxas.slothql.neo4j
 
 import scala.collection.convert.decorateAsScala._
 
+import cats.~>
+import cats.arrow.FunctionK
 import cats.effect.IO
+import cats.instances.vector._
 import org.neo4j.driver.v1._
 import shapeless._
 
@@ -13,16 +16,22 @@ import com.abraxas.slothql.neo4j.util.JavaExt._
 
 
 class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
+  tx0 =>
+
   import Neo4jCypherTransactor._
 
   type Result = Record
   type Reader[A] = RecordReader[A]
-  def read[A](query: Known[Query[A]])(implicit read: RecordReader[A]): IO[Seq[read.Out]] =
+
+  def runRead[A](tx: ReadTx[A]): IO[Seq[A]] =
     IO {
-      session().readTransaction(new TransactionWork[Seq[read.Out]] {
-        def execute(tx: Transaction): Seq[read.Out] = tx.run(new Statement(query.toCypher)).list(read(_: Record)).asScala // TODO
+      session().readTransaction(new TransactionWork[Seq[A]] {
+        def execute(transaction: Transaction): Seq[A] =
+          tx.foldMap(Neo4jCypherTransactor.syncInterpreter(tx0, transaction))
       })
     }
+  def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
+  def run[A](tx: Tx[A]): IO[Seq[A]] = ??? // TODO
 }
 
 object Neo4jCypherTransactor {
@@ -98,4 +107,8 @@ object Neo4jCypherTransactor {
 
   }
 
+  protected def syncInterpreter(t: Neo4jCypherTransactor, tx: Transaction): t.Read ~> Vector =
+    λ[FunctionK[t.Read, Vector]](fa =>
+      tx.run(new Statement(fa.query.toCypher)).list(fa.reader(_: Record)).asScala.toVector // TODO: issue #8
+    )
 }
