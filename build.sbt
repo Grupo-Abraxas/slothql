@@ -1,3 +1,5 @@
+import scala.sys.process.Process
+
 organization := "com.abraxas"
 
 name := "slothql-dev"
@@ -35,3 +37,19 @@ initialCommands in console :=
 
 // Ammonite
 ammHome := Some((baseDirectory.value / ".amm").getAbsolutePath)
+
+
+// Misc: publish-local | version := git HEAD hash
+
+lazy val gitHeadShortHash = settingKey[String]("Short hash of current HEAD.")
+gitHeadShortHash := Process("git rev-parse --short HEAD").lineStream.head
+
+lazy val publishLocalHashVersion = taskKey[Unit]("Publish locally setting `gitHeadShortHash` as version.")
+publishLocalHashVersion := Def.task {
+  val extracted = Project extract state.value
+  import extracted._
+  runTask(
+    publishLocal in Compile,
+    appendWithSession(Seq(version := gitHeadShortHash.value), state.value)
+  )._2
+}.value
