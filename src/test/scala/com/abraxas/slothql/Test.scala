@@ -102,7 +102,9 @@ object Test4 extends App {
   val query = for {
     groupId <- tx.read(q1)
     _ = println(s"groupId = $groupId")
-    user <- tx.read(q2(groupId))
+    q2i = q2(groupId)
+    _ = println("q2 = " + q2i.known.toCypher)
+    user <- tx.read(q2i)
     _ = println(s"user = $user")
   } yield (groupId, user)
 
@@ -113,6 +115,7 @@ object Test4 extends App {
 
   //  q1 = MATCH (`u`:`User`) RETURN `id`(`u`)
   //  groupId = 0
+  //  q2 = MATCH (`g`:`Group`) -[]-> () -[]-> (`u`) WHERE `id`(`u`) = 0 RETURN `g`
   //  user = Map(name -> Root Group, id -> g1)
   //  user = Map(name -> Sub Group, id -> g2)
   //  result = Vector((0,Map(name -> Root Group, id -> g1)), (0,Map(name -> Sub Group, id -> g2)))
