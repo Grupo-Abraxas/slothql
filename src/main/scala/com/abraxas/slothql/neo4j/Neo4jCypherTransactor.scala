@@ -38,7 +38,6 @@ class Neo4jCypherTransactor(protected val session: () => Session) extends Cypher
       })
     }
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
-  def run[A](tx: Tx[A]): IO[Seq[A]] = ??? // TODO
 }
 
 object Neo4jCypherTransactor {

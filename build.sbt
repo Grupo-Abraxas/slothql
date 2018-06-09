@@ -9,6 +9,7 @@ version := "0.1-SNAPSHOT"
 scalaVersion := "2.11.12"
 
 scalacOptions in Compile ++= Seq("-unchecked", "-feature")
+scalacOptions in Compile += "-Ypartial-unification"
 
 resolvers += Resolver.sonatypeRepo("releases")
 

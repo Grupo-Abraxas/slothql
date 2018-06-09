@@ -8,7 +8,7 @@ import cats.free.Free.liftF
 import cats.{ Monad, ~> }
 import cats.instances.vector._
 import cats.syntax.traverse._
-import shapeless.DepFn1
+import shapeless.{ DepFn1, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Known, Query }
 
@@ -26,7 +26,13 @@ trait CypherTransactor extends CypherQueryExecutor with CypherTxBuilder {
     runRead(read(query))
 
   // Run transactions
-  def run[A](tx: Tx[A]): IO[Seq[A]]
+  def run[A, Tx: (ReadTx[A] |∨| WriteTx[A])#λ](tx: Tx)(
+    implicit isRead: Tx <:< ReadTx[_] = null, isWrite: Tx <:< WriteTx[_] = null
+  ): IO[Seq[A]] =
+    tx match {
+      case tx: ReadTx[A]  @unchecked if isRead  != null => runRead(tx)
+      case tx: WriteTx[A] @unchecked if isWrite != null => runWrite(tx)
+    }
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]]
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]]
 
@@ -102,7 +108,6 @@ trait CypherTxBuilder {
   }
 
 
-  type Tx[R] = Free[Operation, R]
   type ReadTx[R] = Free[Read, R]
   type WriteTx[R] = Free[ReadWrite, R]
 

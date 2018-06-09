@@ -175,11 +175,11 @@ object Test6 extends App {
     _ = println(s"groupIds = $groupIds")
     q2is = groupIds.map(q2)
     _ = println("q2s = " + q2is.zipWithIndex.map{ case (q, i) => s"\t$i. ${q.known.toCypher}" }.mkString("\n", "\n", ""))
-    users <- q2is.traverse[tx.ReadTx, Map[String, Any]](tx.read(_)) // TODO: type params are required ========================== <<<<<<<<<<<<<<
+    users <- q2is.traverse(tx.read(_))
     _ = println(s"users = $users")
   } yield (groupIds, users)
 
-  val io = tx.runRead(query)
+  val io = tx.run(query)
   val result: Seq[(Seq[Long], Seq[Map[String, Any]])] = io.unsafeRunSync()
 
   println("result = " + result)
