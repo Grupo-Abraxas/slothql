@@ -45,17 +45,22 @@ ammHome := Some((baseDirectory.value / ".amm").getAbsolutePath)
 lazy val gitHeadShortHash = settingKey[String]("Short hash of current HEAD.")
 gitHeadShortHash := Process("git rev-parse --short HEAD").lineStream.head
 
-lazy val gitHeadBranch= settingKey[String]("Branch of current HEAD.")
+lazy val gitHeadBranch = settingKey[String]("Branch of current HEAD.")
 gitHeadBranch := Process("git rev-parse --abbrev-ref HEAD").lineStream.head
 
 lazy val publishLocalHashVersionPrefix = settingKey[String]("")
 publishLocalHashVersionPrefix := "SNAPSHOT-"
 
+lazy val currentHashVersion = taskKey[String]("Current commit-hash version.")
+currentHashVersion := Def.task {
+  s"${publishLocalHashVersionPrefix.value}${gitHeadBranch.value}-${gitHeadShortHash.value}"
+}.value
+
 lazy val publishLocalHashVersion = taskKey[Unit]("Publish locally setting `gitHeadShortHash` as version.")
 publishLocalHashVersion := Def.task {
   val extracted = Project extract state.value
   import extracted._
-  val v = s"${publishLocalHashVersionPrefix.value}${gitHeadBranch.value}-${gitHeadShortHash.value}"
+  val v = currentHashVersion.value
   runTask(
     publishLocal in Compile,
     appendWithSession(Seq(version := v), state.value)
