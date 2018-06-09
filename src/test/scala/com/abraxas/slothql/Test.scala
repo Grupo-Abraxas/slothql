@@ -1,6 +1,8 @@
 package com.abraxas.slothql
 
 import cats.data.NonEmptyList
+import cats.instances.vector._
+import cats.syntax.traverse._
 import shapeless._
 
 import com.abraxas.slothql.cypher.CypherFragment._
@@ -100,13 +102,13 @@ object Test4 extends App {
 
   println("q1 = " + q1.known.toCypher)
   val query = for {
-    groupId <- tx.read(q1)
-    _ = println(s"groupId = $groupId")
-    q2i = q2(groupId)
+    userId <- tx.read(q1)
+    _ = println(s"userId = $userId")
+    q2i = q2(userId)
     _ = println("q2 = " + q2i.known.toCypher)
-    user <- tx.read(q2i)
-    _ = println(s"user = $user")
-  } yield (groupId, user)
+    group <- tx.read(q2i)
+    _ = println(s"group = $group")
+  } yield (userId, group)
 
   val io = tx.runRead(query)
   val result: Seq[(Long, Map[String, Any])] = io.unsafeRunSync()
@@ -114,11 +116,82 @@ object Test4 extends App {
   println("result = " + result)
 
   //  q1 = MATCH (`u`:`User`) RETURN `id`(`u`)
-  //  groupId = 0
+  //  userId = 0
   //  q2 = MATCH (`g`:`Group`) -[]-> () -[]-> (`u`) WHERE `id`(`u`) = 0 RETURN `g`
-  //  user = Map(name -> Root Group, id -> g1)
-  //  user = Map(name -> Sub Group, id -> g2)
+  //  group = Map(name -> Root Group, id -> g1)
+  //  group = Map(name -> Sub Group, id -> g2)
   //  result = Vector((0,Map(name -> Root Group, id -> g1)), (0,Map(name -> Sub Group, id -> g2)))
+
+  driver.close()
+  sys.exit()
+}
+
+object Test5 extends App {
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val q1 = Match { case u@Vertex("User") => u.id }
+  def q2(id: Long) = Match {
+    case (g@Vertex("Group")) -> _ -> u if u.id === lit(id) => g
+  }
+
+  println("q1 = " + q1.known.toCypher)
+  val query = for {
+    userId <- tx.read(q1)
+    _ = println(s"userId = $userId")
+    q2i = q2(userId)
+    _ = println("q2 = " + q2i.known.toCypher)
+    groups <- tx.read(q2i).gather
+    _ = println(s"groups = $groups")
+  } yield (userId, groups)
+
+  val io = tx.runRead(query)
+  val result: Seq[(Long, Seq[Map[String, Any]])] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  //  q1 = MATCH (`u`:`User`) RETURN `id`(`u`)
+  //  userId = 0
+  //  q2 = MATCH (`g`:`Group`) -[]-> () -[]-> (`u`) WHERE `id`(`u`) = 0 RETURN `g`
+  //  groups = Vector(Map(name -> Root Group, id -> g1), Map(name -> Sub Group, id -> g2))
+  //  result = Vector((0,Vector(Map(name -> Root Group, id -> g1), Map(name -> Sub Group, id -> g2))))
+
+  driver.close()
+  sys.exit()
+}
+
+object Test6 extends App {
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val q1 = Match { case g@Vertex("Group") => g.id }
+  def q2(id: Long) = Match {
+    case (u@Vertex("User")) `<-` _ `<-` g if g.id === lit(id) => u
+  }
+
+  println("q1 = " + q1.known.toCypher)
+  val query = for {
+    groupIds <- tx.read(q1).gather
+    _ = println(s"groupIds = $groupIds")
+    q2is = groupIds.map(q2)
+    _ = println("q2s = " + q2is.zipWithIndex.map{ case (q, i) => s"\t$i. ${q.known.toCypher}" }.mkString("\n", "\n", ""))
+    users <- q2is.traverse[tx.ReadTx, Map[String, Any]](tx.read(_)) // TODO: type params are required ========================== <<<<<<<<<<<<<<
+    _ = println(s"users = $users")
+  } yield (groupIds, users)
+
+  val io = tx.runRead(query)
+  val result: Seq[(Seq[Long], Seq[Map[String, Any]])] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  //  q1 = MATCH (`g`:`Group`) RETURN `id`(`g`)
+  //  groupIds = Vector(2, 3)
+  //  q2s =
+  //    0. MATCH (`u`:`User`) <-[]- () <-[]- (`g`) WHERE `id`(`g`) = 2 RETURN `u`
+  //    1. MATCH (`u`:`User`) <-[]- () <-[]- (`g`) WHERE `id`(`g`) = 3 RETURN `u`
+  //  users = Vector(Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1))
+  //  result = Vector((Vector(2, 3),Vector(Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1))))
+
 
   driver.close()
   sys.exit()

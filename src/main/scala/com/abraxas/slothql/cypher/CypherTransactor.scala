@@ -5,6 +5,9 @@ import scala.language.higherKinds
 import cats.effect.IO
 import cats.free.Free
 import cats.free.Free.liftF
+import cats.{ Monad, ~> }
+import cats.instances.vector._
+import cats.syntax.traverse._
 import shapeless.DepFn1
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Known, Query }
@@ -53,6 +56,12 @@ trait CypherTxBuilder {
     override val query: Known[Query[A]] // TODO: `Query[A]`
   }
 
+  protected case class Gather[R](read: Read[R]) extends Read[Vector[R]] {
+    type A = read.A
+    lazy val query: Known[Query[read.A]] = ???
+    lazy val reader: CypherTransactor.Reader.Aux[Transactor#Result, read.A, Vector[R]] = ???
+  }
+
   protected object Read {
     type Aux[R, A0] = Read[R] { type A = A0 }
     def apply[A0](q: Known[Query[A0]])(implicit r: Transactor#Reader[A0]): Aux[r.Out, A0] =
@@ -62,6 +71,34 @@ trait CypherTxBuilder {
         val reader: CypherTransactor.Reader.Aux[Transactor#Result, A, r.Out] =
           r.asInstanceOf[CypherTransactor.Reader.Aux[Transactor#Result, A, r.Out]]
       }
+
+
+    implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
+      def pure[A](x: A): ReadTx[Vector[A]] =
+        Free.pure(Vector(x))
+      override def map[A, B](fa: ReadTx[Vector[A]])(f: A => B): ReadTx[Vector[B]] =
+        fa.map(_.map(f))
+      def flatMap[A, B](fa: ReadTx[Vector[A]])(f: A => ReadTx[Vector[B]]): ReadTx[Vector[B]] =
+        fa.flatMap(_.flatTraverse(f))
+
+      // TODO: Is it tail-call optimised? (I doubt it)
+      def tailRecM[A, B](a0: A)(f: A => ReadTx[Vector[Either[A, B]]]): ReadTx[Vector[B]] =
+        f(a0) flatMap {
+          _.flatTraverse[ReadTx, B] {
+            case Left(a)  => tailRecM(a)(f)
+            case Right(b) => Free.pure(Vector(b))
+          }
+        }
+    }
+
+
+    implicit class ReadTxOps[R](tx: ReadTx[R]) {
+      def gather: ReadTx[Vector[R]] = tx.foldMap[λ[A => ReadTx[Vector[A]]]](
+        λ[Read ~> λ[A => ReadTx[Vector[A]]]](fa => liftF(newGather(fa)))
+      )
+    }
+
+    private def newGather[R](read: Read[R]): Read[Vector[R]] = Gather(read)
   }
 
 

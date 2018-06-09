@@ -115,9 +115,13 @@ object Neo4jCypherTransactor {
   }
 
   protected def syncInterpreter(t: Neo4jCypherTransactor, tx: Transaction): t.Read ~> Vector =
-    λ[FunctionK[t.Read, Vector]](fa =>
-      tx.run(new Statement(fa.query.toCypher)).list(fa.reader(_: Record)).asScala.toVector // TODO: issue #8
-    )
+    λ[t.Read ~> Vector]{
+      case t.Gather(r) => Vector(runReadTxSync(tx, r))
+      case r           =>        runReadTxSync(tx, r)
+    }
+
+  protected def runReadTxSync[A](tx: Transaction, r: Neo4jTxBuilder#Read[A]): Vector[A] =
+    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala.toVector // TODO: issue #8
 
   def tx: Neo4jTxBuilder = Neo4jTxBuilder
 }
