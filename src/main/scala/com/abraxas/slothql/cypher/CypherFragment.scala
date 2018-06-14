@@ -2,13 +2,17 @@ package com.abraxas.slothql.cypher
 
 import scala.language.{ higherKinds, implicitConversions }
 
+import cats.arrow.Arrow
 import cats.{ Bifunctor, Contravariant, Functor }
 import cats.data.{ Ior, NonEmptyList }
+import cats.instances.function._
 import cats.syntax.bifunctor._
 import cats.syntax.functor._
 import shapeless.{ :: => #:, _ }
+import shapeless.syntax.singleton._
 
 import com.abraxas.slothql.util.ComappedCov
+import com.abraxas.slothql.util.Types.{ False, True }
 
 trait CypherFragment[-A] {
   // TODO: (String, Params)
@@ -305,7 +309,44 @@ object CypherFragment {
 
     sealed trait Query0[+A] extends Query[A]
     case class Return[+A](ret: Known[CypherFragment.Return[A]]) extends Query0[A]
-    case class Clause[+A](clause: Known[CypherFragment.Clause], query: Known[Query0[A]]) extends Query0[A]
+
+    trait Clause[+A] extends Query0[A] {
+      type Clause <: CypherFragment.Clause
+      type Query  <: Query0[A]
+
+      val clause: Known[CypherFragment.Clause]
+      val query: Known[Query0[A]]
+    }
+    object Clause {
+      type Aux[+A, Clause0 <: CypherFragment.Clause, Q <: Query0[A]] =
+        Clause[A] { type Clause <: Clause0; type Query = Q }
+
+      def apply[A](clause: Known[CypherFragment.Clause], query: Known[Query0[A]]): Clause[A] = {
+        @inline def clause0 = clause
+        @inline def query0 = query
+        new Clause[A] {
+          type Clause = Nothing
+          type Query  = Nothing
+          val clause: Known[CypherFragment.Clause] = clause0
+          val query: Known[Query0[A]] = query0
+        }
+      }
+      def unapply[A](q: Query[A]): Option[(Known[CypherFragment.Clause], Known[Query0[A]])] =
+        PartialFunction.condOpt(q) { case c: Clause[A @unchecked] => c.clause -> c.query }
+
+      def typed[A, Clause0 <: CypherFragment.Clause: CypherFragment, Q[x] <: Query0[x]](clause: Clause0, query: Q[A])(
+        implicit qFrag: CypherFragment[Q[A]]
+      ): Clause.Aux[A, Clause0, Q[A]] = {
+        @inline def clause0 = clause
+        @inline def query0 = query
+        new Clause[A] {
+          type Clause = Clause0
+          type Query = Q[A]
+          val clause: Known[CypherFragment.Clause] = clause0
+          val query: Known[Q[A]] = Known(query0)(qFrag)
+        }
+      }
+    }
 
     implicit def fragment[A]: CypherFragment[Query[A]] = instance.asInstanceOf[CypherFragment[Query[A]]]
     private lazy val instance = define[Query[Any]] {
@@ -444,9 +485,79 @@ object CypherFragment {
 
   sealed trait Clause
   object Clause {
-    case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Clause
+
+    trait Match extends Clause {
+      type Pattern  <: PatternTuple
+      type Optional <: Boolean
+      type Where    <: Option[Expr[Boolean]]
+
+      val pattern: PatternTuple
+      val optional: Boolean
+      val where: Option[Known[Expr[Boolean]]]
+    }
     case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Clause
     case class Unwind(expr: Known[Expr[List[_]]], as: String) extends Clause
+
+    object Match {
+      type Aux[Pattern0 <: PatternTuple, Optional0 <: Boolean, Where0 <: Option[Expr[Boolean]]] =
+        Match { type Pattern = Pattern0; type Optional = Optional0; type Where = Where0 }
+
+      def apply(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]): Match = {
+        @inline val pattern0 = pattern
+        @inline val optional0 = optional
+        @inline val where0 = where
+        new Match {
+          type Pattern  = Nothing
+          type Optional = Nothing
+          type Where    = Nothing
+          val pattern: PatternTuple = pattern0
+          val optional: Boolean = optional0
+          val where: Option[Known[Expr[Boolean]]] = where0
+        }
+      }
+      def unapply(clause: Clause): Option[(PatternTuple, Boolean, Option[Known[Expr[Boolean]]])] =
+        PartialFunction.condOpt(clause) { case m: Match => (m.pattern, m.optional, m.where) }
+
+      def typed[PT <: PatternTuple, Opt <: Boolean: (True |∨| False)#λ](pattern: PT, optional: Opt): Match.Aux[PT, Opt, None.type] = {
+        @inline def pattern0 = pattern
+        @inline def optional0 = optional
+        new Match {
+          type Pattern  = PT
+          type Optional = Opt
+          type Where    = None.type
+          val pattern: PatternTuple = pattern0
+          val optional: Boolean = optional0
+          val where: Option[Known[Expr[Boolean]]] = None
+        }
+      }
+      def typed[PT <: PatternTuple, Opt <: Boolean: (True |∨| False)#λ, W <: Expr[Boolean]: CypherFragment](
+        pattern: PT, optional: Opt, where: W
+      ): Match.Aux[PT, Opt, Some[W]] = {
+        @inline def pattern0 = pattern
+        @inline def optional0 = optional
+        @inline def where0 = where
+        new Match {
+          type Pattern  = PT
+          type Optional = Opt
+          type Where    = Some[W]
+          val pattern: PatternTuple = pattern0
+          val optional: Boolean = optional0
+          val where: Option[Known[Expr[Boolean]]] = Some(where0.known.widen)
+        }
+      }
+
+      def optional[PT <: PatternTuple](pattern: PT): Match.Aux[PT, True, None.type] =
+        typed(pattern, true.narrow)
+      def optional[PT <: PatternTuple, W <: Expr[Boolean]: CypherFragment](pattern: PT, where: W): Match.Aux[PT, True, Some[W]] =
+        typed(pattern, true.narrow, where)
+
+      /** Opposite to `optional`. */
+      def strict[PT <: PatternTuple](pattern: PT): Match.Aux[PT, False, None.type] =
+        typed(pattern, false.narrow)
+      /** Opposite to `optional`. */
+      def strict[PT <: PatternTuple, W <: Expr[Boolean]: CypherFragment](pattern: PT, where: W): Match.Aux[PT, False, Some[W]] =
+        typed(pattern, false.narrow, where)
+    }
 
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
@@ -459,20 +570,302 @@ object CypherFragment {
   }
 
 
-  type PatternTuple = NonEmptyList[Known[Pattern]]
+  sealed trait PatternTuple {
+    type Patterns <: HList
+    val toNel: NonEmptyList[Known[Pattern]]
+    def toList: List[Known[Pattern]] = toNel.toList
+  }
+  object PatternTuple {
+    type Aux[Patterns0 <: HList] = PatternTuple { type Patterns = Patterns0 }
+    def apply(nel: NonEmptyList[Known[Pattern]]): PatternTuple =
+      new PatternTuple {
+        type Patterns = Nothing
+        val toNel: NonEmptyList[Known[Pattern]] = nel
+      }
+    def apply(h: Known[Pattern], t: Known[Pattern]*): PatternTuple = apply(NonEmptyList(h, t.toList))
+
+    def unapplySeq(pt: PatternTuple): Option[List[Known[Pattern]]] = Some(pt.toList)
+
+    object typed extends ProductArgs {
+      def applyProduct[Ps <: HList, KnownPs <: HList](patterns: Ps)(
+        implicit
+        nonEmpty: Cached[ops.hlist.IsHCons[Ps]],
+        known: Cached[ops.hlist.Mapper.Aux[Builders.LiftKnown.type, Ps, KnownPs]],
+        knownToList: Cached[ops.hlist.ToTraversable.Aux[KnownPs, List, Known[Pattern]]]
+      ): PatternTuple.Aux[Ps] =
+        new PatternTuple {
+          type Patterns = Ps
+          val toNel: NonEmptyList[Known[Pattern]] = NonEmptyList.fromListUnsafe(knownToList.value(known.value(patterns)))
+        }
+    }
+  }
+
   sealed trait Pattern
   object Pattern {
     case class Let[+A](alias: String, pattern: Known[Pattern0]) extends Pattern
 
     sealed trait Pattern0 extends Pattern
-    case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0
-    case class Path(left: Known[Node], rel: Known[Rel], right: Known[Pattern0]) extends Pattern0
-    case class Rel(alias: Option[String], types: List[String], map: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+    trait Node extends Pattern0 {
+      type Alias  <: Option[String]
+      type Labels <: HList
+      type Values <: HList
+
+      val alias: Option[String]
+      val labels: List[String]
+      val values: Map[String, Known[Expr[_]]]
+    }
+
+    case class Path[H <: Node, R <: Rel, T <: Pattern0](left: Known[H], rel: Known[R], right: Known[T]) extends Pattern0
+
+    trait Rel extends Pattern {
+      type Alias  <: Option[String]
+      type Types  <: HList
+      type Values <: HList
+      type Length <: Option[Rel.Length]
+      type Dir    <: Rel.Direction
+
+      val alias: Option[String]
+      val types: List[String]
+      val values: Map[String, Known[Expr[_]]]
+      val length: Option[Rel.Length]
+      val dir: Rel.Direction
+    }
+
+
+    object Node {
+      type Aux[Alias0 <: Option[String], Labels0 <: HList, Values0 <: HList] =
+        Node { type Alias = Alias0; type Labels = Labels0; type Values = Values0 }
+
+      def apply(alias: Option[String], labels: List[String], values: Map[String, Known[Expr[_]]]): Node = {
+        @inline def alias0 = alias
+        @inline def labels0 = labels
+        @inline def values0 = values
+        new Node {
+          type Alias = Nothing
+          type Labels = Nothing
+          type Values = Nothing
+          val alias: Option[String] = alias0
+          val labels: List[String] = labels0
+          val values: Map[String, Known[Expr[_]]] = values0
+        }
+      }
+      def unapply(pattern: Pattern): Option[(Option[String], List[String], Map[String, Known[Expr[_]]])] =
+        PartialFunction.condOpt(pattern) { case node: Node => (node.alias, node.labels, node.values) }
+
+      def typed: Builder[None.type, Nothing, HNil] = new Builder[None.type, Nothing, HNil](None, Nil, Map())
+
+      protected class Builder[Alias <: Option[String], Labels <: HList, Values <: HList](
+        alias: Option[String],
+        labels: List[String],
+        values: Map[String, Known[Expr[_]]]
+      ) {
+        builder =>
+
+        def withAlias(alias: String): Builder[Some[alias.type], Labels, Values] = copy(alias0 = Some(alias))
+        def withoutAlias: Builder[None.type, Labels, Values] = copy(alias0 = None)
+
+        object withLabels extends SingletonProductArgs {
+          def applyProduct[Labels0 <: HList](labels: Labels0)(
+            implicit toList: Cached[ops.hlist.ToTraversable.Aux[Labels0, List, String]]
+          ): Builder[Alias, Labels0, Values] =
+            copy(labels0 = toList.value(labels))
+        }
+
+        object withValues extends RecordArgs {
+          def applyRecord[Args <: HList, KnownRecords <: HList, KnownPairs <: HList](args: Args)(
+            implicit
+            map: Cached[ops.record.MapValues.Aux[Builders.LiftKnown.type, Args, KnownRecords]],
+            fields: Cached[ops.record.Fields.Aux[KnownRecords, KnownPairs]],
+            toList: Cached[ops.hlist.ToTraversable.Aux[KnownPairs, List, (Symbol, Known[Expr[_]])]]
+            // I couldn't make it with `ops.record.ToMap`
+          ): Builder[Alias, Labels, Args] = {
+            val l = toList.value(fields.value(map.value(args)))
+            val m = l.map(Arrow[Function1].first(_.name)).toMap
+            copy(values0 = m)
+          }
+        }
+
+        def build(
+          implicit defAlias: Alias =:!= Nothing, defLabels: Labels =:!= Nothing, defValues: Values =:!= Nothing
+        ): Node.Aux[Alias, Labels, Values] = {
+          type Alias0 = Alias
+          type Labels0 = Labels
+          type Values0 = Values
+          new Node {
+            type Alias = Alias0
+            type Labels = Labels0
+            type Values = Values0
+            val alias: Option[String] = builder.alias
+            val labels: List[String] = builder.labels
+            val values: Map[String, Known[Expr[_]]] = builder.values
+          }
+        }
+
+        private def copy[Alias0 <: Option[String], Labels0 <: HList, Values0 <: HList](
+          alias0: Option[String] = alias, labels0: List[String] = labels, values0: Map[String, Known[Expr[_]]] = values
+        ): Builder[Alias0, Labels0, Values0] = new Builder[Alias0, Labels0, Values0](alias0, labels0, values0)
+      }
+    }
 
     object Rel {
+      type Aux[Alias0 <: Option[String], Types0 <: HList, Values0 <: HList, Length0 <: Option[Rel.Length], Dir0 <: Rel.Direction] =
+        Rel { type Alias = Alias0; type Types = Types0; type Values = Values0; type Length = Length0; type Dir = Dir0 }
+
+      def apply(alias: Option[String], types: List[String], values: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction): Rel = {
+        @inline def alias0 = alias
+        @inline def types0 = types
+        @inline def values0 = values
+        @inline def length0 = length
+        @inline def dir0 = dir
+        new Rel {
+          type Alias  = Nothing
+          type Types  = Nothing
+          type Values = Nothing
+          type Length = Nothing
+          type Dir    = Nothing
+
+          val alias: Option[String] = alias0
+          val types: List[String] = types0
+          val values: Map[String, Known[Expr[_]]] = values0
+          val length: Option[Rel.Length] = length0
+          val dir: Direction = dir0
+        }
+      }
+      def unapply(pattern: Pattern): Option[(Option[String], List[String], Map[String, Known[Expr[_]]], Option[Rel.Length], Rel.Direction)] =
+        PartialFunction.condOpt(pattern) { case rel: Rel => (rel.alias, rel.types, rel.values, rel.length, rel.dir) }
+
+      def typed: Builder[None.type, Nothing, HNil, None.type, Nothing] = new Builder[None.type, Nothing, HNil, None.type, Nothing](None, Nil, Map(), None, null)
+
+      // TODO: partial duplication of `Node.Builder`
+      protected class Builder[Alias <: Option[String], Types <: HList, Values <: HList, Length <: Option[Rel.Length], Dir <: Rel.Direction](
+        alias: Option[String],
+        types: List[String],
+        values: Map[String, Known[Expr[_]]],
+        length: Option[Rel.Length],
+        dir: Direction
+      ) {
+        builder =>
+
+        def withAlias(alias: String): Builder[Some[alias.type], Types, Values, Length, Dir] = copy(alias0 = Some(alias))
+        def withoutAlias: Builder[None.type, Types, Values, Length, Dir] = copy(alias0 = None)
+
+        object withTypes extends SingletonProductArgs {
+          def applyProduct[Labels0 <: HList](labels: Labels0)(implicit toList: Cached[ops.hlist.ToTraversable.Aux[Labels0, List, String]]): Builder[Alias, Labels0, Values, Length, Dir] =
+            copy(types0 = toList.value(labels))
+        }
+
+        object withValues extends RecordArgs {
+          def applyRecord[Args <: HList, KnownRecords <: HList, KnownPairs <: HList](args: Args)(
+            implicit
+            map: Cached[ops.record.MapValues.Aux[Builders.LiftKnown.type, Args, KnownRecords]],
+            fields: Cached[ops.record.Fields.Aux[KnownRecords, KnownPairs]],
+            toList: Cached[ops.hlist.ToTraversable.Aux[KnownPairs, List, (Symbol, Known[Expr[_]])]]
+            // I couldn't make it with `ops.record.ToMap`
+          ): Builder[Alias, Types, Args, Length, Dir] = {
+            val l = toList.value(fields.value(map.value(args)))
+            val m = l.map(Arrow[Function1].first(_.name)).toMap
+            copy(values0 = m)
+          }
+        }
+
+        def withLength[Rng <: Ior[Long, Long]](range: Rng)(implicit len: Cached[Range.IorToLength[Rng]]): Builder[Alias, Types, Values, Some[len.value.Length], Dir] =
+          copy(length0 = Some(len.value(range)))
+        def withLength[Len <: Rel.Length](len: Len): Builder[Alias, Types, Values, Some[Len], Dir] = copy(length0 = Some(len))
+        def anyLength: Builder[Alias, Types, Values, Some[Rel.All.type], Dir] = copy(length0 = Some(Rel.All))
+
+        def withDirection[Dir0 <: Rel.Direction](dir: Dir0): Builder[Alias, Types, Values, Length, Dir0] = copy(dir0 = dir)
+
+        def build(
+          implicit
+          defAlias: Alias =:!= Nothing, defLabels: Types =:!= Nothing, defValues: Values =:!= Nothing,
+          defLength: Length =:!= Nothing, defDir: Dir =:!= Nothing
+        ): Rel.Aux[Alias, Types, Values, Length, Dir] = {
+          type Alias0  = Alias
+          type Types0  = Types
+          type Values0 = Values
+          type Length0 = Length
+          type Dir0    = Dir
+          new Rel {
+            type Alias  = Alias0
+            type Types  = Types0
+            type Values = Values0
+            type Length = Length0
+            type Dir    = Dir0
+            val alias: Option[String] = builder.alias
+            val types: List[String] = builder.types
+            val values: Map[String, Known[Expr[_]]] = builder.values
+            val length: Option[Rel.Length] = builder.length
+            val dir: Direction = builder.dir
+          }
+        }
+
+        private def copy[Alias0 <: Option[String], Types0 <: HList, Values0 <: HList, Length0 <: Option[Rel.Length], Dir0 <: Rel.Direction](
+          alias0: Option[String] = alias, types0: List[String] = types, values0: Map[String, Known[Expr[_]]] = values,
+          length0: Option[Rel.Length] = length, dir0: Direction = dir
+        ): Builder[Alias0, Types0, Values0, Length0, Dir0] = new Builder[Alias0, Types0, Values0, Length0, Dir0](alias0, types0, values0, length0, dir0)
+      }
+
+
+
       sealed trait Length
       case object All extends Length
-      case class Range(limits: Ior[Long, Long]) extends Length
+      trait Range extends Length {
+        type Min <: Option[Long]
+        type Max <: Option[Long]
+        val limits: Ior[Long, Long]
+      }
+      object Range {
+        type Aux[Min0 <: Option[Long], Max0 <: Option[Long]] = Range { type Min = Min0; type Max = Max0 }
+        def apply(limits: Ior[Long, Long]): Range = {
+          @inline val limits0 = limits
+          new Range {
+            type Min = Nothing
+            type Max = Nothing
+            val limits: Ior[Long, Long] = limits0
+          }
+        }
+        def unapply(len: Length): Option[Ior[Long, Long]] = PartialFunction.condOpt(len) { case rng: Range => rng.limits }
+
+        def typed[Rng <: Ior[_, _]](rng: Rng)(implicit len: Cached[IorToLength[Rng]]): len.value.Length = len.value(rng)
+
+        trait IorToLength[Rng <: Ior[_, _]] {
+          type Length <: Rel.Length
+          def apply(rng: Rng): Length
+        }
+        object IorToLength {
+          type Aux[Rng <: Ior[_, _], Length0 <: Rel.Length] = IorToLength[Rng] { type Length = Length0 }
+          implicit def leftToLength[N: Integral]: Aux[Ior.Left[N], Rel.Range.Aux[Some[Long], None.type]] =
+            new IorToLength[Ior.Left[N]] {
+              type Length = Rel.Range.Aux[Some[Long], None.type]
+              def apply(rng: Ior.Left[N]): Range.Aux[Some[Long], None.type] =
+                new Range {
+                  type Min = Some[Long]
+                  type Max = None.type
+                  val limits: Ior[Long, Long] = (rng: Ior[N, Long]).leftMap(implicitly[Numeric[N]].toLong)
+                }
+            }
+          implicit def rightToLength[N: Integral]: Aux[Ior.Right[N], Rel.Range.Aux[None.type, Some[Long]]] =
+            new IorToLength[Ior.Right[N]] {
+              type Length = Rel.Range.Aux[None.type, Some[Long]]
+              def apply(rng: Ior.Right[N]): Range.Aux[None.type, Some[Long]] =
+                new Range {
+                  type Min = None.type
+                  type Max = Some[Long]
+                  val limits: Ior[Long, Long] = (rng: Ior[Long, N]).map(implicitly[Numeric[N]].toLong)
+                }
+            }
+          implicit def bothToLength[L: Integral, R: Integral]: Aux[Ior.Both[L, R], Rel.Range.Aux[Some[Long], Some[Long]]] =
+            new IorToLength[Ior.Both[L, R]] {
+              type Length = Rel.Range.Aux[Some[Long], Some[Long]]
+              def apply(rng: Ior.Both[L, R]): Range.Aux[Some[Long], Some[Long]] =
+                new Range {
+                  type Min = Some[Long]
+                  type Max = Some[Long]
+                  val limits: Ior[Long, Long] = (rng: Ior[L, R]).bimap(implicitly[Numeric[L]].toLong, implicitly[Numeric[R]].toLong)
+                }
+            }
+        }
+      }
 
       sealed trait Direction
       case object Outgoing extends Direction
@@ -506,6 +899,13 @@ object CypherFragment {
       case _ => xs.map(escapeName).mkString(":", sep, "")
     }
   }
+
+  object Builders {
+    object LiftKnown extends Poly1 {
+      implicit def impl[E: CypherFragment]: Case.Aux[E, Known[E]] = at[E](Known(_))
+    }
+  }
+
 
   private def escapeName(name: String) = "`" + name.replaceAll("`", "``") + "`"
   private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")

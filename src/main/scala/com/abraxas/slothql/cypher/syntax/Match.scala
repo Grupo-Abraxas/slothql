@@ -4,8 +4,6 @@ import scala.language.experimental.macros
 import scala.reflect.ClassTag
 import scala.reflect.macros.whitebox
 
-import cats.data.NonEmptyList
-
 import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
 import com.abraxas.slothql.cypher.CypherFragment._
@@ -48,7 +46,7 @@ object Match {
     }
 
 
-    def extractBindParams(body: Tree): (List[String], List[Tree]) = body match {
+    def extractBindParams(body: Tree): (List[String], List[(String, Tree)]) = body match {
       case UnApplyClassTag(_, arg) => extractBindParams(arg)
       case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
         val labels = args.collect{ case Literal(Constant(label: String)) => label }
@@ -56,7 +54,7 @@ object Match {
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :=` =>
             (args2: @unchecked) match {
               case List(Literal(Constant(k: String)), v) =>
-                q"($k, _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
+                k -> q"_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v)"
             }
         }
         (labels, values)
@@ -64,70 +62,70 @@ object Match {
     }
 
 
-    def aliasTree(name: Name): Tree = name match {
-      case termNames.WILDCARD => q"_root_.scala.None"
-      case _ => q"_root_.scala.Some(${name.decodedName.toString})"
+    def withAliasBuilder(name: Name): Tree => Tree = builderTree => name match {
+      case termNames.WILDCARD => builderTree
+      case _ => q"$builderTree.withAlias(${name.decodedName.toString})"
     }
 
-    def knownNodeExpr(name: Name, body: Tree): c.Expr[Known[Pattern.Node]] = {
+    def withValuesBuilder(values: List[(String, Tree)]): Tree => Tree = builderTree =>
+      q"$builderTree.withValues(..${values.map { case (k, v) => q"${TermName(k)} = $v" }})"
+
+    def withLengthBuilder(length: Option[Tree]): Tree => Tree = builderTree =>
+      length map (l => q"$builderTree.withLength($l)") getOrElse builderTree
+
+    def nodeExpr(name: Name, body: Tree): c.Expr[Pattern.Node] = {
       val (labels, values) = extractBindParams(body)
-      val tree = q"""
-        _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
-          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(
-            alias = ${aliasTree(name)},
-            labels = _root_.scala.List(..$labels),
-            map = _root_.scala.Predef.Map(..$values)
-          )
-        )
-      """
-      c.Expr[Known[Pattern.Node]](tree)
+      val builder = withAliasBuilder(name) compose withValuesBuilder(values) apply
+        q"""
+          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node
+            .typed
+            .withLabels(..$labels)
+         """
+      c.Expr[Pattern.Node](q"$builder.build")
     }
 
-    def knownRelExpr(name: Option[Name], body: Tree, length: Option[Tree], dir: c.Expr[Rel.Direction]): c.Expr[Known[Pattern.Rel]] = {
-      val (labels, values) = extractBindParams(body)
-      val tree = q"""
-        _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
-          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel(
-            alias = ${name.map(aliasTree(_)).getOrElse(q"_root_.scala.None")},
-            types = _root_.scala.List(..$labels),
-            map = _root_.scala.Predef.Map(..$values),
-            length = ${length.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None")},
-            dir = ${dir.tree}
-          )
-        )
-      """
-      c.Expr[Known[Pattern.Rel]](tree)
+    def relExpr(name: Option[Name], body: Tree, length: Option[Tree], dir: c.Expr[Rel.Direction]): c.Expr[Pattern.Rel] = {
+      val (types, values) = extractBindParams(body)
+      val withAliasBuilder0 = name.map(withAliasBuilder(_)) getOrElse (identity(_: Tree): Tree)
+      val builder = withAliasBuilder0 compose withValuesBuilder(values) compose withLengthBuilder(length) apply
+        q"""
+          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
+            .typed
+            .withTypes(..$types)
+            .withDirection($dir)
+         """
+      c.Expr[Pattern.Rel](q"$builder.build")
     }
 
     object ExtractNode {
-      def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = tree match {
+      def unapply(tree: Tree): Option[NamedExpr[Pattern.Node]] = tree match {
         case UnApplyClassTag(tpe, arg) if tpe <:< GraphVertexType => unapply(arg)
         case Ident(termNames.WILDCARD) =>
-          Some{ (tree.symbol, None) -> reify { Known{ Pattern.Node(alias = None, labels = Nil, map = Map()) } } }
+          Some{ (tree.symbol, None) -> reify { Pattern.Node(alias = None, labels = Nil, values = Map()) } }
         case Bind(name, body) =>
-          Some{ (tree.symbol, Some(name)) -> knownNodeExpr(name, body) }
+          Some{ (tree.symbol, Some(name)) -> nodeExpr(name, body) }
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
-          Some{ (tree.symbol, None) -> knownNodeExpr(termNames.WILDCARD, ua) }
+          Some{ (tree.symbol, None) -> nodeExpr(termNames.WILDCARD, ua) }
         case _ => None
       }
     }
 
     object ExtractRel {
-      type Build = c.Expr[Rel.Direction] => NamedKnownExpr[Pattern.Rel]
+      type Build = c.Expr[Rel.Direction] => NamedExpr[Pattern.Rel]
 
       def unapply(tree: Tree): Option[Build] = tree match {
         case UnApplyClassTag(tpe, arg) if tpe <:< GraphEdgeType => unapply(arg)
         case Ident(termNames.WILDCARD) =>
-          Some{ dir => (tree.symbol, None) -> knownRelExpr(None, EmptyTree, None, dir) }
+          Some{ dir => (tree.symbol, None) -> relExpr(None, EmptyTree, None, dir) }
         case Bind(name, body) =>
-          Some{ dir => (tree.symbol, Some(name)) -> knownRelExpr(Some(name), body, None, dir) }
+          Some{ dir => (tree.symbol, Some(name)) -> relExpr(Some(name), body, None, dir) }
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
-          Some{ dir => (tree.symbol, None) -> knownRelExpr(None, ua, None, dir) }
+          Some{ dir => (tree.symbol, None) -> relExpr(None, ua, None, dir) }
         case UnApply(Apply(Select(sel, TermName("unapply")), _), List(bind, limits, edgeT)) if sel.tpe =:= `syntax *:` =>
           val name = DeepRel.name(bind)
           val length = DeepRel.length(limits)
           val edge = (edgeT: @unchecked) match { case UnApplyClassTag(tpe, arg) if tpe <:< GraphEdgeType => arg }
-          Some { dir: c.Expr[Rel.Direction] => ((bind.symbol, name), knownRelExpr(name, edge, Some(length), dir)) }
+          Some { dir: c.Expr[Rel.Direction] => ((bind.symbol, name), relExpr(name, edge, Some(length), dir)) }
         case _ => None
       }
 
@@ -144,7 +142,7 @@ object Match {
               case Literal(Constant(i: Int)) => Some(i)
               case Ident(termNames.WILDCARD) => None
             }
-            def range(ior: Tree) = q"_root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel.Range($ior)"
+            def range(ior: Tree) = q"_root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel.Range.typed($ior)"
 
             extractInt(minT) -> extractInt(maxT) match {
               case (Some(l), Some(r)) => range(q"_root_.cats.data.Ior.Both($l, $r)")
@@ -158,23 +156,23 @@ object Match {
       }
     }
 
-    type NamedKnownExpr[A] = ((Symbol, Option[Name]), c.Expr[Known[A]])
-    type KnownVertexEdgeExpr = Either[NamedKnownExpr[Pattern.Node], NamedKnownExpr[Pattern.Rel]]
+    type NamedExpr[A] = ((Symbol, Option[Name]), c.Expr[A])
+    type VertexEdgeExpr = Either[NamedExpr[Pattern.Node], NamedExpr[Pattern.Rel]]
 
     object V1 {
-      def unapply(tree: Tree): Option[KnownVertexEdgeExpr] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[VertexEdgeExpr] = PartialFunction.condOpt(tree) {
         case ExtractNode(node) => Left(node)
       }
     }
 
     object V {
-      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[List[VertexEdgeExpr]] = PartialFunction.condOpt(tree) {
         case ExtractNode(node) => Left(node) :: Nil
       }
     }
 
     object VOrDashEV {
-      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[List[VertexEdgeExpr]] = PartialFunction.condOpt(tree) {
         case Apply(tt, List(ExtractRel(rel), ExtractNode(node))) if tt.tpe.resultType =:= `syntax E-V` =>
           Left(node) :: Right(rel(reify(Rel.Incoming))) :: Nil
         case ExtractNode(node) =>
@@ -182,7 +180,7 @@ object Match {
       }
     }
     object VOrDashVE {
-      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[List[VertexEdgeExpr]] = PartialFunction.condOpt(tree) {
         case Apply(tt: TypeTree, List(ExtractNode(node), ExtractRel(rel))) if tt.tpe.resultType =:= `syntax V-E` =>
           Right(rel(reify(Rel.Outgoing))) :: Left(node) :: Nil
         case ExtractNode(node) =>
@@ -191,14 +189,14 @@ object Match {
     }
 
     object DashListE {
-      def unapply(tree: Tree): Option[(Tree, c.Expr[Rel.Direction] => KnownVertexEdgeExpr)] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[(Tree, c.Expr[Rel.Direction] => VertexEdgeExpr)] = PartialFunction.condOpt(tree) {
         case Apply(tt: TypeTree, List(t, ExtractRel(rel))) if tt.tpe.resultType =:= `syntax V-E` =>
           t -> (dir => Right(rel(dir)))
       }
     }
 
-    def simpleRel(dir: c.Expr[Rel.Direction]): KnownVertexEdgeExpr = Right {
-      (NoSymbol, None) -> knownRelExpr(None, EmptyTree, None, dir)
+    def simpleRel(dir: c.Expr[Rel.Direction]): VertexEdgeExpr = Right {
+      (NoSymbol, None) -> relExpr(None, EmptyTree, None, dir)
     }
 
     def failedToParse(tree: Tree) =
@@ -215,7 +213,7 @@ object Match {
           case _ => c.abort(c.enclosingPosition, "Only one case is permitted in `Match`.")
         }
 
-        def extractPatternRev(tree: Tree): List[KnownVertexEdgeExpr] = tree match {
+        def extractPatternRev(tree: Tree): List[VertexEdgeExpr] = tree match {
           case ua@UnApply(Apply(Select(arrow, TermName("unapply")), _), args) =>
             (args: @unchecked) match {
               case List(V1(v1),              V1(v2))              if arrow.tpe =:= `syntax <-` => v2 :: simpleRel(reify(Rel.Incoming)) :: v1 :: Nil
@@ -234,18 +232,16 @@ object Match {
         }
 
 
-        def toFragment0(patternRev: List[KnownVertexEdgeExpr], acc: c.Expr[Known[Pattern.Pattern0]]): c.Expr[Known[Pattern.Pattern0]] =
+        def toFragment0(patternRev: List[VertexEdgeExpr], acc: c.Expr[Pattern.Pattern0]): c.Expr[Pattern.Pattern0] =
           (patternRev: @unchecked) match {
             case Nil => acc
             case Right((_, relExpr)) :: Left((_, nodeExpr)) :: tail =>
               val newAcc = reify {
-                Known(
-                  Pattern.Path(nodeExpr.splice, relExpr.splice, acc.splice)
-                )
+                Pattern.Path(nodeExpr.splice, relExpr.splice, acc.splice)
               }
               toFragment0(tail, newAcc)
           }
-        def toFragment(patternRev: List[KnownVertexEdgeExpr]): c.Expr[Known[Pattern.Pattern0]] = (patternRev: @unchecked) match {
+        def toFragment(patternRev: List[VertexEdgeExpr]): c.Expr[Pattern.Pattern0] = (patternRev: @unchecked) match {
           case Left((_, node)) :: tail => toFragment0(tail, node)
         }
 
@@ -260,23 +256,19 @@ object Match {
         }.toList
 
 
-        val whereVarExpr0 = reify {
-          var where: Option[Known[CypherFragment.Expr[Boolean]]] = null
-        }
-        val whereVarDefTree = c.typecheck{ whereVarExpr0.tree.asInstanceOf[Block].stats.head }
-        val whereVarSymbol  = whereVarDefTree.symbol
-        val whereIdent      = Ident(whereVarSymbol)
-        val whereIdentExpr  = c.Expr[Option[Known[CypherFragment.Expr[Boolean]]]](whereIdent)
-        val whereVarExpr    = c.Expr[Unit](Block(whereVarDefTree :: Nil, EmptyTree))
-
-        val whereClause = guard0 match {
+        val (whereDefined, whereClause) = guard0 match {
           case Apply(Select(pkg, TermName("unwrapBooleanExprInIfGuard")), List(cond)) if pkg.tpe =:= `syntax pkg` =>
-            q"_root_.scala.Some(_root_.com.abraxas.slothql.cypher.CypherFragment.Known($cond))"
-          case EmptyTree => q"_root_.scala.None"
+            true -> cond
+          case EmptyTree =>
+            false -> EmptyTree
           case _ => c.abort(guard0.pos, "`if` contents cannot be transformed to WHERE clause:\n" + showRaw(guard0))
         }
 
-        val setWhereVar = Assign(whereIdent, whereClause)
+        lazy val whereVarTree0 = q"var where: ${whereClause.tpe} = null"
+        lazy val whereVarDefTree = c.typecheck{ whereVarTree0 }
+        lazy val whereIdent      = Ident(whereVarDefTree.symbol)
+
+        val setWhereVar = if (whereDefined) Assign(whereIdent, whereClause) else EmptyTree
 
 
         object fTransormer extends Transformer {
@@ -294,7 +286,7 @@ object Match {
 
           override def transformCaseDefs(trees: List[c.universe.CaseDef]): List[c.universe.CaseDef] =
             super.transformCaseDefs(trees).map {
-              case CaseDef(pat, _, b0) =>
+              case CaseDef(pat, _, b0) => // TODO: transform only outer `CaseDef`; right now the underlying `CaseDef`s are also modified
                 val b = b0 match {
                   case Block(stats, expr) => Block(setAliases ::: setWhereVar :: stats, expr)
                   case expr               => Block(setAliases ::: setWhereVar :: Nil,   expr)
@@ -305,23 +297,34 @@ object Match {
 
         val f2 = c.Expr[Graph => CypherFragment.Return[R]](fTransormer.transform(f.tree))
 
-        val res = reify {
-          whereVarExpr.splice
-          val ret = f2.splice.apply(Internal.graph)
-          Query.Clause(
-            Clause.Match(
-              NonEmptyList(pattern.splice, Nil),
-              optional = false,
-              where = whereIdentExpr.splice
-            ),
-            Query.Return(ret)
-          )
-        }
+        val patternTupleTree =
+          q"_root_.com.abraxas.slothql.cypher.CypherFragment.PatternTuple.typed($pattern)"
+        val tree =
+          q"""
+            ${if (whereDefined) whereVarDefTree else EmptyTree}
+            val ret = $f2(_root_.com.abraxas.slothql.cypher.syntax.Match.Internal.graph)
+            _root_.com.abraxas.slothql.cypher.CypherFragment.Query.Clause.typed(
+              ${
+                if (whereDefined)
+                  q"""
+                    _root_.com.abraxas.slothql.cypher.CypherFragment.Clause.Match.strict(
+                      $patternTupleTree,
+                      $whereIdent
+                    )
+                   """
+                else
+                  q"_root_.com.abraxas.slothql.cypher.CypherFragment.Clause.Match.strict($patternTupleTree)"
+              },
+              _root_.com.abraxas.slothql.cypher.CypherFragment.Query.Return(ret)
+            )
+           """
+
+        // TODO: most of the `Expr` are no longer needed
 
 //        c.info(c.enclosingPosition, showCode(res.tree), force = true)
 //        c.info(c.enclosingPosition, showRaw(res.tree), force = true)
 
-        res
+        c.Expr[Query[R]](tree)
     }
   }
 }
