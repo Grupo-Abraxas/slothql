@@ -410,11 +410,14 @@ object SyntaxTest14 extends App {
   HasAlias("v3", query)
   HasAlias("v4", query)
 
-  shapeless.test.illTyped("""HasAlias("v5", query)""")
+  shapeless.test.illTyped("""HasAlias("v5", query)""",
+    """Alias "String\("v5"\)" was not found in com\.abraxas\.slothql\.cypher\.CypherFragment\.Query\.Clause\.Aux\[.*""")
 
   RenameAlias("e", "q", query)
-  shapeless.test.illTyped("""RenameAlias("w", "q", query)""")
-  shapeless.test.illTyped("""RenameAlias("e", "v4", query)""")
+  shapeless.test.illTyped("""RenameAlias("w", "q", query)""",
+    """Field String\("w"\) cannot be renamed to String\("q"\)\. Either key String\("w"\) doesn't exist or String\("q"\) is already present in Aliases\..*""")
+  shapeless.test.illTyped("""RenameAlias("e", "v4", query)""",
+    """Field String\("e"\) cannot be renamed to String\("v4"\)\. Either key String\("e"\) doesn't exist or String\("v4"\) is already present in Aliases\..*""")
 }
 
 object SyntaxTest15 extends App {
