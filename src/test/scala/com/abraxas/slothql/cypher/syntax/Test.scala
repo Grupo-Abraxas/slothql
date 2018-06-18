@@ -4,6 +4,7 @@ import shapeless.HNil
 
 import com.abraxas.slothql.Connection
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
+import com.abraxas.slothql.cypher.analysis.HasAlias
 import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
 
@@ -402,6 +403,14 @@ object SyntaxTest14 extends App {
 
   driver.close()
   sys.exit()
+
+  HasAlias("v1", query)
+  HasAlias("v2", query)
+  HasAlias("e", query)
+  HasAlias("v3", query)
+  HasAlias("v4", query)
+
+  shapeless.test.illTyped("""HasAlias("v5", query)""")
 
 }
 
