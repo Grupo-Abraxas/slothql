@@ -12,7 +12,7 @@ import shapeless.{ :: => #:, _ }
 import shapeless.syntax.singleton._
 
 import com.abraxas.slothql.util.ComappedCov
-import com.abraxas.slothql.util.Types.{ False, True }
+import com.abraxas.slothql.util.Bool.{ False, True }
 
 trait CypherFragment[-A] {
   // TODO: (String, Params)

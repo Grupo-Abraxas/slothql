@@ -3,6 +3,8 @@ package com.abraxas.slothql.cypher.analysis
 import shapeless._
 import shapeless.labelled.FieldType
 
+import com.abraxas.slothql.util.Not
+
 
 /**
  * Alternative implementation of [[ops.record.Values]].
@@ -60,4 +62,43 @@ object Keys {
       type Out = K :: next.Out
       def apply(): K :: next.Out = w.value :: next()
     }
+}
+
+
+/**
+ * Alternative implementation of [[ops.record.Renamer]].
+ */
+@annotation.implicitNotFound("Field ${K1} cannot be renamed to ${K2}. Either key ${K1} doesn't exist or ${K2} is already present in ${L}.")
+trait Renamer[L <: HList, K1, K2] extends DepFn1[L] with Serializable { type Out <: HList }
+object Renamer {
+  type Aux[L <: HList, K1, K2, Out0 <: HList] = Renamer[L, K1, K2] { type Out = Out0 }
+  def apply[L <: HList, K1, K2](implicit renamer: Renamer[L, K1, K2]): Aux[L, K1, K2, renamer.Out] = renamer
+
+  implicit def hlistRenamer[L <: HList, K1, K2](
+    implicit
+    aliasesAreDistinct: DistinctKeysConstraint[L],
+    newNameNotUsed: Not[ops.record.Selector[L, K2]],
+    renamer: Renamer0[L, K1, K2]
+  ): Aux[L, K1, K2, renamer.Out] =
+    new Renamer[L, K1, K2] {
+      type Out = renamer.Out
+      def apply(t: L): renamer.Out = renamer(t)
+    }
+
+  @annotation.implicitNotFound("No field ${K1} in record ${L}")
+  trait Renamer0[L <: HList, K1, K2] extends DepFn1[L] with Serializable { type Out <: HList }
+  object Renamer0 {
+    type Aux[L <: HList, K1, K2, Out0 <: HList] = Renamer0[L, K1, K2] { type Out = Out0 }
+
+    implicit def hlistRenamer0This[H, T <: HList, V, K1, K2](implicit ev: H <:< FieldType[K1, V]): Aux[H :: T, K1, K2, FieldType[K2, V] :: T] =
+      new Renamer0[H :: T, K1, K2] {
+        type Out = FieldType[K2, V] :: T
+        def apply(t: H :: T): FieldType[K2, V] :: T = labelled.field[K2](t.head: V) :: t.tail
+      }
+    implicit def hlistRenamer0Next[H, T <: HList, K1, K2](implicit renamer: Renamer0[T, K1, K2]): Aux[H :: T, K1, K2, H :: renamer.Out] =
+      new Renamer0[H :: T, K1, K2] {
+        type Out = H :: renamer.Out
+        def apply(t: H :: T): ::[H, renamer.Out] = t.head :: renamer(t.tail)
+      }
+  }
 }

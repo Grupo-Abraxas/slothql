@@ -2,7 +2,7 @@ package com.abraxas.slothql.util
 
 import shapeless.Witness
 
-object Types {
+object Bool {
   type True  = Witness.`true`.T
   type False = Witness.`false`.T
 }

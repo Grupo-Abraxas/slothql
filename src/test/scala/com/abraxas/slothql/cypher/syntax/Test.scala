@@ -4,7 +4,7 @@ import shapeless.HNil
 
 import com.abraxas.slothql.Connection
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
-import com.abraxas.slothql.cypher.analysis.HasAlias
+import com.abraxas.slothql.cypher.analysis.{ HasAlias, RenameAlias }
 import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
 
@@ -412,6 +412,9 @@ object SyntaxTest14 extends App {
 
   shapeless.test.illTyped("""HasAlias("v5", query)""")
 
+  RenameAlias("e", "q", query)
+  shapeless.test.illTyped("""RenameAlias("w", "q", query)""")
+  shapeless.test.illTyped("""RenameAlias("e", "v4", query)""")
 }
 
 object SyntaxTest15 extends App {

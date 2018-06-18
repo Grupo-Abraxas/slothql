@@ -70,3 +70,12 @@ object AllAliases {
   private def instance[T, Aliases0 <: HList]: AllAliases.Aux[T, Aliases0] = _instance.asInstanceOf[AllAliases.Aux[T, Aliases0]]
   private lazy val _instance = new AllAliases[Any]{ type Aliases = HList }
 }
+
+
+object RenameAlias {
+  def apply[T, Aliases <: HList](from: String, to: String, t: T)(
+    implicit
+    aliases: AllAliases.Aux[T, Aliases],
+    renamer: Renamer[Aliases, from.type, to.type]
+  ): renamer.Out = null.asInstanceOf[renamer.Out] // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+}
