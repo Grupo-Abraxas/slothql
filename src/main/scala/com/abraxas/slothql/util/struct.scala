@@ -43,20 +43,40 @@ object Copy {
  * `HF` would immediately transform `A` if defined at.
  * In any case it should proceed transforming the children recursively until reaching tree's bottom.
  */
-trait Transform[A, HF <: Poly1] extends DepFn1[A]
+sealed trait Transform[A, HF <: Poly1] extends DepFn1[A]
 object Transform {
   type Aux[A, HF <: Poly1, R] = Transform[A, HF] { type Out = R }
 
   def apply[A, HF <: Poly1](a: A, hf: HF)(implicit transform: Transform[A, HF]): Aux[A, HF, transform.Out] = transform
 
+  /**
+   * Should apply `Transform` to each child. Must not apply `HF` to `A` even is defined at.
+   */
+  trait Children[A, HF <: Poly1] extends DepFn1[A]
+  object Children {
+    type Aux[A, HF <: Poly1, R] = Transform.Children[A, HF] { type Out = R }
+
+    def apply[A, HF <: Poly1](a: A, hf: HF)(implicit transform: Transform.Children[A, HF]): Aux[A, HF, transform.Out] = transform
+  }
+
   implicit def transformThis[A, HF <: Poly1, R0](
     implicit
     hf: poly.Case1.Aux[HF, A, R0],
-    next: Transform[R0, HF]
+    next: Transform.Children[R0, HF]
   ): Aux[A, HF, next.Out] =
     new Transform[A, HF] {
       type Out = next.Out
       def apply(t: A): next.Out = next(hf(t))
+    }
+
+  implicit def transformNext[A, HF <: Poly1](
+    implicit
+    hf: Not[poly.Case1[HF, A]],
+    next: Transform.Children[A, HF]
+  ): Aux[A, HF, next.Out] =
+    new Transform[A, HF] {
+      type Out = next.Out
+      def apply(t: A): next.Out = next(t)
     }
 
 }

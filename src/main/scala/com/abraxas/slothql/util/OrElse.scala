@@ -1,5 +1,7 @@
 package com.abraxas.slothql.util
 
+import scala.language.higherKinds
+
 import shapeless._
 
 /**
@@ -16,7 +18,7 @@ object OrElse {
     def apply(a: Any, b: Any): Any = a
   }
 
-  implicit def orElseB[A, B](implicit undefined: A =:= Nothing): Aux[A, B, B] = b.asInstanceOf[Aux[A, B, B]]
+  implicit def orElseB[A, B]: Aux[Nothing, B, B] = b.asInstanceOf[Aux[Nothing, B, B]]
   private lazy val b = new OrElse[Any, Any] {
     type Out = Any
     def apply(a: Any, b: Any): Any = b
@@ -47,4 +49,18 @@ object MapOrElse {
     def apply(a0: Any, b: Any): Any = b
   }
 
+}
+
+/**
+ * A typeclass supporting alternative selection in case `A` is typed with `Nothing`
+ * or wrapping `A` in type constructor `F` otherwise.
+ */
+trait MappedOrElse[F[_], A, B] { type Out }
+object MappedOrElse {
+  type Aux[F[_], A, B, Out0] = MappedOrElse[F, A, B] { type Out = Out0 }
+  def apply[F[_], A, B](implicit moe: MappedOrElse[F, A, B]): Aux[F, A, B, moe.Out] = moe
+
+  implicit def mapOrElseA[F[_], A, B](implicit defined: A =:!= Nothing): Aux[F, A, B, F[A]] = instance.asInstanceOf[Aux[F, A, B, F[A]]]
+  implicit def mapOrElseB[F[_], A, B]: Aux[F, Nothing, B, B] = instance.asInstanceOf[Aux[F, Nothing, B, B]]
+  private lazy val instance = new MappedOrElse[Id, Any, Any] { type Out = Any }
 }
