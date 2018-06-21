@@ -207,20 +207,32 @@ object FragmentDefinitionHelper {
                   }}
               )(implicit ..$implicits) {
 
-                ..${typeRelatedFields.map{ f =>
+                ..${typeRelatedFields.flatMap{ f =>
                     f.typeRelated.get match {
-                      case NarrowType(tName, _) =>
+                      case NarrowType(tName, resultType) =>
                         val t = abstractTypes(tName)
+                        val methodName = namePrefix(f.name, "with")
                         // TODO: remove covariance/contravariance modifiers if any
                         q"""
-                          def ${mapName(f.name, nme => "with" + capitalize(nme))}[$t](
+                          def $methodName[$t](
                             ${f.name}: ${t.name}
                           )(implicit w: _root_.shapeless.Witness.Aux[${t.name}]) =
                             copy(
                               ${f.name} = _root_.scala.Option(${f.name}),
                               ${nameCapitalize(f.name)} = _root_.scala.Option(${f.name})
                             )
-                         """
+                         """ ::
+                        // TODO: remove covariance/contravariance modifiers if any
+                        q"""
+                          private[$name] def ${nameSuffix(methodName, "0")}[$t](
+                            ${nameCapitalize(f.name)}: ${t.name},
+                            ${f.name}: $resultType
+                          ) =
+                            copy(
+                              ${nameCapitalize(f.name)} = _root_.scala.Option(${nameCapitalize(f.name)}),
+                              ${f.name} = _root_.scala.Option(${f.name})
+                            )
+                         """ :: Nil
                     }
                   }}
 
@@ -266,8 +278,40 @@ object FragmentDefinitionHelper {
            """
         }
 
+        def construct: Tree = {
+          val Construct  =  q"_root_.com.abraxas.slothql.util.Construct"
+          val ConstructT = tq"_root_.com.abraxas.slothql.util.Construct"
+          val tps = tparams ++ abstractTypes.values
+          val implicits = implicitFields.map(_.definition) ++ typeRelatedFields.map{ f =>
+            f.typeRelated.get match {
+              case NarrowType(tname, _) =>
+                q"val ${nameSuffix(f.name, "W")}: _root_.shapeless.Witness.Aux[$tname]"
+            }
+          }
+          val argsHList = abstractTypes.keys
+            .foldLeft(tq"_root_.shapeless.HNil": Tree)((acc, t) => tq"_root_.shapeless.::[$t, $acc]" )
+          val build0 = abstractTypes.keys.zipWithIndex
+            .foldLeft(q"${name.toTermName}.typed[..$tArgNames]": Tree) {
+              case (acc, (t, i)) =>
+                q"$acc.${namePrefix(t, "with").toTermName}(args($i))"
+            }
 
-        def body = List(Aux, apply, unapply, TypedBuilder.tree, typed)
+          q"""
+            implicit def ${namePrefix(name, "construct").toTermName}[..$tps](
+              implicit ..$implicits
+            ): $Construct.Aux[$name[..$tArgNames], $argsHList, ${name.toTermName}.Aux[..${tArgNames ++ abstractTypes.keys}]] =
+              new $ConstructT[$name[..$tArgNames], $argsHList] {
+                type Out = ${name.toTermName}.Aux[..${tArgNames ++ abstractTypes.keys}]
+                def apply(args: $argsHList): Out = $build0.build
+              }
+           """
+
+        }
+
+        def body = List(
+          Aux, apply, unapply, TypedBuilder.tree, typed,
+          construct
+        )
 
         def tree = companionDef
           .map{
@@ -283,6 +327,10 @@ object FragmentDefinitionHelper {
     private def mapName[N <: Name](n: N, f: String => String): N = n match {
       case TermName(name) => TermName(f(name)).asInstanceOf[N]
       case TypeName(name) => TypeName(f(name)).asInstanceOf[N]
+    }
+    private def namePrefix[N <: Name](n: N, prefix: String, camelCase: Boolean = true): N = {
+      val n0 = if (camelCase) nameCapitalize(n) else n
+      mapName(n0, prefix + _)
     }
     private def nameSuffix[N <: Name](n: N, suffix: String): N = mapName(n, _ + suffix)
     private def nameCapitalize[N <: Name](n: N): N = mapName(n, capitalize)

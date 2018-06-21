@@ -140,13 +140,10 @@ object Call {
     new Construct[Call[A], Func0 :: Params0 :: HNil] {
       type Out = Call.Aux[A, Func0, Params0]
       def apply(args: Func0 :: Params0 :: HNil): Aux[A, Func0, Params0] =
-        args match {
-          case func :: params :: HNil =>
-            Call.typed[A]
-              .withFunc(func)
-              .withParams.applyProduct(params)
-              .build
-        }
+        Call.typed[A]
+          .withFunc(args(0))
+          .withParams.applyProduct(args(1))
+          .build
     }
 
   implicit def copyCallFunc[A, Func0 <: String, Params <: HList](
