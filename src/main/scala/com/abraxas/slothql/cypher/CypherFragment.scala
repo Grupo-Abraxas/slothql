@@ -907,15 +907,20 @@ object CypherFragment {
   }
 
 
-  private def escapeName(name: String) = "`" + name.replaceAll("`", "``") + "`"
-  private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
-  private def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
-  private def mapStr(map: Map[String, Known[Expr[_]]]) =
+  /*private*/ @deprecated("private")
+  def escapeName(name: String) = "`" + name.replaceAll("`", "``") + "`"
+  /*private*/ @deprecated("private")
+  def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
+  /*private*/ @deprecated("private")
+  def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
+  /*private*/ @deprecated("private")
+  def mapStr(map: Map[String, Known[Expr[_]]]) =
     if (map.isEmpty) ""
     else map.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString("{ ", ", ", " }")
-  private def rangeStr(ior: Ior[Known[_], Known[_]]) = ior match {
-      case Ior.Left(min)      => s"${min.toCypher}.."
-      case Ior.Right(max)     => s"..${max.toCypher}"
-      case Ior.Both(min, max) => s"${min.toCypher}..${max.toCypher}"
+  /*private*/ @deprecated("private")
+  def rangeStr(ior: Ior[Known[_], Known[_]]) = ior match {
+    case Ior.Left(min)      => s"${min.toCypher}.."
+    case Ior.Right(max)     => s"..${max.toCypher}"
+    case Ior.Both(min, max) => s"${min.toCypher}..${max.toCypher}"
   }
 }
