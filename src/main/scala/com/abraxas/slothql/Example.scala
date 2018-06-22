@@ -3,21 +3,25 @@ package com.abraxas.slothql
 import shapeless._
 import shapeless.syntax.singleton._
 
-import com.abraxas.slothql.Call.MapAndToList
 import com.abraxas.slothql.FragmentDefinitionHelper._
 import com.abraxas.slothql.util._
 
 
 
 sealed trait Expr[+T]
-sealed trait Known[+T]
+sealed trait Known[+T] {
+  val t: T
+  override def toString: String = s"Known($t)"
+}
 object LiftKnown extends Poly1 {
-  implicit def impl[E <: Expr[_]]: Case.Aux[E, Known[E]] = at[E]{ _ => new Known[E] {} } // TODO: stub
+  implicit def impl[E <: Expr[_]]: Case.Aux[E, Known[E]] = at[E]{ x => new Known[E] {val t = x} }
 }
 
 trait Lit[A] extends Expr[A]{
   val value: A
   val m: Manifest[A]
+
+  override def toString: String = s"Lit[$m]($value)"
 }
 object Lit{
   def apply[A: Manifest](a: A): Lit[A] =
@@ -63,6 +67,7 @@ trait Call[A] extends Expr[A] {
   // - `toString`
   // - `equals`
   // - `hashCode`
+  override def toString: String = s"Call($func, $params)"
 }
 
 object Call {
@@ -151,42 +156,66 @@ object Call {
           .build
     }
 
-  trait MapAndToList[HF, In, Lub] extends DepFn1[In] { type Out = List[Lub] }
-  object MapAndToList {
-    class Stub[HF, In, Lub] extends MapAndToList[HF, In, Lub] {
-      def apply(t: In): List[Lub] = ???
+  implicit def constructCall2[A, Func0 <: String, Params0 <: HList]
+  : Construct.Aux[Call[A], Func0 :: Params0 :: List[Known[Expr[_]]] :: HNil, Call.Aux[A, Func0, Params0]] =
+    new Construct[Call[A], Func0 :: Params0 :: List[Known[Expr[_]]] :: HNil] {
+      type Out = Call.Aux[A, Func0, Params0]
+      def apply(args: Func0 :: Params0 :: List[Known[Expr[_]]] :: HNil): Call.Aux[A, Func0, Params0] =
+        Call.typed[A]
+        .withFunc0[Func0](args(0))
+        .withParams0(args(1), args(2))
+        .build
     }
 
-    @deprecated
-    implicit def stub[HF, In <: HList, Lub]: Stub[HF, In, Lub] = new Stub
-
-/*
+  trait MapAndToList[HF, In, Lub] extends DepFn1[In] { type Out = List[Known[Lub]] }
+  object MapAndToList {
     implicit def impl[HF, In <: HList, Lub, Mapped <: HList](
       implicit
-      mapper: Cached[ops.hlist.Mapper.Aux[HF, In, Mapped]],           // TODO
+      mapper: Cached[ops.hlist.Mapper.Aux[HF, In, Mapped]],
       toTraversable: Cached[ops.hlist.ToTraversable.Aux[Mapped, List, Known[Lub]]]
-    ): MapAndToList[HF, In, Lub] = ???
-*/
+    ): MapAndToList[HF, In, Lub] =
+      new MapAndToList[HF, In, Lub] {
+        def apply(t: In): List[Known[Lub]] = toTraversable.value(mapper.value(t))
+      }
   }
+
+  type LiftKnownAndToList[In] = MapAndToList[LiftKnown.type, In, Expr[_]]
 
   implicit def copyCall[
     A, Args <: HList,
     Func0 <: String, Params0 <: HList,
-    Func1 <: String, Params1  <: HList,
-    Func  <: String, Params   <: HList,
-    FuncI, ParamsI, MappedParams <: HList
+    Func1 <: String, Params1 <: HList,
+    Func  <: String, Params  <: HList,
+    FuncI,           ParamsI
   ](
-    implicit
-    funcRec: ops.record.Selector.Aux[Args, Witness.`'func`.T, Func1] = null,
-    funcIev: MappedOrElse.Aux[Witness.Aux, Func1, DummyImplicit, FuncI],
-    funcI: FuncI,
-    func: com.abraxas.slothql.util.OrElse.Aux[Func1, Func0, Func],
-    paramsRec: ops.record.Selector.Aux[Args, Witness.`'params`.T, Params1] = null,
-    paramsIev: MappedOrElse.Aux[MapAndToList[LiftKnown.type, ?, Known[Expr[_]]], Params1, DummyImplicit, ParamsI],
-    paramsI: ParamsI,
-    params: com.abraxas.slothql.util.OrElse.Aux[Params1, Params0, Params],
-    construct: Construct.Aux[Call[A], Func :: Params :: HNil, Call.Aux[A, Func, Params]]
-  ): Copy.Aux[Call.Aux[A, Func0, Params0], Args, Call.Aux[A, Func, Params]] = ???
+    a: Call.Aux[A, Func0, Params0], args: Args
+  )(
+     implicit
+     funcRec: ops.record.Selector.Aux[Args, Witness.`'func`.T, Func1] = null,
+     funcIev: MappedOrElse.Aux[Witness.Aux, Func1, DummyImplicit, FuncI],
+     funcI: FuncI,
+     func0: com.abraxas.slothql.util.OrElse.Aux[Func1, Func0, Func],
+     paramsRec: ops.record.Selector.Aux[Args, Witness.`'params`.T, Params1] = null,
+     paramsIev: MappedOrElse.Aux[LiftKnownAndToList, Params1, DummyImplicit, ParamsI],
+     paramsI: ParamsI,
+     params0: com.abraxas.slothql.util.OrElse.Aux[Params1, Params0, Params],
+     construct: Construct.Aux[Call[A], Func :: Params :: List[Known[Expr[_]]] :: HNil, Call.Aux[A, Func, Params]]
+    ): Copy.Aux[Call.Aux[A, Func0, Params0], Args, Call.Aux[A, Func, Params]] =
+    new Copy[Call.Aux[A, Func0, Params0], Args] {
+      type Out = Call.Aux[A, Func, Params]
+      def apply(call: Call.Aux[A, Func0, Params0], args: Args): Call.Aux[A, Func, Params] = {
+        val func = Option(funcRec).map(_(args)).getOrElse(a.Func).asInstanceOf[Func]
+        val (params, paramsKnown) = paramsRec match {
+          case null => a.Params.asInstanceOf[Params]  -> a.params
+          case sel =>
+            val p = sel(args)
+            val l = paramsI.asInstanceOf[LiftKnownAndToList[Params1]].apply(p)
+            p.asInstanceOf[Params] -> l
+        }
+        construct(func :: params :: paramsKnown :: HNil)
+      }
+    }
+
 
 
   object CallTagFuncPoly extends Poly1 {
@@ -255,69 +284,57 @@ res9: Transform[call.type, F.type]{type Out = com.abraxas.slothql.Call.<refineme
 
 object TestCopy{
   import com.abraxas.slothql.util.WitnessAlternative._
+  import Call.copyCall
 
-
-  implicit def constructCall[A, Func0 <: String, Params0 <: HList]
-//    (
-//      implicit
-//      w: Witness.Aux[Func0]
-//      toList: LiftKnownAndToList[Params0]
-//    )
-  : Construct.Aux[Call[A], Func0 :: Params0 :: HNil, Call.Aux[A, Func0, Params0]] =
-    new Construct[Call[A], Func0 :: Params0 :: HNil] {
-      type Out = Call.Aux[A, Func0, Params0]
-      def apply(args: Func0 :: Params0 :: HNil): Call.Aux[A, Func0, Params0] = ???
-//        Call.typed[A]
-//          .withFunc(args(0))
-//          .withParams.applyProduct(args(1))
-//          .build
-    }
-
-
-  type LiftKnownAndToList[In] = MapAndToList[LiftKnown.type, In, Known[Expr[_]]]
-
-
-  class CopyCall[A, Args <: HList](a: A, args: Args){
-    implicit def copy[
-      Func0 <: String, Params0 <: HList,
-      Func1 <: String, Params1 <: HList,
-      Func  <: String, Params  <: HList,
-      FuncI, ParamsI, MappedParams <: HList
-    ](
-       implicit
-       funcRec: ops.record.Selector.Aux[Args, Witness.`'func`.T, Func1] = null,
-       funcIev: MappedOrElse.Aux[Witness.Aux, Func1, DummyImplicit, FuncI],
-       funcI: FuncI,
-       func: com.abraxas.slothql.util.OrElse.Aux[Func1, Func0, Func],
-       paramsRec: ops.record.Selector.Aux[Args, Witness.`'params`.T, Params1] = null,
-       paramsIev: MappedOrElse.Aux[LiftKnownAndToList, Params1, DummyImplicit, ParamsI],
-       paramsI: ParamsI,
-       params: com.abraxas.slothql.util.OrElse.Aux[Params1, Params0, Params],
-       construct: Construct.Aux[Call[A], Func :: Params :: HNil, Call.Aux[A, Func, Params]]
-//       construct: Construct.Aux[Call[A], Func :: Params :: HNil, Call.Aux[A, Func, Params]]
-     ): (FuncI, ParamsI) = (funcI, paramsI)
-    // Copy.Aux[Call.Aux[A, Func0, Params0], Args, Call.Aux[A, Func, Params]] = ???
-
-  }
-
+//  def copyCall[A, Func0 <: String, Params0 <: HList, Args <: HList](
+//    a: Call.Aux[A, Func0, Params0], args: Args
+//  )(implicit copy: Copy[Call.Aux[A, Func0, Params0], Args]): copy.Out = copy(call, args)
+//  def copyCall[C <: Call[_], Args <: HList](call: C, args: Args)(implicit copy: Copy[C, Args]): copy.Out =
+//    copy(call, args)
 
   val call = Call.typed[String].withFunc[Witness.`"foo"`.T]("foo").withParams(Lit("bar"), Lit("baz")).build
 
-  val copy1 = new CopyCall(call,
-    'func ->> "abc".narrow :: HNil
-  )
-  copy1.copy
+  // TODO: val copy1 = Copy(call)(func = "abc".narrow)
+  val changes1 = 'func ->> "abc".narrow :: HNil
+  val copy1 = copyCall(call, changes1)
+  // Copy.Aux[
+  //  Call.Aux[String, call.Func, call.Params],
+  //  abc with labelled.KeyTag[Symbol with tag.Tagged[func], abc] :: HNil,
+  //  Call.Aux[String, abc, call.Params]
+  // ] = Call$$anon$9@86c34f1
+  val copied1 = copy1(call, changes1)
+  //copy1.Out = Call(abc, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
 
-  val copy2 = new CopyCall(call,
-    ('params ->> HNil) :: HNil
-  )
-  copy2.copy
+  val changes2 = 'params ->> (Lit("A") :: Lit(1) :: HNil) :: HNil
+  val copy2 = copyCall(call, changes2)
+  // Copy.Aux[
+  //  Call.Aux[String, call.Func, call.Params],
+  //  (Lit[String] :: Lit[Int] :: HNil) with labelled.KeyTag[Symbol with tag.Tagged[params], Lit[String] :: Lit[Int] :: HNil] :: HNil,
+  //  Call.Aux[String, call.Func, ::[Lit[String], ::[Lit[Int], HNil]]]
+  // ] = Call$$anon$9@1498e690
+  val copied2 = copy2(call, changes2)
+  // copy2.Out = Call(foo, List(Known(Lit[String](A)), Known(Lit[Int](1))))
 
-  val copy3 = new CopyCall(call,
-    ('params ->> (Lit("A") :: HNil)) :: HNil
-  )
-  copy3.copy
+  val copy3 = copyCall(call, HNil)
+  // Copy.Aux[
+  //  Call.Aux[String, call.Func, call.Params],
+  //  HNil.type,
+  //  Call.Aux[String, call.Func, call.Params]
+  // ] = Call$$anon$9@71d23cf9
+  val copied3 = copy3(call, HNil)
+  // copy3.Out = Call(foo, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
 
+  val changes4 =
+    'func   ->> "abc".narrow                 ::
+    'params ->> (Lit("A") :: Lit(1) :: HNil) :: HNil
+  val copy4 = copyCall(call, changes4)
+  // Copy.Aux[
+  //  Call.Aux[String, call.Func, call.Params],
+  //  abc with labelled.KeyTag[Symbol with tag.Tagged[func], abc] :: (Lit[String] :: Lit[Int] :: HNil) with labelled.KeyTag[Symbol with tag.Tagged[params], Lit[String] :: Lit[Int] :: HNil] :: HNil
+  //  Call.Aux[String, abc, ::[Lit[String], ::[Lit[Int], HNil]]]
+  // ] = Call$$anon$9@3932104e
+  val copied4 = copy4(call, changes4)
+  // copy4.Out = Call(abc, List(Known(Lit[String](A)), Known(Lit[Int](1))))
 }
 
 
