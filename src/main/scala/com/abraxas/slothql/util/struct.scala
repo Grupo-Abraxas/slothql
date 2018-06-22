@@ -28,13 +28,8 @@ object Copy {
   def apply[A](a: A): Builder[A] = new Builder[A](a)
 
   protected class Builder[A](a: A) extends RecordArgs {
-    def applyRecord[Changes <: HList](changes: Changes)(implicit copy: Copy[A, Changes]): Aux[A, Changes, copy.Out] = copy
-  }
-
-  implicit def copyIdentity[A]: Copy.Aux[A, HNil, A] = _copyIdentity.asInstanceOf[Copy.Aux[A, HNil, A]]
-  private lazy val _copyIdentity = new Copy[Any, HNil] {
-    type Out = Any
-    def apply(t: Any, u: HNil): Any = t
+    def getRecord[Changes <: HList](changes: Changes)(implicit copy: Copy[A, Changes]): Aux[A, Changes, copy.Out] = copy
+    def applyRecord[Changes <: HList](changes: Changes)(implicit copy: Copy[A, Changes]): copy.Out = copy(a, changes)
   }
 }
 

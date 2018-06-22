@@ -188,8 +188,6 @@ object Call {
     Func  <: String, Params  <: HList,
     FuncI,           ParamsI
   ](
-    a: Call.Aux[A, Func0, Params0], args: Args
-  )(
      implicit
      funcRec: ops.record.Selector.Aux[Args, Witness.`'func`.T, Func1] = null,
      funcIev: MappedOrElse.Aux[Witness.Aux, Func1, DummyImplicit, FuncI],
@@ -204,9 +202,9 @@ object Call {
     new Copy[Call.Aux[A, Func0, Params0], Args] {
       type Out = Call.Aux[A, Func, Params]
       def apply(call: Call.Aux[A, Func0, Params0], args: Args): Call.Aux[A, Func, Params] = {
-        val func = Option(funcRec).map(_(args)).getOrElse(a.Func).asInstanceOf[Func]
+        val func = Option(funcRec).map(_(args)).getOrElse(call.Func).asInstanceOf[Func]
         val (params, paramsKnown) = paramsRec match {
-          case null => a.Params.asInstanceOf[Params]  -> a.params
+          case null => call.Params.asInstanceOf[Params]  -> call.params
           case sel =>
             val p = sel(args)
             val l = paramsI.asInstanceOf[LiftKnownAndToList[Params1]].apply(p)
@@ -284,57 +282,28 @@ res9: Transform[call.type, F.type]{type Out = com.abraxas.slothql.Call.<refineme
 
 object TestCopy{
   import com.abraxas.slothql.util.WitnessAlternative._
-  import Call.copyCall
-
-//  def copyCall[A, Func0 <: String, Params0 <: HList, Args <: HList](
-//    a: Call.Aux[A, Func0, Params0], args: Args
-//  )(implicit copy: Copy[Call.Aux[A, Func0, Params0], Args]): copy.Out = copy(call, args)
-//  def copyCall[C <: Call[_], Args <: HList](call: C, args: Args)(implicit copy: Copy[C, Args]): copy.Out =
-//    copy(call, args)
 
   val call = Call.typed[String].withFunc[Witness.`"foo"`.T]("foo").withParams(Lit("bar"), Lit("baz")).build
+  // Call.Aux[String, foo, ::[Lit[String], ::[Lit[String], HNil]]]
+  // = Call(foo, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
+  def copy = Copy(call)
+  // Copy.Builder[Call.Aux[String, foo, ::[Lit[String], ::[Lit[String], HNil]]]] = Copy$Builder@303a4fd
 
-  // TODO: val copy1 = Copy(call)(func = "abc".narrow)
-  val changes1 = 'func ->> "abc".narrow :: HNil
-  val copy1 = copyCall(call, changes1)
-  // Copy.Aux[
-  //  Call.Aux[String, call.Func, call.Params],
-  //  abc with labelled.KeyTag[Symbol with tag.Tagged[func], abc] :: HNil,
-  //  Call.Aux[String, abc, call.Params]
-  // ] = Call$$anon$9@86c34f1
-  val copied1 = copy1(call, changes1)
-  //copy1.Out = Call(abc, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
+  val copy1 = copy(func = "abc".narrow)
+  // Call[String]{type Func = String("abc");type Params = ::[Lit[String],::[Lit[String],HNil]]}
+  // = Call(abc, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
 
-  val changes2 = 'params ->> (Lit("A") :: Lit(1) :: HNil) :: HNil
-  val copy2 = copyCall(call, changes2)
-  // Copy.Aux[
-  //  Call.Aux[String, call.Func, call.Params],
-  //  (Lit[String] :: Lit[Int] :: HNil) with labelled.KeyTag[Symbol with tag.Tagged[params], Lit[String] :: Lit[Int] :: HNil] :: HNil,
-  //  Call.Aux[String, call.Func, ::[Lit[String], ::[Lit[Int], HNil]]]
-  // ] = Call$$anon$9@1498e690
-  val copied2 = copy2(call, changes2)
-  // copy2.Out = Call(foo, List(Known(Lit[String](A)), Known(Lit[Int](1))))
+  val copy2 = copy(params = Lit("A") :: Lit(1) :: HNil)
+  // Call[String]{type Func = String("foo");type Params = ::[Lit[String],::[Lit[Int],HNil]]}
+  // = Call(foo, List(Known(Lit[String](A)), Known(Lit[Int](1))))
 
-  val copy3 = copyCall(call, HNil)
-  // Copy.Aux[
-  //  Call.Aux[String, call.Func, call.Params],
-  //  HNil.type,
-  //  Call.Aux[String, call.Func, call.Params]
-  // ] = Call$$anon$9@71d23cf9
-  val copied3 = copy3(call, HNil)
-  // copy3.Out = Call(foo, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
+  val copy3 = copy()
+  // Call[String]{type Func = String("foo");type Params = ::[Lit[String],::[Lit[String],HNil]]}
+  // = Call(foo, List(Known(Lit[String](bar)), Known(Lit[String](baz))))
 
-  val changes4 =
-    'func   ->> "abc".narrow                 ::
-    'params ->> (Lit("A") :: Lit(1) :: HNil) :: HNil
-  val copy4 = copyCall(call, changes4)
-  // Copy.Aux[
-  //  Call.Aux[String, call.Func, call.Params],
-  //  abc with labelled.KeyTag[Symbol with tag.Tagged[func], abc] :: (Lit[String] :: Lit[Int] :: HNil) with labelled.KeyTag[Symbol with tag.Tagged[params], Lit[String] :: Lit[Int] :: HNil] :: HNil
-  //  Call.Aux[String, abc, ::[Lit[String], ::[Lit[Int], HNil]]]
-  // ] = Call$$anon$9@3932104e
-  val copied4 = copy4(call, changes4)
-  // copy4.Out = Call(abc, List(Known(Lit[String](A)), Known(Lit[Int](1))))
+  val copy4 = copy(func = "abc".narrow, params = Lit("A") :: Lit(1) :: HNil)
+  // Call[String]{type Func = String("abc");type Params = ::[Lit[String],::[Lit[Int],HNil]]}
+  // = Call(abc, List(Known(Lit[String](A)), Known(Lit[Int](1))))
 }
 
 
