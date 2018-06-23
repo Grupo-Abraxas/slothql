@@ -42,7 +42,8 @@ sealed trait Transform[A, HF <: Poly1] extends DepFn1[A]
 object Transform {
   type Aux[A, HF <: Poly1, R] = Transform[A, HF] { type Out = R }
 
-  def apply[A, HF <: Poly1](a: A, hf: HF)(implicit transform: Transform[A, HF]): Aux[A, HF, transform.Out] = transform
+  def get[A, HF <: Poly1](a: A, hf: HF)(implicit transform: Transform[A, HF]): Aux[A, HF, transform.Out] = transform
+  def apply[A, HF <: Poly1](a: A, hf: HF)(implicit transform: Transform[A, HF]): transform.Out = transform(a)
 
   /**
    * Should apply `Transform` to each child. Must not apply `HF` to `A` even is defined at.
@@ -52,13 +53,19 @@ object Transform {
     type Aux[A, HF <: Poly1, R] = Transform.Children[A, HF] { type Out = R }
 
     def apply[A, HF <: Poly1](a: A, hf: HF)(implicit transform: Transform.Children[A, HF]): Aux[A, HF, transform.Out] = transform
+
+    def none[A, HF <: Poly1]: Children.Aux[A, HF, A] = noChildren.asInstanceOf[Children.Aux[A, HF, A]]
+    private lazy val noChildren = new Children[Any, Poly1] {
+      type Out = Any
+      @inline def apply(t: Any): Any = t
+    }
   }
 
   implicit def transformThis[A, HF <: Poly1, R0](
     implicit
     hf: poly.Case1.Aux[HF, A, R0],
     next: Transform.Children[R0, HF]
-  ): Aux[A, HF, next.Out] =
+  ): Transform.Aux[A, HF, next.Out] =
     new Transform[A, HF] {
       type Out = next.Out
       def apply(t: A): next.Out = next(hf(t))
@@ -68,10 +75,26 @@ object Transform {
     implicit
     hf: Not[poly.Case1[HF, A]],
     next: Transform.Children[A, HF]
-  ): Aux[A, HF, next.Out] =
+  ): Transform.Aux[A, HF, next.Out] =
     new Transform[A, HF] {
       type Out = next.Out
       def apply(t: A): next.Out = next(t)
     }
+
+  implicit def transformHCons[H0, T0 <: HList, H, T <: HList, HF <: Poly1](
+    implicit
+    h: Transform.Aux[H0, HF, H],
+    t: Transform.Aux[T0, HF, T]
+  ): Transform.Aux[H0 :: T0, HF, H :: T] =
+    new Transform[H0 :: T0, HF] {
+      type Out = H :: T
+      def apply(l: H0 :: T0): H :: T = h(l.head) :: t(l.tail)
+    }
+
+  implicit def transformHNil[HF <: Poly1]: Transform.Aux[HNil, HF, HNil] = tHNil.asInstanceOf[Transform.Aux[HNil, HF, HNil]]
+  private lazy val tHNil = new Transform[HNil, Poly1] {
+    type Out = HNil
+    @inline def apply(t: HNil): HNil = HNil
+  }
 
 }

@@ -215,70 +215,25 @@ object Call {
     }
 
 
-
-  object CallTagFuncPoly extends Poly1 {
-    implicit def impl[A]: Case.Aux[A, Witness.`'func`.Field[A] :: HNil] = at[A](a => labelled.field[Witness.`'func`.T][A](a) :: HNil)
-  }
-  object CallTagParamsPoly extends Poly1 {
-    implicit def impl[A]: Case.Aux[A, Witness.`'params`.Field[A] :: HNil] = at[A](a => labelled.field[Witness.`'params`.T][A](a) :: HNil)
-  }
-
-  implicit def transformCallChildren[A, HF <: Poly1, Func0 <: String, Func1 <: String, FuncChange <: HList, Params0 <: HList, Params1 <: HList, ParamsChange <: HList, Changes <: HList](
+  implicit def transformCallChildren[HF <: Poly1, A, Func0 <: String, Params0 <: HList, Func <: String, Params <: HList](
     implicit
-    noTransform: Not[poly.Case1[HF, Call.Aux[A, Func0, Params0]]],
-    transformFuncOpt: poly.Case1.Aux[HF, Func0, Func1] = null,
-    transformParamsOpt: poly.Case1.Aux[HF, Params0, Params1] = null,
-    func: MapOrElse.Aux[CallTagFuncPoly.type, Func1, HNil, FuncChange],
-    params: MapOrElse.Aux[CallTagParamsPoly.type, Params1, HNil, ParamsChange],
-    concat0: ops.hlist.Prepend.Aux[FuncChange, ParamsChange, Changes]
-//    copy: Copy[Call.Aux[A, Func0, Params0], Changes]
-  ): Transform.Children.Aux[Call.Aux[A, Func0, Params0], HF, Call.Aux[A, Func0, Params0] /*copy.Out*/] = ???
-//    new Transform.Children[Call.Aux[A, Func0, Params0], HF] {
-//      type Out = copy.Out
-//      def apply(call: Aux[A, Func0, Params0]): copy.Out = {
-//        val func0 =
-//          if (transformFuncOpt != null) func(transformFuncOpt(call.Func), HNil) // TODO
-//          else HNil.asInstanceOf[FuncChange]
-//        val params0 =
-//          if (transformParamsOpt != null) params(transformParamsOpt(call.Params), HNil)
-//          else HNil.asInstanceOf[ParamsChange]
-//        val changes = concat0(func0, params0)
-//        copy(call, changes)
-//      }
-//    }
+    transformFunc: Transform.Aux[Func0, HF, Func],
+    transformParams: Transform.Aux[Params0, HF, Params],
+    copy: Copy[Call.Aux[A, Func0, Params0],
+      Witness.`'func`.Field[Func]     ::
+      Witness.`'params`.Field[Params] :: HNil
+      ]
+  ): Transform.Children.Aux[Call.Aux[A, Func0, Params0], HF, copy.Out] =
+    new Transform.Children[Call.Aux[A, Func0, Params0], HF] {
+      type Out = copy.Out
+      def apply(call: Call.Aux[A, Func0, Params0]): copy.Out =
+        copy(call,
+          'func   ->> transformFunc(call.Func)      ::
+          'params ->> transformParams(call.Params)  :: HNil
+        )
+    }
 }
 
-
-
-
-/*
-SlothQL>
-val call = Call.typed[String].withFunc[Witness.`"foo"`.T]("foo").withParams(Lit("bar"), Lit("baz")).build
-call: Call.Aux[String, foo, Lit[String] :: Lit[String] :: HNil] = com.abraxas.slothql.Call$Builder$$anon$9@59f03482
-
-SlothQL> object F extends Poly1{
-           implicit def impl[C <: Call[_]]: Case.Aux[C, C] = at[C](identity)
-         }
-defined object F
-
-SlothQL> Transform[call.type, F.type](call, F)
-res6: Transform[call.type, F.type]{type Out = com.abraxas.slothql.Call.<refinement>.type} = com.abraxas.slothql.Transform$$anon$6@5fbeb267
-
-
-
-SlothQL> trait X
-defined trait X
-
-SlothQL>
-object F extends Poly1{
-  implicit def impl[C <: Call[_]]: Case.Aux[C, C with X] = at[C](_.asInstanceOf[C with X])
-}
-defined object F
-
-SlothQL> Transform[call.type, F.type](call, F)
-res9: Transform[call.type, F.type]{type Out = com.abraxas.slothql.Call.<refinement>.type with ammonite.$sess.cmd7.X} = com.abraxas.slothql.Transform$$anon$6@572098bb
-
- */
 
 object TestCopy{
   import com.abraxas.slothql.util.WitnessAlternative._
@@ -310,9 +265,27 @@ object TestCopy{
 object TestTransform {
   val call = Call.typed[String].withFunc[Witness.`"foo"`.T]("foo").withParams(Lit("bar"), Lit("baz")).build
 
+  implicit def noLitChildren[A, HF <: Poly1] = Transform.Children.none[Lit[A], HF]
+  implicit def noStringChildren[S <: String, HF <: Poly1] = Transform.Children.none[S, HF]
+
   trait X
-  object F extends Poly1{
-    implicit def impl[C]: Case.Aux[C, C with X] = at[C](_.asInstanceOf[C with X])
+  object F1 extends Poly1{
+    implicit def impl[A, Func0 <: String, Params0 <: HList](
+      implicit copy: Copy[Call.Aux[A, Func0, Params0], Witness.`'params`.Field[HNil] :: HNil]
+    ): Case.Aux[Call.Aux[A, Func0, Params0], copy.Out] =
+      at[Call.Aux[A, Func0, Params0]](copy(_, 'params ->> HNil :: HNil))
+    // at[Call.Aux[A, Func0, Params0]](c => Copy(c)(params = HNil)) // TODO: why doesn't it work?
   }
+  val tr1 = Transform(call, F1)
+  // Call[String]{type Func = String("foo"); type Params = HNil}
+  // = Call(foo, List())
+
+
+  object F2 extends Poly1{
+    implicit def impl[A]: Case.Aux[Lit[A], Lit[A with X]] = at[Lit[A]](_.asInstanceOf[Lit[A with X]])
+  }
+  val tr2 = Transform(call, F2)
+  // Call[String]{type Func = String("foo"); type Params = Lit[String with TestTransform.X] :: Lit[String with TestTransform.X] :: HNil }
+  // = Call(foo, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz))))
 
 }
