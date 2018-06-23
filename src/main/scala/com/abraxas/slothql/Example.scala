@@ -302,4 +302,17 @@ object TestTransform {
   val tr3_2 = Transform(Transform(call, F3), F2)
   // Call[String]{type Func = String("foo");type Params = Lit[Float with TestTransform.X] :: Lit[Boolean with TestTransform.X] :: HNil}
   // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
+
+  @deprecated("It doesn't work with `Transform`")
+  object F3_2 extends Poly1 {
+    implicit def call[A, Func0 <: String, Params0 <: HList](
+      implicit copy: Copy[Call.Aux[A, Func0, Params0], Witness.`'params`.Field[Lit[Float] :: Lit[Boolean] :: HNil] :: HNil]
+    ): Case.Aux[Call.Aux[A, Func0, Params0], copy.Out] =
+      at[Call.Aux[A, Func0, Params0]](copy(_, 'params ->> (Lit(1.2f) :: Lit(true) :: HNil) :: HNil))
+    implicit def lit[A]: Case.Aux[Lit[A], Lit[A with X]] = at[Lit[A]](_.asInstanceOf[Lit[A with X]])
+  }
+
+  // TODO: cannot define multiple cases in single polymorphic function
+  // val tr_3_2 = Transform(call, F3_2)
+
 }
