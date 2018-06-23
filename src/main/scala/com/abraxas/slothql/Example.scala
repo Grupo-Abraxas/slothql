@@ -288,4 +288,18 @@ object TestTransform {
   // Call[String]{type Func = String("foo"); type Params = Lit[String with TestTransform.X] :: Lit[String with TestTransform.X] :: HNil }
   // = Call(foo, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz))))
 
+
+  object F3 extends Poly1{
+    implicit def call[A, Func0 <: String, Params0 <: HList](
+      implicit copy: Copy[Call.Aux[A, Func0, Params0], Witness.`'params`.Field[Lit[Float] :: Lit[Boolean] :: HNil] :: HNil]
+    ): Case.Aux[Call.Aux[A, Func0, Params0], copy.Out] =
+      at[Call.Aux[A, Func0, Params0]](copy(_, 'params ->> (Lit(1.2f) :: Lit(true) :: HNil) :: HNil))
+  }
+  val tr3 = Transform(call, F3)
+  // Call[String]{type Func = String("foo");type Params = Lit[Float] :: Lit[Boolean] :: HNil}
+  // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
+
+  val tr3_2 = Transform(Transform(call, F3), F2)
+  // Call[String]{type Func = String("foo");type Params = Lit[Float with TestTransform.X] :: Lit[Boolean with TestTransform.X] :: HNil}
+  // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 }

@@ -7,6 +7,7 @@ lazy val commonSettings = Seq(
   version := "0.1-SNAPSHOT",
   scalaVersion := "2.11.12",
   scalacOptions in Compile ++= Seq("-unchecked", "-feature"),
+  // scalacOptions in Compile += "-Xlog-implicits",
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full)
 )
 
