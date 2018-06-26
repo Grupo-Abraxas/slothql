@@ -219,15 +219,15 @@ object Call {
     implicit
     func: Lazy[poly.Case1.Aux[HF, Func0, Func]],
     params: Lazy[poly.Case1.Aux[HF, Params0, Params]],
-    copy: Copy[Call.Aux[A, Func0, Params0],
+    copy: Cached[Copy[Call.Aux[A, Func0, Params0],
       Witness.`'func`.Field[Func]     ::
       Witness.`'params`.Field[Params] :: HNil
-    ]
-  ): DataT.Aux[HF, Call.Aux[A, Func0, Params0], copy.Out] =
+    ]]
+  ): DataT.Aux[HF, Call.Aux[A, Func0, Params0], copy.value.Out] =
     new DataT[HF, Call.Aux[A, Func0, Params0]] {
-      type Out = copy.Out
-      def gmapT(call: Aux[A, Func0, Params0]): copy.Out =
-        copy(call,
+      type Out = copy.value.Out
+      def gmapT(call: Aux[A, Func0, Params0]): copy.value.Out =
+        copy.value(call,
           'func   ->> func.value(call.Func)      ::
           'params ->> params.value(call.Params)  :: HNil
         )
@@ -266,7 +266,8 @@ object TestEverywhere {
   import Call.callDataT // required
 
   val call = Call.typed[String].withFunc[Witness.`"foo"`.T]("foo").withParams(Lit("bar"), Lit("baz")).build
-
+  val callA = Call.typed[Int].withFunc[Witness.`"parseInt"`.T]("parseInt").withParams(call).build
+  val callB = Call.typed[Long].withFunc[Witness.`"sum"`.T]("sum").withParams(callA, Lit(435566678L)).build
 
   trait X
   object F1 extends Poly1{
@@ -279,7 +280,9 @@ object TestEverywhere {
   val tr1 = everywhere(F1)(call)
   // Call[String]{type Func = String("foo"); type Params = HNil}
   // = Call(foo, List())
-
+  val tr1B = everywhere(F1)(callB)
+  // Call[Long]{type Func = String("sum");type Params = HNil}
+  // = Call(sum, List())
 
   object F2 extends Poly1{
     implicit def impl[A]: Case.Aux[Lit[A], Lit[A with X]] = at[Lit[A]](_.asInstanceOf[Lit[A with X]])
@@ -287,7 +290,20 @@ object TestEverywhere {
   val tr2 = everywhere(F2)(call)
   // Call[String]{type Func = String("foo"); type Params = Lit[String with TestEverywhere.X] :: Lit[String with TestEverywhere.X] :: HNil}
   // = Call(foo, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz))))
-
+  val tr2B = everywhere(F2)(callB)
+  // Call[Long]{
+  //  type Func = String("sum")
+  //  type Params =
+  //    Call[Int]{
+  //      type Func = String("parseInt")
+  //      type Params = Call[String]{
+  //        type Func = String("foo");
+  //        type Params = Lit[String with TestEverywhere.X] :: Lit[String with TestEverywhere.X] :: HNil
+  //      } :: HNil
+  //    } ::
+  //    Lit[Long with TestEverywhere.X] ::
+  //    HNil
+  // } = Call(sum, List(Known(Call(parseInt, List(Known(Call(foo, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz)))))))), Known(Lit[Long](435566678))))
 
   object F3 extends Poly1{
     implicit def call[A, Func0 <: String, Params0 <: HList](
@@ -298,10 +314,18 @@ object TestEverywhere {
   val tr3 = everywhere(F3)(call)
   // Call[String]{type Func = String("foo");type Params = Lit[Float] :: Lit[Boolean] :: HNil}
   // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
+  val tr3B = everywhere(F3)(callB)
+  // Call[Long]{type Func = String("sum");type Params = Lit[Float] :: Lit[Boolean] :: HNil}
+  // = Call(sum, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 
   val tr3_2 = everywhere(F2) compose everywhere(F3) apply call
   // Call[String]{type Func = String("foo"); type Params = Lit[Float with TestEverywhere.X] :: Lit[Boolean with TestEverywhere.X] :: HNil}
   // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
+  val tr3_2B = everywhere(F2) compose everywhere(F3) apply callB
+  // Call[Long]{
+  //  type Func = String("sum")
+  //  type Params = Lit[Float with TestEverywhere.X] :: Lit[Boolean with TestEverywhere.X] :: HNil
+  // } = Call(sum, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 
   object F3_2 extends Poly1 {
     implicit def call[A, Func0 <: String, Params0 <: HList](
@@ -311,10 +335,14 @@ object TestEverywhere {
     implicit def lit[A]: Case.Aux[Lit[A], Lit[A with X]] = at[Lit[A]](_.asInstanceOf[Lit[A with X]])
   }
 
+  // TODO: -------------------------------------
   // TODO: `lit` transformations are not applied
-   val tr_3_2 = everywhere(F3_2)(call)
+  val tr_3_2 = everywhere(F3_2)(call)
   // Call[String]{type Func = String("foo"); type Params = Lit[Float] :: Lit[Boolean] :: HNil}
   //= Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
+  val tr_3_2B = everywhere(F3_2)(callB)
+  // Call[Long]{type Func = String("sum");type Params = Lit[Float] :: Lit[Boolean] :: HNil}
+  // = Call(sum, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 
 
   object F4 extends Poly1 {
@@ -324,4 +352,17 @@ object TestEverywhere {
   val tr4 = everywhere(F4)(call)
   // Call[String]{type Func = String("ABCDEF"); type Params = Lit[String] :: Lit[String] :: HNil}
   // = Call(ABCDEF, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz))))
+  val tr4B = everywhere(F4)(callB)
+  // Call[Long]{
+  //  type Func = String("ABCDEF");
+  //  type Params =
+  //    Call[Int]{
+  //      type Func = String("ABCDEF")
+  //      type Params = Call[String]{
+  //        type Func = String("ABCDEF")
+  //        type Params = Lit[String] :: Lit[String] :: HNil
+  //      } :: HNil
+  //    } ::
+  //    Lit[Long] :: HNil
+  // } = Call(ABCDEF, List(Known(Call(ABCDEF, List(Known(Call(ABCDEF, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz)))))))), Known(Lit[Long](435566678))))
 }
