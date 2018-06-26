@@ -1,14 +1,31 @@
 import scala.sys.process.Process
 
-organization := "com.abraxas"
+import sbt.CrossVersion
+
+lazy val commonSettings = Seq(
+  organization := "com.abraxas",
+  version := "0.1-SNAPSHOT",
+  scalaVersion := "2.11.12",
+  scalacOptions in Compile ++= Seq("-unchecked", "-feature"),
+  // scalacOptions in Compile += "-Xlog-implicits",
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full)
+)
+
+lazy val macros = project in file ("macros") settings (
+  commonSettings,
+  name := "slothql-macros-dev",
+  libraryDependencies ++= Seq(
+    "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+    "com.chuusai"   %% "shapeless"     % "2.3.3"
+  )
+)
+
+lazy val root = project in file (".") dependsOn macros
+
+commonSettings
 
 name := "slothql-dev"
 
-version := "0.1-SNAPSHOT"
-
-scalaVersion := "2.11.12"
-
-scalacOptions in Compile ++= Seq("-unchecked", "-feature")
 scalacOptions in Compile += "-Ypartial-unification"
 
 resolvers += Resolver.sonatypeRepo("releases")
@@ -19,7 +36,6 @@ addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6")
 lazy val catsVersion = "1.1.0"
 
 libraryDependencies ++= Seq(
-  "com.chuusai"     %% "shapeless"          % "2.3.3",
   "org.typelevel"   %% "cats-core"          % catsVersion,
   "org.typelevel"   %% "cats-free"          % catsVersion,
   "org.typelevel"   %% "cats-effect"        % "0.10.1",
