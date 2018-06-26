@@ -171,11 +171,11 @@ object Call {
   object MapAndToList {
     implicit def impl[HF, In <: HList, Lub, Mapped <: HList](
       implicit
-      mapper: Cached[ops.hlist.Mapper.Aux[HF, In, Mapped]],
-      toTraversable: Cached[ops.hlist.ToTraversable.Aux[Mapped, List, Known[Lub]]]
+      mapper: ops.hlist.Mapper.Aux[HF, In, Mapped],
+      toTraversable: ops.hlist.ToTraversable.Aux[Mapped, List, Known[Lub]]
     ): MapAndToList[HF, In, Lub] =
       new MapAndToList[HF, In, Lub] {
-        def apply(t: In): List[Known[Lub]] = toTraversable.value(mapper.value(t))
+        def apply(t: In): List[Known[Lub]] = toTraversable(mapper(t))
       }
   }
 
@@ -215,21 +215,21 @@ object Call {
     }
 
 
-  implicit def transformCallChildren[HF <: Poly1, A, Func0 <: String, Params0 <: HList, Func <: String, Params <: HList](
+  implicit def callDataT[HF <: Poly, A, Func0 <: String, Params0 <: HList, Func <: String, Params <: HList](
     implicit
-    transformFunc: Transform.Aux[Func0, HF, Func],
-    transformParams: Transform.Aux[Params0, HF, Params],
+    func: Lazy[poly.Case1.Aux[HF, Func0, Func]],
+    params: Lazy[poly.Case1.Aux[HF, Params0, Params]],
     copy: Copy[Call.Aux[A, Func0, Params0],
       Witness.`'func`.Field[Func]     ::
       Witness.`'params`.Field[Params] :: HNil
-      ]
-  ): Transform.Children.Aux[Call.Aux[A, Func0, Params0], HF, copy.Out] =
-    new Transform.Children[Call.Aux[A, Func0, Params0], HF] {
+    ]
+  ): DataT.Aux[HF, Call.Aux[A, Func0, Params0], copy.Out] =
+    new DataT[HF, Call.Aux[A, Func0, Params0]] {
       type Out = copy.Out
-      def apply(call: Call.Aux[A, Func0, Params0]): copy.Out =
+      def gmapT(call: Aux[A, Func0, Params0]): copy.Out =
         copy(call,
-          'func   ->> transformFunc(call.Func)      ::
-          'params ->> transformParams(call.Params)  :: HNil
+          'func   ->> func.value(call.Func)      ::
+          'params ->> params.value(call.Params)  :: HNil
         )
     }
 }
@@ -262,11 +262,11 @@ object TestCopy{
 }
 
 
-object TestTransform {
+object TestEverywhere {
+  import Call.callDataT // required
+
   val call = Call.typed[String].withFunc[Witness.`"foo"`.T]("foo").withParams(Lit("bar"), Lit("baz")).build
 
-  implicit def noLitChildren[A, HF <: Poly1] = Transform.Children.none[Lit[A], HF]
-  implicit def noStringChildren[S <: String, HF <: Poly1] = Transform.Children.none[S, HF]
 
   trait X
   object F1 extends Poly1{
@@ -276,7 +276,7 @@ object TestTransform {
       at[Call.Aux[A, Func0, Params0]](copy(_, 'params ->> HNil :: HNil))
     // at[Call.Aux[A, Func0, Params0]](c => Copy(c)(params = HNil)) // TODO: why doesn't it work?
   }
-  val tr1 = Transform(call, F1)
+  val tr1 = everywhere(F1)(call)
   // Call[String]{type Func = String("foo"); type Params = HNil}
   // = Call(foo, List())
 
@@ -284,8 +284,8 @@ object TestTransform {
   object F2 extends Poly1{
     implicit def impl[A]: Case.Aux[Lit[A], Lit[A with X]] = at[Lit[A]](_.asInstanceOf[Lit[A with X]])
   }
-  val tr2 = Transform(call, F2)
-  // Call[String]{type Func = String("foo"); type Params = Lit[String with TestTransform.X] :: Lit[String with TestTransform.X] :: HNil }
+  val tr2 = everywhere(F2)(call)
+  // Call[String]{type Func = String("foo"); type Params = Lit[String with TestEverywhere.X] :: Lit[String with TestEverywhere.X] :: HNil}
   // = Call(foo, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz))))
 
 
@@ -295,15 +295,14 @@ object TestTransform {
     ): Case.Aux[Call.Aux[A, Func0, Params0], copy.Out] =
       at[Call.Aux[A, Func0, Params0]](copy(_, 'params ->> (Lit(1.2f) :: Lit(true) :: HNil) :: HNil))
   }
-  val tr3 = Transform(call, F3)
+  val tr3 = everywhere(F3)(call)
   // Call[String]{type Func = String("foo");type Params = Lit[Float] :: Lit[Boolean] :: HNil}
   // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 
-  val tr3_2 = Transform(Transform(call, F3), F2)
-  // Call[String]{type Func = String("foo");type Params = Lit[Float with TestTransform.X] :: Lit[Boolean with TestTransform.X] :: HNil}
+  val tr3_2 = everywhere(F2) compose everywhere(F3) apply call
+  // Call[String]{type Func = String("foo"); type Params = Lit[Float with TestEverywhere.X] :: Lit[Boolean with TestEverywhere.X] :: HNil}
   // = Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 
-  @deprecated("It doesn't work with `Transform`")
   object F3_2 extends Poly1 {
     implicit def call[A, Func0 <: String, Params0 <: HList](
       implicit copy: Copy[Call.Aux[A, Func0, Params0], Witness.`'params`.Field[Lit[Float] :: Lit[Boolean] :: HNil] :: HNil]
@@ -312,7 +311,17 @@ object TestTransform {
     implicit def lit[A]: Case.Aux[Lit[A], Lit[A with X]] = at[Lit[A]](_.asInstanceOf[Lit[A with X]])
   }
 
-  // TODO: cannot define multiple cases in single polymorphic function
-  // val tr_3_2 = Transform(call, F3_2)
+  // TODO: `lit` transformations are not applied
+   val tr_3_2 = everywhere(F3_2)(call)
+  // Call[String]{type Func = String("foo"); type Params = Lit[Float] :: Lit[Boolean] :: HNil}
+  //= Call(foo, List(Known(Lit[Float](1.2)), Known(Lit[Boolean](true))))
 
+
+  object F4 extends Poly1 {
+    implicit def string[S <: String]: Case.Aux[S, Witness.`"ABCDEF"`.T] =
+      use((_: S) => "ABCDEF".asInstanceOf[Witness.`"ABCDEF"`.T {}]) // OMG
+  }
+  val tr4 = everywhere(F4)(call)
+  // Call[String]{type Func = String("ABCDEF"); type Params = Lit[String] :: Lit[String] :: HNil}
+  // = Call(ABCDEF, List(Known(Lit[java.lang.String](bar)), Known(Lit[java.lang.String](baz))))
 }
