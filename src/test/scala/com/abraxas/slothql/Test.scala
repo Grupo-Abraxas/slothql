@@ -13,10 +13,10 @@ object Test1 extends App {
   val driver = Connection.driver
   val tx = Neo4jCypherTransactor(driver.session())
 
-  val pattern = Pattern.Node(alias = Some("n"), labels = Nil, values = Map())
+  val pattern = Pattern.Node(alias = Some("n"), labels = Nil, map = Map())
   val query = Query.Clause(
     Clause.Match(
-      PatternTuple(pattern),
+      NonEmptyList(pattern, Nil),
       optional = false,
       where = None
     ),
@@ -38,10 +38,10 @@ object Test2 extends App {
   val driver = Connection.driver
   val tx = Neo4jCypherTransactor(driver.session())
 
-  val pattern = Pattern.Node(alias = Some("n"), labels = Nil, values = Map())
+  val pattern = Pattern.Node(alias = Some("n"), labels = Nil, map = Map())
   val query = Query.Clause(
     Clause.Match(
-      PatternTuple(pattern),
+      NonEmptyList(pattern, Nil),
       optional = false,
       where = None
     ),
@@ -64,11 +64,11 @@ object Test3 extends App {
   val driver = Connection.driver
   val tx = Neo4jCypherTransactor(driver.session())
 
-  val pattern = Pattern.Node(alias = Some("n"), labels = List("User"), values = Map())
+  val pattern = Pattern.Node(alias = Some("n"), labels = List("User"), map = Map())
   val n = Expr.Var[Map[String, Any]]("n")
   val query = Query.Clause(
     Clause.Match(
-      PatternTuple(pattern),
+      NonEmptyList(pattern, Nil),
       optional = false,
       where = None
     ),
