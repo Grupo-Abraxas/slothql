@@ -2,6 +2,8 @@ package com.abraxas.slothql.mapper
 
 import shapeless._
 
+import com.abraxas.slothql.util.ShowManifest
+
 
 trait Schema[A] {
   val manifest: Manifest[A]
@@ -37,23 +39,33 @@ object GraphRepr {
     type Type
     val manifest: Manifest[_]
 
-    // TODO: override toString
+    override def toString: String = s"Property[${ShowManifest(manifest)}]"
   }
 
-  sealed trait Element extends GraphRepr
+  sealed trait Element extends GraphRepr {
+    protected def toStringName: String
+    protected def toStringFields: List[String]
+    override def toString: String = toStringName + (if (toStringFields.nonEmpty) toStringFields.mkString("(", "; ", ")") else "")
+  }
 
   trait Node extends Element {
     type Labels   <: HList
     type Fields   <: HList
-    type Incoming <: HList
+    // type Incoming <: HList
     type Outgoing <: HList
 
     val labels: List[String]
     val fields: Map[String, Property]
-    val incoming: Map[String, Either[Ref[_], Relation]]
-    val outgoing: Map[String, Either[Ref[_], Relation]]
+    // val incoming: Map[String, Relation]
+    val outgoing: Map[String, Relation]
 
-    // TODO: override toString
+
+    protected def toStringName: String = "Node"
+    protected def toStringFields: List[String] = List(
+      s"labels = ${labels.mkString(", ")}",
+      s"fields = ${printMap(fields)}",
+      s"outgoing = ${printMap(outgoing)}"
+    )
   }
 
   trait Relation extends Element {
@@ -64,11 +76,19 @@ object GraphRepr {
 
     val tpe: String
     val fields: Map[String, Property]
-    val from: Ref.To[Node]
-    val to: Ref.To[Node]
+    val from: Node
+    val to: Node
 
-    // TODO: override toString
+    protected def toStringName: String = "Relation"
+    protected def toStringFields: List[String] = List(
+      s"type = $tpe",
+      s"fields = ${printMap(fields)}",
+      s"from = $from",
+      s"to = $to"
+    )
   }
+
+  private def printMap(m: Map[_, _]) = m.map{ case (k, v) => s"$k -> $v" }.mkString(", ")
 
   trait Identifiable {
     repr: Element =>
@@ -76,30 +96,7 @@ object GraphRepr {
     type IdField <: String
     val idField: String
 
-    // TODO: override toString
-  }
-
-  sealed trait Ref[A] extends Element with Identifiable {
-    type E <: Element with Identifiable
-    val schema: Schema.Aux[A, E]
-  }
-  
-
-  object Ref {
-    type Aux[A, E0 <: Element with Identifiable] = Ref[A] { type E = E0 }
-    type To[E0 <: Element] = Ref[_] { type E <: E0 with Identifiable }
-    def apply[A]: Builder[A] = Builder.asInstanceOf[Builder[A]]
-
-    protected class Builder[A] {
-      def apply[E0 <: Element with Identifiable]()(implicit s: Cached[Schema.Aux[A, E0]]): Aux[A, E0] =
-        new Ref[A] {
-          type E = E0
-          lazy val schema: Schema.Aux[A, E0] = s.value
-          type IdField = schema.repr.IdField
-          val idField: String = schema.repr.idField
-        }
-    }
-    private object Builder extends Builder[Any]
+    override protected def toStringFields: List[String] = s"idField = $idField" +: repr.toStringFields
   }
 
 
@@ -115,16 +112,16 @@ object GraphRepr {
   }
   
   object Node {
-    type Aux[Labels0 <: HList, Fields0 <: HList, Incoming0 <: HList, Outgoing0 <: HList] =
-      Node { type Labels = Labels0; type Fields = Fields0; type Incoming = Incoming0; type Outgoing = Outgoing0 }
-    def unapply(repr: GraphRepr): Option[(List[String], Map[String, Property], Map[String, Either[Ref[_], Relation]], Map[String, Either[Ref[_], Relation]])] =
-      PartialFunction.condOpt(repr) { case node: Node => (node.labels, node.fields, node.incoming, node.outgoing) }
+    type Aux[Labels0 <: HList, Fields0 <: HList, Outgoing0 <: HList] =
+      Node { type Labels = Labels0; type Fields = Fields0; type Outgoing = Outgoing0 }
+    def unapply(repr: GraphRepr): Option[(List[String], Map[String, Property], Map[String, Relation])] =
+      PartialFunction.condOpt(repr) { case node: Node => (node.labels, node.fields, node.outgoing) }
   }
 
   object Relation {
     type Aux[Type0 <: String, Fields0 <: HList, From0 <: Node, To0 <: Node] =
-      Node { type Type = Type0; type Fields = Fields0; type From = From0; type To = To0 }
-    def unapply(repr: GraphRepr): Option[(String, Map[String, Property], Ref.To[Node], Ref.To[Node])] =
+      Relation { type Type = Type0; type Fields = Fields0; type From = From0; type To = To0 }
+    def unapply(repr: GraphRepr): Option[(String, Map[String, Property], Node, Node)] =
       PartialFunction.condOpt(repr) { case rel: Relation => (rel.tpe, rel.fields, rel.from, rel.to) }
   }
   

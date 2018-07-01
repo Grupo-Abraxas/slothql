@@ -2,23 +2,25 @@ package com.abraxas.slothql
 
 import scala.language.higherKinds
 
-import shapeless.Witness
+import shapeless.tag.@@
+import shapeless.{ HList, HNil, Witness }
 
-import com.abraxas.slothql.util.{ Arrow, Not }
-import com.abraxas.slothql.util.Arrow.{ Compose, Functor, Types }
+import com.abraxas.slothql.DBArrow.{ OutgoingRelation, RelationTarget }
+import com.abraxas.slothql.mapper.Arrow.{ Compose, Types }
+import com.abraxas.slothql.mapper.{ Arrow, Functor, GraphRepr, Schema }
 
 
 trait CodeArrow extends Arrow
 object CodeArrow {
   /** Arrow representing object field selection. */
-  trait FieldFocus[Obj, K <: String, V] extends CodeArrow {
+  trait FieldFocus[Obj, K <: Symbol, V] extends CodeArrow {
     type Source = Obj
     type Target = V
     val field: K
   }
   object FieldFocus {
-    def stub[Obj, V](k: String)(implicit w: Witness.Aux[k.type]): FieldFocus[Obj, w.T, V] =
-      new FieldFocus[Obj, w.T, V] { val field = w.value }
+    def stub[Obj, V](k: String)(implicit w: Witness.Aux[k.type]): FieldFocus[Obj, Symbol @@ w.T, V] =
+      new FieldFocus[Obj, Symbol @@ w.T, V] { val field = Symbol(w.value).asInstanceOf[Symbol @@ w.T] }
   }
 
   // TODO
@@ -90,50 +92,75 @@ object DBArrow {
 }
 
 
-trait CanStore[A]
-object CanStore {
-  implicit lazy val canStoreString: CanStore[String] = new CanStore[String] {}
+object Foo {
+  lazy val outgoingNode = Compose[RelationTarget.type, OutgoingRelation]
 }
-
-
-
 
 object Functors {
   import CodeArrow._
   import DBArrow._
 
-  protected lazy val outgoingNode = Compose[RelationTarget.type, OutgoingRelation]
+  implicit def fieldFocusToDBArrowLeaf[
+    A <: Arrow, Obj, K <: Symbol, V, Repr <: GraphRepr, Fields <: HList, Field <: GraphRepr, V0
+  ](
+    implicit
+    arr: A <:< FieldFocus[Obj, K, V],
+    schema: Schema.Aux[Obj, Repr],
+    node: Repr <:< GraphRepr.Node.Aux[_, Fields, _],
+    select: shapeless.ops.record.Selector.Aux[Fields, K, Field],
+    prop: Field <:< GraphRepr.Property.Aux[V0],
+    ev: V <:< V0
+  ): Functor.Aux[A, DBArrow, NodePropSelection] =
+    Functor.define[A, DBArrow](t => NodePropSelection(t.field.name))
 
-  implicit def mapFieldFocusToDBArrowNode[Obj, K <: String, V](
-    implicit cannotStore: Not[CanStore[V]]
-  ): Functor.Aux[FieldFocus[Obj, K, V], DBArrow, outgoingNode.Out] =
-    Functor.define[FieldFocus[Obj, K, V], DBArrow](t => outgoingNode(RelationTarget, OutgoingRelation(t.field)))
-
-  implicit def mapFieldFocusToDBArrowLeaf[Obj, K <: String, V](
-    implicit canStore: CanStore[V]
-  ): Functor.Aux[FieldFocus[Obj, K, V], DBArrow, NodePropSelection] =
-    Functor.define[FieldFocus[Obj, K, V], DBArrow](t => NodePropSelection(t.field))
-
-  implicit def mapSeqFocusToDBArrow[CC[x] <: Seq[x], A]: Functor.Aux[SeqFocus[CC, A], DBArrow, Arrow.Id[Node]] =
-    Functor.define[SeqFocus[CC, A], DBArrow](_ => Arrow.Id[Node])
+  implicit def fieldAndSeqFocusToDBArrow[
+    A <: Arrow, AField <: Arrow, ASeq <: Arrow,
+    Obj, K <: Symbol, V, Repr <: GraphRepr,
+    CC[x] <: Seq[x], V0,
+    Rels <: HList, Rel <: GraphRepr.Relation, RelFields <: HList,
+    IndexField, IndexProp <: GraphRepr.Property, Index
+  ](
+    implicit
+    arr: A <:< Arrow.Composition[ASeq, AField],
+    fieldArr: AField <:< FieldFocus[Obj, K, V],
+    seqArr: ASeq <:< SeqFocus[CC, V0],
+    seq: V <:< CC[V0],
+    schema: Schema.Aux[Obj, Repr],
+    node: Repr <:< GraphRepr.Node.Aux[_, _, Rels],
+    select: shapeless.ops.record.Selector.Aux[Rels, K, Rel],
+    outgoing: Rel <:< GraphRepr.Relation.Aux[_, RelFields, _, _],
+    onlyIndex: shapeless.ops.hlist.IsHCons.Aux[RelFields, IndexField, HNil],
+    indexProp: IndexField <:< Witness.`'index`.Field[IndexProp],
+    index: IndexProp <:< GraphRepr.Property.Aux[Index],
+    integralIndex: Integral[Index]
+   ): Functor.Aux[A, DBArrow, Foo.outgoingNode.Out] =
+    Functor.define[A, DBArrow](t => Foo.outgoingNode(RelationTarget, OutgoingRelation(t.G.field.name)))
 
 }
 
 
 
 object FunctorsTest {
-  import com.abraxas.slothql.test.models.{ Book, Page }
   import CodeArrow._
+  import Functors._
+  import com.abraxas.slothql.test.models.{ Book, Page }
 
   val sel1 = FieldFocus.stub[Book, List[Page]]("pages")
   val sel2 = SeqFocus.stub[List, Page]
   val sel3 = FieldFocus.stub[Page, String]("text")
 
-  import Functors._
+  val mapped0 = Functor.map(sel2 ∘ sel1).to[DBArrow]
+  // Arrow.Composition[
+  //  DBArrow.RelationTarget.type,
+  //  DBArrow.OutgoingRelation
+  // ]{type Source = Node;type Target = Node}
 
-  val mapped = Functor.map(sel3 ∘ sel2 ∘ sel1).to[DBArrow]
+  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[DBArrow]
   // Arrow.Composition[
   //  DBArrow.NodePropSelection,
   //  Arrow.Composition[DBArrow.RelationTarget.type, DBArrow.OutgoingRelation]{type Source = Node;type Target = Node}
   // ]{type Source = Node;type Target = Leaf}
+
+  // TODO: composition is not associative!
+  // val mapped = Functor.map(sel3 ∘ sel2 ∘ sel1).to[DBArrow]
 }

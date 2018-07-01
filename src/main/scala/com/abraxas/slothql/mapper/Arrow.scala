@@ -1,4 +1,4 @@
-package com.abraxas.slothql.util
+package com.abraxas.slothql.mapper
 
 import shapeless._
 
@@ -120,41 +120,39 @@ object Arrow {
       def apply(t: Arrow): Out = t :: HNil
     }
   }
+}
 
 
+// TODO: is it a functor? should I rename it?
+/** A typeclass supporting ???. */
+trait Functor[From <: Arrow, To <: Arrow] extends DepFn1[From] { type Out <: Arrow }
+object Functor {
+  type Aux[From <: Arrow, To <: Arrow, Out0 <: Arrow] = Functor[From, To] { type Out = Out0 }
+  def apply[From <: Arrow, To <: Arrow](implicit functor: Functor[From, To]): Functor.Aux[From, To, functor.Out] = functor
+  def map[From <: Arrow](from: From): PartialApplication[From] = new PartialApplication(from)
 
-  // TODO: is it a functor? should I rename it?
-  /** A typeclass supporting ???. */
-  trait Functor[From <: Arrow, To <: Arrow] extends DepFn1[From] { type Out <: Arrow }
-  object Functor {
-    type Aux[From <: Arrow, To <: Arrow, Out0 <: Arrow] = Functor[From, To] { type Out = Out0 }
-    def apply[From <: Arrow, To <: Arrow](implicit functor: Functor[From, To]): Functor.Aux[From, To, functor.Out] = functor
-    def map[From <: Arrow](from: From): PartialApplication[From] = new PartialApplication(from)
+  def define[From <: Arrow, To <: Arrow]: DefinitionBuilder[From, To] = DefinitionBuilder.asInstanceOf[DefinitionBuilder[From, To]]
 
-    def define[From <: Arrow, To <: Arrow]: DefinitionBuilder[From, To] = DefinitionBuilder.asInstanceOf[DefinitionBuilder[From, To]]
+  protected class DefinitionBuilder[From <: Arrow, To <: Arrow] {
+    def apply[R <: Arrow](map: From => R): Functor.Aux[From, To, R] =
+      new Functor[From, To] {
+        type Out = R
+        def apply(t: From): R = map(t)
+      }
+  }
+  private object DefinitionBuilder extends DefinitionBuilder[Arrow, Arrow]
 
-    protected class DefinitionBuilder[From <: Arrow, To <: Arrow] {
-      def apply[R <: Arrow](map: From => R): Functor.Aux[From, To, R] =
-        new Functor[From, To] {
-          type Out = R
-          def apply(t: From): R = map(t)
-        }
-    }
-    private object DefinitionBuilder extends DefinitionBuilder[Arrow, Arrow]
-
-    protected class PartialApplication[From <: Arrow](from: From) {
-      def to[To <: Arrow](implicit functor: Functor[From, To]): functor.Out = functor(from)
-    }
-
-    implicit def compositionFunctor[From  <: Arrow, To  <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
-      implicit
-      composition: From <:< Composition[FromF, FromG],
-      fF: Lazy[Functor.Aux[FromF, To, ToF]],
-      fG: Lazy[Functor.Aux[FromG, To, ToG]],
-      compose: Compose[ToF, ToG],
-      lowPriority: LowPriority
-     ): Functor.Aux[From, To, compose.Out] =
-      define[From, To](t => compose(fF.value(t.F), fG.value(t.G)))
+  protected class PartialApplication[From <: Arrow](from: From) {
+    def to[To <: Arrow](implicit functor: Functor[From, To]): functor.Out = functor(from)
   }
 
+  implicit def compositionFunctor[From  <: Arrow, To  <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
+    implicit
+    composition: From <:< Arrow.Composition[FromF, FromG],
+    fF: Lazy[Functor.Aux[FromF, To, ToF]],
+    fG: Lazy[Functor.Aux[FromG, To, ToG]],
+    compose: Arrow.Compose[ToF, ToG],
+    lowPriority: LowPriority
+   ): Functor.Aux[From, To, compose.Out] =
+    define[From, To](t => compose(fF.value(t.F), fG.value(t.G)))
 }
