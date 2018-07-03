@@ -161,6 +161,6 @@ object FunctorsTest {
   //  Arrow.Composition[DBArrow.RelationTarget.type, DBArrow.OutgoingRelation]{type Source = Node;type Target = Node}
   // ]{type Source = Node;type Target = Leaf}
 
-  // TODO: composition is not associative!
-  // val mapped = Functor.map(sel3 ∘ sel2 ∘ sel1).to[DBArrow]
+  val m  = Functor.map(sel3).to[DBArrow] ∘ Functor.map(sel2 ∘ sel1).to[DBArrow]
+  assert(mapped1 == m)
 }

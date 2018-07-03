@@ -12,6 +12,7 @@ object Arrow {
   type Inv[ S,  T] = Arrow { type Source  = S; type Target  = T }
 
 
+  // TODO: `Arrow.Id[Int] == Arrow.Id[String]` complies
   trait Id[A] extends Arrow { type Source = A; type Target = A }
   private object Id extends Id[Any]
   def Id[A]: Id[A] = Id.asInstanceOf[Id[A]]
@@ -27,6 +28,11 @@ object Arrow {
     val G: G
     type Source >: G.Source
     type Target <: F.Target
+
+    override def hashCode(): Int = (F.##, G.##).##
+    override def equals(o: scala.Any): Boolean = PartialFunction.cond(o) {
+      case that: Composition[_, _] => this.F == that.F && this.G == that.G
+    }
   }
   object Composition {
     type Aux[F <: Arrow, G <: Arrow, S, T] = Composition[F, G] { type Source = S; type Target = T }
