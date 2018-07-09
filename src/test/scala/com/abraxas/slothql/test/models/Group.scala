@@ -1,5 +1,7 @@
 package com.abraxas.slothql.test.models
 
+/*
+
 import shapeless._
 
 import com.abraxas.slothql.mapper.{ GraphRepr, Schema }
@@ -68,3 +70,4 @@ object Group {
   implicit lazy val groupSchema: Schema.Aux[Group, GroupRepr.type] =
     Schema.defineFor[Group](GroupRepr)
 }
+*/

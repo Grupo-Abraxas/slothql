@@ -5,9 +5,9 @@ import scala.language.higherKinds
 import shapeless.tag.@@
 import shapeless.{ HList, HNil, Witness }
 
-import com.abraxas.slothql.DBArrow.{ OutgoingRelation, RelationTarget }
 import com.abraxas.slothql.mapper.Arrow.{ Compose, Types }
-import com.abraxas.slothql.mapper.{ Arrow, Functor, GraphRepr, Schema }
+import com.abraxas.slothql.mapper.GraphPath._
+import com.abraxas.slothql.mapper._
 
 
 trait CodeArrow extends Arrow
@@ -50,58 +50,11 @@ object CodeArrow {
 }
 
 
-
-
-
-trait GraphElem
-trait Node extends GraphElem
-trait Edge extends GraphElem
-trait Leaf extends GraphElem
-
-
-trait DBArrow extends Arrow {
-  type Source <: GraphElem
-  type Target <: GraphElem
-}
-object DBArrow {
-  case class InitialVertex(labels: String*) extends DBArrow {
-    type Source = Node
-    type Target = Node
-  }
-
-  case class NodePropSelection(name: String) extends DBArrow {
-    type Source = Node
-    type Target = Leaf
-  }
-
-  trait NodeRelationArrow extends DBArrow {
-    type Source = Node
-    type Target = Edge
-  }
-
-  case class OutgoingRelation(names: String*) extends NodeRelationArrow
-  case class IncomingRelation(names: String*) extends NodeRelationArrow
-
-  trait RelationArrow extends DBArrow {
-    type Source = Edge
-    type Target = Node
-  }
-  case object RelationSource extends RelationArrow
-  case object RelationTarget extends RelationArrow
-
-}
-
-
-object Foo {
-  lazy val outgoingNode = Compose[RelationTarget.type, OutgoingRelation]
-}
-
 object Functors {
   import CodeArrow._
-  import DBArrow._
 
   implicit def fieldFocusToDBArrowLeaf[
-    A <: Arrow, Obj, K <: Symbol, V, Repr <: GraphRepr, Fields <: HList, Field <: GraphRepr, V0
+    A <: Arrow, Obj, K <: Symbol, V, Repr <: GraphRepr.Element, Fields <: HList, Field <: GraphRepr.Property, V0
   ](
     implicit
     arr: A <:< FieldFocus[Obj, K, V],
@@ -110,14 +63,14 @@ object Functors {
     select: shapeless.ops.record.Selector.Aux[Fields, K, Field],
     prop: Field <:< GraphRepr.Property.Aux[V0],
     ev: V <:< V0
-  ): Functor.Aux[A, DBArrow, NodePropSelection] =
-    Functor.define[A, DBArrow](t => NodePropSelection(t.field.name))
+  ): Functor.Aux[A, GraphPath, PropSelection[Repr, Field]] =
+    Functor.define[A, GraphPath](_ => PropSelection(schema.repr, select(schema.repr.Fields)))
 
   implicit def fieldAndSeqFocusToDBArrow[
     A <: Arrow, AField <: Arrow, ASeq <: Arrow,
-    Obj, K <: Symbol, V, Repr <: GraphRepr,
+    Obj, K <: Symbol, V, Repr <: GraphRepr.Node,
     CC[x] <: Seq[x], V0,
-    Rels <: HList, Rel <: GraphRepr.Relation, RelFields <: HList,
+    Rels <: HList, Rel <: GraphRepr.Relation, RelFields <: HList, RelTarget <: GraphRepr.Node,
     IndexField, IndexProp <: GraphRepr.Property, Index
   ](
     implicit
@@ -128,14 +81,17 @@ object Functors {
     schema: Schema.Aux[Obj, Repr],
     node: Repr <:< GraphRepr.Node.Aux[_, _, Rels],
     select: shapeless.ops.record.Selector.Aux[Rels, K, Rel],
-    outgoing: Rel <:< GraphRepr.Relation.Aux[_, RelFields, _, _],
+    outgoing: Rel <:< GraphRepr.Relation.Aux[_, RelFields, _, RelTarget],
     onlyIndex: shapeless.ops.hlist.IsHCons.Aux[RelFields, IndexField, HNil],
     indexProp: IndexField <:< Witness.`'index`.Field[IndexProp],
     index: IndexProp <:< GraphRepr.Property.Aux[Index],
-    integralIndex: Integral[Index]
-   ): Functor.Aux[A, DBArrow, Foo.outgoingNode.Out] =
-    Functor.define[A, DBArrow](t => Foo.outgoingNode(RelationTarget, OutgoingRelation(t.G.field.name)))
-
+    integralIndex: Integral[Index],
+    compose: Compose[RelationTarget[Rel, RelTarget], OutgoingRelation[Repr, Rel]]
+   ): Functor.Aux[A, GraphPath, compose.Out] =
+    Functor.define[A, GraphPath]{ _ =>
+      val rel = select(schema.repr.Outgoing.asInstanceOf[Rels])
+      compose(RelationTarget(rel, rel.To.asInstanceOf[RelTarget]), OutgoingRelation(schema.repr, rel))
+    }
 }
 
 
@@ -149,18 +105,21 @@ object FunctorsTest {
   val sel2 = SeqFocus.stub[List, Page]
   val sel3 = FieldFocus.stub[Page, String]("text")
 
-  val mapped0 = Functor.map(sel2 ∘ sel1).to[DBArrow]
+  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
   // Arrow.Composition[
-  //  DBArrow.RelationTarget.type,
-  //  DBArrow.OutgoingRelation
-  // ]{type Source = Node;type Target = Node}
+  //  GraphPath.RelationTarget[Book.PageListRepr.type, Page.PageRepr.type],
+  //  GraphPath.OutgoingRelation[Book.BookRepr.type, Book.PageListRepr.type]
+  // ]{type Source = Book.BookRepr.type;type Target = Page.PageRepr.type}
 
-  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[DBArrow]
+  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]
   // Arrow.Composition[
-  //  DBArrow.NodePropSelection,
-  //  Arrow.Composition[DBArrow.RelationTarget.type, DBArrow.OutgoingRelation]{type Source = Node;type Target = Node}
-  // ]{type Source = Node;type Target = Leaf}
+  //  GraphPath.PropSelection[Page.PageRepr.type, GraphRepr.Property{type Type = String}],
+  //  Arrow.Composition[
+  //    GraphPath.RelationTarget[Book.PageListRepr.type, Page.PageRepr.type],
+  //    GraphPath.OutgoingRelation[Book.BookRepr.type, Book.PageListRepr.type]
+  //  ]{type Source = Book.BookRepr.type;type Target = Page.PageRepr.type}
+  // ]{type Source = Book.BookRepr.type;type Target = GraphRepr.Property{type Type = String}}
 
-  val m  = Functor.map(sel3).to[DBArrow] ∘ Functor.map(sel2 ∘ sel1).to[DBArrow]
+  val m  = Functor.map(sel3).to[GraphPath] ∘ Functor.map(sel2 ∘ sel1).to[GraphPath]
   assert(mapped1 == m)
 }

@@ -35,6 +35,7 @@ object Schema {
 
 sealed trait GraphRepr
 object GraphRepr {
+  // GraphRepr tree leaf
   sealed trait Property extends GraphRepr {
     type Type
     val manifest: Manifest[_]
@@ -53,6 +54,11 @@ object GraphRepr {
     type Fields   <: HList
     // type Incoming <: HList
     type Outgoing <: HList
+
+    val Labels: Labels
+    val Fields: Fields
+    val Outgoing: Outgoing
+
 
     val labels: List[String]
     val fields: Map[String, Property]
@@ -74,6 +80,11 @@ object GraphRepr {
     type From   <: Node
     type To     <: Node
 
+    val Type: Type
+    val Fields: Fields
+    val From: From
+    val To: To
+
     val tpe: String
     val fields: Map[String, Property]
     val from: Node
@@ -93,6 +104,7 @@ object GraphRepr {
   trait Identifiable {
     repr: Element =>
 
+    type Id
     type IdField <: String
     val idField: String
 
@@ -126,7 +138,7 @@ object GraphRepr {
   }
   
   object Identifiable {
-    type Aux[Id <: String] = Identifiable { type IdField = Id }
+    type Aux[Id0] = Identifiable { type Id = Id0 }
     def unapply(repr: GraphRepr): Option[(String, GraphRepr)] = PartialFunction.condOpt(repr) {
       case ident: Identifiable => ident.idField -> repr
     }
