@@ -99,6 +99,12 @@ object FunctorsTest {
   // ]{type Source = Book;type Target = Option[String]}
   // = MBind(SelectField(pseudonym)) ∘ SelectField(author)
 
+  val selIsbn = ScalaExpr[Book].meta.isbn
+  // Arrow.Composition[
+  //  ScalaExpr.SelectField[Meta, isbn, String],
+  //  ScalaExpr.SelectField[Book, meta, Meta]
+  // ]{type Source = Book;type Target = String}
+  // = SelectField(isbn) ∘ SelectField(meta)
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]

@@ -5,9 +5,10 @@ import shapeless.syntax.singleton._
 
 import com.abraxas.slothql.mapper.{ GraphRepr, Schema }
 
-case class Book(author: Option[Author], pages: List[Page])
+case class Book(author: Option[Author], pages: List[Page], meta: Meta)
 case class Author(name: String, pseudonym: Option[String])
 case class Page(text: String)
+case class Meta(isbn: String)
 
 object Book {
   object PageListRepr extends GraphRepr.Relation {
@@ -31,16 +32,23 @@ object Book {
     type Labels = Witness.`"Book"`.T :: HNil
     type Fields = HNil
     type Outgoing = Witness.`'author`.Field[GraphRepr.Node.Optional[Author.AuthorRepr.type]] ::
-                    Witness.`'pages` .Field[PageListRepr.type] :: HNil
+                    Witness.`'pages` .Field[PageListRepr.type] ::
+                    Witness.`'meta`  .Field[Meta.MetaRepr.type] :: HNil
 
     lazy val Labels: Labels = "Book".narrow :: HNil
     lazy val Fields: Fields = HNil
     lazy val Outgoing: Outgoing = 'author ->> GraphRepr.Node.Optional(Author.AuthorRepr) ::
-                                  'pages  ->> PageListRepr :: HNil
+                                  'pages  ->> PageListRepr ::
+                                  'meta   ->> Meta.MetaRepr :: HNil
 
     lazy val labels: List[String] = List("Book")
-    lazy val fields: Map[String, GraphRepr.Property] = Map("author" -> GraphRepr.Property[String])
-    lazy val outgoing: Map[String, GraphRepr.Relation] = Map("pages" -> PageListRepr)
+    lazy val fields: Map[String, GraphRepr.Property] = Map()
+    // TODO =========================================================================================================
+    lazy val outgoing: Map[String, GraphRepr.Relation] = ??? /*Map(
+      "author" -> GraphRepr.Node.Optional(Author.AuthorRepr),
+      "pages"  -> PageListRepr,
+      "meta"   -> Meta.MetaRepr
+    )*/
   }
 
   implicit def pagesSchema: Schema.Aux[List[Page], PageListRepr.type] = Schema.defineFor[List[Page]](PageListRepr)
@@ -79,4 +87,18 @@ object Page {
     lazy val outgoing: Map[String, GraphRepr.Relation] = Map()
   }
   implicit def pageSchema: Schema.Aux[Page, PageRepr.type] = Schema.defineFor[Page](PageRepr)
+}
+
+object Meta {
+  object MetaRepr extends GraphRepr.Node {
+    type Labels = Witness.`"Meta"`.T :: HNil
+    type Fields = Witness.`'isbn`.Field[GraphRepr.Property.Aux[String]] :: HNil
+    type Outgoing = HNil
+    val Labels: Labels = "Meta".narrow :: HNil
+    val Fields: Fields = 'isbn ->> GraphRepr.Property[String] :: HNil
+    val Outgoing: Outgoing = HNil
+    val labels: List[String] = List("Meta")
+    val fields: Map[String, GraphRepr.Property] = Map("isbn" -> GraphRepr.Property[String])
+    val outgoing: Map[String, GraphRepr.Relation] = Map()
+  }
 }

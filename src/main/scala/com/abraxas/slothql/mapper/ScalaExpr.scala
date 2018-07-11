@@ -84,7 +84,12 @@ object ScalaExpr {
   protected trait FieldSelectionOps extends Dynamic {
     expr: ScalaExpr =>
 
-    def selectDynamic(k: String)(implicit ev: Syntax.HasField[Source, Symbol @@ k.type]): SelectField[Source, k.type, ev.Value] = SelectField(k)
+    def selectDynamic[V, A <: Arrow](k: String)(
+      implicit
+      ev0: Syntax.HasField.Aux[Target, Symbol @@ k.type, V],
+      ev1: expr.type <:< A, // using `expr.type` directly in `compose` would require _existential types_
+      compose: Arrow.Compose[SelectField[Target, k.type, V], A]
+    ): compose.Out = compose(SelectField(k), expr)
   }
 
   object Syntax {
