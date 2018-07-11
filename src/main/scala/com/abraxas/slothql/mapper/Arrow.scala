@@ -235,13 +235,12 @@ object Functor {
     def to[To <: Arrow](implicit functor: Functor[From, To]): functor.Out = functor(from)
   }
 
-  implicit def compositionFunctor[From  <: Arrow, To  <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
+  implicit def compositionFunctor[From <: Arrow, To <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
     implicit
     composition: From <:< Arrow.Composition[FromF, FromG],
-    fF: Lazy[Functor.Aux[FromF, To, ToF]],
-    fG: Lazy[Functor.Aux[FromG, To, ToG]],
+    fF: Functor.Aux[FromF, To, ToF],
+    fG: Functor.Aux[FromG, To, ToG],
     compose: Arrow.Compose[ToF, ToG],
     lowPriority: LowPriority
-   ): Functor.Aux[From, To, compose.Out] =
-    define[From, To](t => compose(fF.value(t.F), fG.value(t.G)))
+   ): Functor.Aux[From, To, compose.Out] = define[From, To](t => compose(fF(t.F), fG(t.G)))
 }

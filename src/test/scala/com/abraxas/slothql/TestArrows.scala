@@ -59,13 +59,48 @@ object FunctorsTest {
 
   import com.abraxas.slothql.test.models._
 
+  lazy val book = Book("History of Rome", Some(author), Nil, meta)
+  lazy val author = Author("Theodor Mommsen", pseudonym = None)
+  lazy val meta = Meta(isbn = "9786610240531")
+
+  lazy val somePage = Page("...")
+
+
   val selPages = ScalaExpr[Book].pages
   // ScalaExpr.SelectField[Book, pages, List[Page]]
   // = SelectField("pages")
+  val selPagesF = FuncArrow(selPages)
+  // Func1Arrow[Book, List[Page]] = <function1>
+  selPagesF(book)
+  // List[Page] = List()
+
 
   val selText  = ScalaExpr[Page].text
   // ScalaExpr.SelectField[Page, text, String]
   // = SelectField("text")
+  val selTextF = FuncArrow(selText)
+  // Func1Arrow[Page, String] = <function1>
+  selTextF(somePage)
+  // String = "..."
+
+  val selTextFMap = ScalaExpr.FMap.mk[List](selText)
+  // ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]]
+  // = FMap(SelectField("text"))
+  val selTextFMapF = FuncArrow(selTextFMap)
+  // Func1Arrow[List[Page], List[String]] = <function1>
+  selTextFMapF(List(somePage))
+  // List[String] = List("...")
+
+  val mapPagesText1_0 = selTextFMap ∘ selPages
+  // Arrow.Composition[
+  //  ScalaExpr.FMap[List[A], ScalaExpr.SelectField[Page, text, String]],
+  //  ScalaExpr.SelectField[Book, pages, List[Page]]
+  // ]{type Source = Book;type Target = List[String]}
+  // = FMap(SelectField(text)) ∘ SelectField(pages)
+  val mapPagesText1_0F = selTextFMapF ∘ selPagesF
+  // Func1Arrow[Book, List[String]] = <function1>
+  mapPagesText1_0F(book)
+  // List[String] = List()
 
   val mapPagesText1 = selPages.map(selText)
   // Arrow.Composition[
@@ -73,6 +108,11 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, pages, List[Page]]
   // ]{type Source = Book;type Target = List[String]}
   // = FMap(SelectField(text)) ∘ SelectField(pages)
+  val mapPagesText1F = FuncArrow(mapPagesText1)
+  // Func1Arrow[Book, List[String]] = <function1>
+  mapPagesText1F(book)
+  // List[String] = List()
+
 
   val mapPagesText2 = selPages.map(_.text)
   // Arrow.Composition[
@@ -80,10 +120,18 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, pages, List[Page]]
   // ]{type Source = Book;type Target = List[String]}
   // = FMap(SelectField(text)) ∘ SelectField(pages)
+  val mapPagesText2F = FuncArrow(mapPagesText2)
+  // Func1Arrow[Book, List[String]] = <function1>
+  mapPagesText2F(book)
+  // List[String] = List()
 
   val selAuthor = ScalaExpr[Book].selectDynamic("author") // same as `.author`
   // ScalaExpr.SelectField[Book, author, Option[Author]]
   // = SelectField("author")
+  val selAuthorF = FuncArrow(selAuthor)
+  // Func1Arrow[Book, Option[Author]] = <function1>
+  selAuthorF(book)
+  // Option[Author] = Some(Author("Theodor Mommsen", None))
 
   val mapAuthorName = selAuthor.map(_.name)
   // Arrow.Composition[
@@ -91,6 +139,10 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, author, Option[Author]]
   // ]{type Source = Book;type Target = Option[String]}
   // = FMap(SelectField(name)) ∘ SelectField(author)
+  val mapAuthorNameF = FuncArrow(mapAuthorName)
+  // Func1Arrow[Book, Option[String]] = <function1>
+  mapAuthorNameF(book)
+  // Option[String] = Some("Theodor Mommsen")
 
   val mapAuthorPseudonym = selAuthor.flatMap(_.pseudonym)
   // Arrow.Composition[
@@ -98,6 +150,10 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, author, Option[Author]]
   // ]{type Source = Book;type Target = Option[String]}
   // = MBind(SelectField(pseudonym)) ∘ SelectField(author)
+  val mapAuthorPseudonymF = FuncArrow(mapAuthorPseudonym)
+  // Func1Arrow[Book, Option[String]] = <function1>
+  mapAuthorPseudonymF(book)
+  // Option[String] = None
 
   val selIsbn = ScalaExpr[Book].meta.isbn
   // Arrow.Composition[
@@ -105,9 +161,18 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, meta, Meta]
   // ]{type Source = Book;type Target = String}
   // = SelectField(isbn) ∘ SelectField(meta)
+  val selIsbnF = FuncArrow(selIsbn)
+  // Func1Arrow[Book, String] = <function1>
+  selIsbnF(book)
+  // String = "9786610240531"
 
   val bookId = ScalaExpr[Book]
   // ScalaExpr.Id[Book] = Id
+
+  val bookIdF = FuncArrow(bookId)
+  // Func1Arrow[Book, Book] = <function1>
+  bookIdF(book)
+  // Book = Book("History of Rome", Some(Author("Theodor Mommsen", None)), List(), Meta("9786610240531"))
 
   val split1 = bookId >>> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
   // Arrow.Split[
@@ -120,6 +185,10 @@ object FunctorsTest {
   //  HNil
   // ]{type Source = Book;type Target = (String, Option[Author], String)}
   // = Split(SelectField(title) :: SelectField(author) :: SelectField(isbn) ∘ SelectField(meta) :: HNil)
+
+// TODO ============================================================================================================
+//  val split1F = FuncArrow(split1)
+//  split1F(book)
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]

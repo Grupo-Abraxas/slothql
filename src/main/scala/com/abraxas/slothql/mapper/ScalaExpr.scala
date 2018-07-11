@@ -3,7 +3,7 @@ package com.abraxas.slothql.mapper
 import scala.language.{ dynamics, higherKinds }
 
 import shapeless.tag.@@
-import shapeless.{ HList, LabelledGeneric, ops }
+import shapeless.{ Cached, HList, LabelledGeneric, ops }
 
 import com.abraxas.slothql.mapper.Arrow.Types
 
@@ -31,7 +31,7 @@ object ScalaExpr {
   case class FMap[F[_], E <: ScalaExpr](expr: E)(implicit val F: cats.Functor[F])
     extends ScalaExpr { type Source = F[expr.Source]; type Target = F[expr.Target] }
   object FMap {
-    def apply[F[_]]: Builder[F] = Builder.asInstanceOf[Builder[F]]
+    def mk[F[_]]: Builder[F] = Builder.asInstanceOf[Builder[F]]
 
     protected class Builder[F[_]] {
       def apply[E <: ScalaExpr](expr: E)(implicit F: cats.Functor[F]): FMap[F, E] = FMap[F, E](expr)
@@ -43,7 +43,7 @@ object ScalaExpr {
   case class MBind[F[_], E <: ScalaExpr](expr: E)(implicit val M: cats.Monad[F])
     extends ScalaExpr { type Source = F[expr.Source]; type Target = expr.Target }
   object MBind {
-    def apply[F[_]]: Builder[F] = Builder.asInstanceOf[Builder[F]]
+    def mk[F[_]]: Builder[F] = Builder.asInstanceOf[Builder[F]]
 
     protected class Builder[F[_]] {
       def apply[E <: ScalaExpr](expr: E)(implicit M: cats.Monad[F]): MBind[F, E] = MBind[F, E](expr)
@@ -100,7 +100,8 @@ object ScalaExpr {
       type Aux[Obj, K, V] = HasField[Obj, K] { type Value = V }
       implicit def evidence[Obj, K, V, Repr <: HList](
         implicit
-        generic: LabelledGeneric.Aux[Obj, Repr], select: ops.record.Selector.Aux[Repr, K, V]
+        generic: Cached[LabelledGeneric.Aux[Obj, Repr]],
+        select:  Cached[ops.record.Selector.Aux[Repr, K, V]]
       ): HasField.Aux[Obj, K, V] = instance.asInstanceOf[HasField.Aux[Obj, K, V]]
       private lazy val instance = new HasField[Any, Any]{}
     }
