@@ -13,7 +13,12 @@ object Arrow {
 
 
   // TODO: `Arrow.Id[Int] == Arrow.Id[String]` complies
-  trait Id[A] extends Arrow { type Source = A; type Target = A }
+  trait Id[A] extends Arrow {
+    type Source = A
+    type Target = A
+
+    override def toString: String = "Id"
+  }
   private object Id extends Id[Any]
   def Id[A]: Id[A] = Id.asInstanceOf[Id[A]]
 
@@ -33,6 +38,8 @@ object Arrow {
     override def equals(o: scala.Any): Boolean = PartialFunction.cond(o) {
       case that: Composition[_, _] => this.F == that.F && this.G == that.G
     }
+
+    override def toString: String = s"$F ∘ $G"
   }
   object Composition {
     type Aux[F <: Arrow, G <: Arrow, S, T] = Composition[F, G] { type Source = S; type Target = T }

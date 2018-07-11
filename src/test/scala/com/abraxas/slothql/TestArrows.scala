@@ -2,57 +2,13 @@ package com.abraxas.slothql
 
 import scala.language.higherKinds
 
-import shapeless.tag.@@
-import shapeless.{ HList, HNil, Witness }
-
-import com.abraxas.slothql.mapper.Arrow.{ Compose, Types }
-import com.abraxas.slothql.mapper.GraphPath._
 import com.abraxas.slothql.mapper._
 
 
-trait CodeArrow extends Arrow
-object CodeArrow {
-  /** Arrow representing object field selection. */
-  trait FieldFocus[Obj, K <: Symbol, V] extends CodeArrow {
-    type Source = Obj
-    type Target = V
-    val field: K
-  }
-  object FieldFocus {
-    def stub[Obj, V](k: String)(implicit w: Witness.Aux[k.type]): FieldFocus[Obj, Symbol @@ w.T, V] =
-      new FieldFocus[Obj, Symbol @@ w.T, V] { val field = Symbol(w.value).asInstanceOf[Symbol @@ w.T] }
-  }
-
-  // TODO
-  /** Arrow representing ??? inside a sequence. */
-  trait SeqFocus[CC[x] <: Seq[x], A] extends CodeArrow {
-    type Source = CC[A]
-    type Target = A
-  }
-  object SeqFocus {
-    def stub[CC[x] <: Seq[x], A]: SeqFocus[CC, A] = new SeqFocus[CC, A] {}
-  }
-
-  /** Arrow representing mapping a sequence with arrow `F`. */
-  trait SeqMapper[F <: Arrow, CC[x] <: Seq[x]] extends CodeArrow {
-    type Source <: CC[_]
-    type Target <: CC[_]
-  }
-  object SeqMapper {
-    type Aux[F <: Arrow, CC[x] <: Seq[x], S, T] =
-      SeqMapper[F, CC] { type Source = CC[S]; type Target = CC[T] }
-    def stub[F <: Arrow, CC[x] <: Seq[x]](implicit t: Types[F]): Aux[F, CC, t.Source, t.Target] =
-      new SeqMapper[F, CC] {
-        type Source = CC[t.Source]
-        type Target = CC[t.Target]
-      }
-  }
-}
 
 
 object Functors {
-  import CodeArrow._
-
+/*
   implicit def fieldFocusToDBArrowLeaf[
     A <: Arrow, Obj, K <: Symbol, V, Repr <: GraphRepr.Element, Fields <: HList, Field <: GraphRepr.Property, V0
   ](
@@ -92,34 +48,61 @@ object Functors {
       val rel = select(schema.repr.Outgoing.asInstanceOf[Rels])
       compose(RelationTarget(rel, rel.To.asInstanceOf[RelTarget]), OutgoingRelation(schema.repr, rel))
     }
+*/
 }
 
 
 
 object FunctorsTest {
-  import CodeArrow._
-  import Functors._
+  import cats.instances.list._
+  import cats.instances.option._
+
   import com.abraxas.slothql.test.models.{ Book, Page }
 
-  val sel1 = FieldFocus.stub[Book, List[Page]]("pages")
-  val sel2 = SeqFocus.stub[List, Page]
-  val sel3 = FieldFocus.stub[Page, String]("text")
+  val selPages = ScalaExpr[Book].pages
+  // ScalaExpr.SelectField[Book, pages, List[Page]]
+  // = SelectField("pages")
 
-  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
+  val selText  = ScalaExpr[Page].text
+  // ScalaExpr.SelectField[Page, text, String]
+  // = SelectField("text")
+
+  val mapPagesText1 = selPages.map(selText)
   // Arrow.Composition[
-  //  GraphPath.RelationTarget[Book.PageListRepr.type, Page.PageRepr.type],
-  //  GraphPath.OutgoingRelation[Book.BookRepr.type, Book.PageListRepr.type]
-  // ]{type Source = Book.BookRepr.type;type Target = Page.PageRepr.type}
+  //  ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]],
+  //  ScalaExpr.SelectField[Book, pages, List[Page]]
+  // ]{type Source = Book;type Target = List[String]}
+  // = FMap(SelectField(text)) ∘ SelectField(pages)
 
-  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]
+  val mapPagesText2 = selPages.map(_.text)
   // Arrow.Composition[
-  //  GraphPath.PropSelection[Page.PageRepr.type, GraphRepr.Property{type Type = String}],
-  //  Arrow.Composition[
-  //    GraphPath.RelationTarget[Book.PageListRepr.type, Page.PageRepr.type],
-  //    GraphPath.OutgoingRelation[Book.BookRepr.type, Book.PageListRepr.type]
-  //  ]{type Source = Book.BookRepr.type;type Target = Page.PageRepr.type}
-  // ]{type Source = Book.BookRepr.type;type Target = GraphRepr.Property{type Type = String}}
+  //  ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]],
+  //  ScalaExpr.SelectField[Book, pages, List[Page]]
+  // ]{type Source = Book;type Target = List[String]}
+  // = FMap(SelectField(text)) ∘ SelectField(pages)
 
-  val m  = Functor.map(sel3).to[GraphPath] ∘ Functor.map(sel2 ∘ sel1).to[GraphPath]
-  assert(mapped1 == m)
+  val selAuthor = ScalaExpr[Book].selectDynamic("author") // same as `.author`
+  // ScalaExpr.SelectField[Book, author, Option[Author]]
+  // = SelectField("author")
+
+  val mapAuthorName = selAuthor.map(_.name)
+  // Arrow.Composition[
+  //  ScalaExpr.FMap[Option, ScalaExpr.SelectField[Author, name, String]],
+  //  ScalaExpr.SelectField[Book, author, Option[Author]]
+  // ]{type Source = Book;type Target = Option[String]}
+  // = FMap(SelectField(name)) ∘ SelectField(author)
+
+  val mapAuthorPseudonym = selAuthor.flatMap(_.pseudonym)
+  // Arrow.Composition[
+  //  ScalaExpr.MBind[Option, ScalaExpr.SelectField[Author, pseudonym, Option[String]]],
+  //  ScalaExpr.SelectField[Book, author, Option[Author]]
+  // ]{type Source = Book;type Target = Option[String]}
+  // = MBind(SelectField(pseudonym)) ∘ SelectField(author)
+
+
+//  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
+//  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]
+
+//  val m  = Functor.map(sel3).to[GraphPath] ∘ Functor.map(sel2 ∘ sel1).to[GraphPath]
+//  assert(mapped1 == m)
 }

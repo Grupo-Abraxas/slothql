@@ -8,7 +8,7 @@ sealed trait GraphPath extends Arrow {
 
 object GraphPath {
   case class Initial[N <: GraphRepr.Node](node: N)
-    extends GraphPath { type Source = N; type Target = N }
+    extends GraphPath { type Source = N; type Target = N } // TODO: extends GraphPath with Arrow.Id[N]
   case class InitialUnique[N <: GraphRepr.Node with GraphRepr.Identifiable.Aux[Id], Id](node: N, id: Id)
     extends GraphPath { type Source = N; type Target = N }
 

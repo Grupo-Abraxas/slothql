@@ -128,6 +128,18 @@ object GraphRepr {
       Node { type Labels = Labels0; type Fields = Fields0; type Outgoing = Outgoing0 }
     def unapply(repr: GraphRepr): Option[(List[String], Map[String, Property], Map[String, Relation])] =
       PartialFunction.condOpt(repr) { case node: Node => (node.labels, node.fields, node.outgoing) }
+
+    case class Optional[N <: Node](node: N) extends Node {
+      type Labels = node.Labels
+      type Fields = node.Fields
+      type Outgoing = node.Outgoing
+      val Labels: Labels = node.Labels
+      val Fields: Fields = node.Fields
+      val Outgoing: Outgoing = node.Outgoing
+      val labels: List[String] = node.labels
+      val fields: Map[String, Property] = node.fields
+      val outgoing: Map[String, Relation] = node.outgoing
+    }
   }
 
   object Relation {
