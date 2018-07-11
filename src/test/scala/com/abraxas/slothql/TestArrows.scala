@@ -186,9 +186,12 @@ object FunctorsTest {
   // ]{type Source = Book;type Target = (String, Option[Author], String)}
   // = Split(SelectField(title) :: SelectField(author) :: SelectField(isbn) ∘ SelectField(meta) :: HNil)
 
-// TODO ============================================================================================================
-//  val split1F = FuncArrow(split1)
-//  split1F(book)
+  // TODO: import is required
+  import FuncArrow.mapSplitToFunc1Arrow
+  val split1F = FuncArrow(split1)
+  // Func1Arrow[Book, (String, Option[Author], String)] = <function1>
+  split1F(book)
+  // (String, Option[Author], String) = ("History of Rome", Some(Author("Theodor Mommsen", None)), "9786610240531")
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]

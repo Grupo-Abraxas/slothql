@@ -243,4 +243,39 @@ object Functor {
     compose: Arrow.Compose[ToF, ToG],
     lowPriority: LowPriority
    ): Functor.Aux[From, To, compose.Out] = define[From, To](t => compose(fF(t.F), fG(t.G)))
+
+  implicit def splitFunctor[From <: Arrow, To <: Arrow, Arrows <: HList, Mapped <: HList](
+    implicit
+    isSplit: From <:< Arrow.Split[Arrows],
+    fmap: FMapHList.Aux[Arrows, To, Mapped],
+    split: Arrow.Split.Splitter[Mapped],
+    lowPriority: LowPriority
+  ): Functor.Aux[From, To, split.Out] =
+    new Functor[From, To] {
+      type Out = split.Out
+      def apply(t: From): split.Out = split(fmap(t.arrows))
+    }
+
+
+  trait FMapHList[Arrows <: HList, To <: Arrow] extends DepFn1[Arrows] { type Out <: HList }
+  object FMapHList {
+    type Aux[Arrows <: HList, To <: Arrow, Mapped <: HList] = FMapHList[Arrows, To] { type Out = Mapped }
+    def apply[Arrows <: HList, To <: Arrow](implicit fmap: FMapHList[Arrows, To]): Aux[Arrows, To, fmap.Out] = fmap
+
+    implicit def fmapHnil[To <: Arrow]: FMapHList.Aux[HNil, To, HNil] = fmapHnilInstance.asInstanceOf[FMapHList.Aux[HNil, To, HNil]]
+    private lazy val fmapHnilInstance = new FMapHList[HNil, Arrow] {
+      type Out = HNil
+      def apply(t: HNil): HNil = HNil
+    }
+
+    implicit def fmapHcons[H <: Arrow, T <: HList, To <: Arrow](
+      implicit
+      mapH: Functor[H, To],
+      mapT: FMapHList[T, To]
+    ): FMapHList.Aux[H :: T, To, mapH.Out :: mapT.Out] =
+      new FMapHList[H :: T, To] {
+        type Out = mapH.Out :: mapT.Out
+        def apply(t: H :: T): mapH.Out :: mapT.Out = mapH(t.head) :: mapT(t.tail)
+      }
+  }
 }
