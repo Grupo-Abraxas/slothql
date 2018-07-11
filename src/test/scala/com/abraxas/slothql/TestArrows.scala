@@ -57,7 +57,7 @@ object FunctorsTest {
   import cats.instances.list._
   import cats.instances.option._
 
-  import com.abraxas.slothql.test.models.{ Book, Page }
+  import com.abraxas.slothql.test.models._
 
   val selPages = ScalaExpr[Book].pages
   // ScalaExpr.SelectField[Book, pages, List[Page]]
@@ -105,6 +105,21 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, meta, Meta]
   // ]{type Source = Book;type Target = String}
   // = SelectField(isbn) ∘ SelectField(meta)
+
+  val bookId = ScalaExpr[Book]
+  // ScalaExpr.Id[Book] = Id
+
+  val split1 = bookId >>> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
+  // Arrow.Split[
+  //  ScalaExpr.SelectField[Book, title, String] ::
+  //  ScalaExpr.SelectField[Book, author, Option[Author]] ::
+  //  Arrow.Composition[
+  //      ScalaExpr.SelectField[Meta, isbn, String],
+  //      ScalaExpr.SelectField[Book, meta, Meta]
+  //    ]{type Source = Book;type Target = String} ::
+  //  HNil
+  // ]{type Source = Book;type Target = (String, Option[Author], String)}
+  // = Split(SelectField(title) :: SelectField(author) :: SelectField(isbn) ∘ SelectField(meta) :: HNil)
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]

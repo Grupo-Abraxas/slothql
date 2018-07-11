@@ -26,6 +26,39 @@ object Arrow {
   // case class Obj[A ](get: A) extends Arrow { type Source = A;    type Target =  A }
   // case class Lit[+A](get: A) extends Arrow { type Source = Unit; type Target <: A }
 
+  sealed trait Split[Arrows <: HList] extends Arrow {
+    val arrows: Arrows
+
+    override def toString: String = s"Split($arrows)"
+  }
+  object Split extends ProductArgs {
+    type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
+
+    def applyProduct[Arrows <: HList](arrows: Arrows)(implicit split: Splitter[Arrows]): split.Out = split(arrows)
+
+    trait Splitter[Arrows <: HList] extends DepFn1[Arrows] { type Out <: Split[Arrows] }
+    object Splitter {
+      type Aux[Arrows <: HList, Ts <: Split[Arrows]] = Splitter[Arrows] { type Out = Ts }
+
+      implicit def arrowSplitter[Arrows <: HList, S, T <: HList](
+        implicit
+        source: CommonSource.Aux[Arrows, S],
+        targets: Targets.Aux[Arrows, T],
+        tupler: ops.hlist.Tupler[T]
+      ): Splitter.Aux[Arrows, Split.Aux[Arrows, S, tupler.Out]] =
+        instance.asInstanceOf[Splitter.Aux[Arrows, Split.Aux[Arrows, S, tupler.Out]]]
+
+      private lazy val instance = new Splitter[HList] {
+        type Out = Split.Aux[HList, Any, Any]
+        def apply(t: HList): Out =
+          new Split[HList] {
+            type Source = Any
+            type Target = Any
+            val arrows: HList = t
+          }
+      }
+    }
+  }
 
   /** An arrow that represents arrows composition. */
   trait Composition[F <: Arrow, G <: Arrow] extends Arrow {
@@ -50,6 +83,13 @@ object Arrow {
   implicit class ComposeOps[F <: Arrow](f: F) {
     def compose[G <: Arrow](g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
     def ∘      [G <: Arrow](g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
+    def <<<    [G <: Arrow](g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
+
+    def andThen[G <: Arrow](g: G)(implicit compose: Compose[G, F]): compose.Out = compose(g, f)
+    def >>>    [G <: Arrow](g: G)(implicit compose: Compose[G, F]): compose.Out = compose(g, f)
+
+    def andThen[G <: Arrow](fg: F => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(f), f)
+    def >>>    [G <: Arrow](fg: F => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(f), f)
   }
 
 
@@ -132,6 +172,42 @@ object Arrow {
       type Out = Arrow :: HNil
       def apply(t: Arrow): Out = t :: HNil
     }
+  }
+
+  trait CommonSource[Arrows <: HList] { type Source }
+  object CommonSource {
+    type Aux[Arrows <: HList, S] = CommonSource[Arrows] { type Source = S }
+    def apply[Arrows <: HList](implicit cs: CommonSource[Arrows]): Aux[Arrows, cs.Source] = cs
+
+    implicit def singleCommonSource[H <: Arrow, S](implicit hSource: Types.Aux[H, S, _]): CommonSource.Aux[H :: HNil, S] =
+      instance.asInstanceOf[CommonSource.Aux[H :: HNil, S]]
+
+    implicit def multipleCommonSource[H <: Arrow, T <: HList, HS, TS, S](
+      implicit
+      notSingle: T <:!< HNil,
+      hSource: Types.Aux[H, HS, _],
+      tSource: CommonSource.Aux[T, TS],
+      lub: Lub[HS, TS, S]
+    ): CommonSource.Aux[H :: T, S] = instance.asInstanceOf[CommonSource.Aux[H :: T, S]]
+
+    private lazy val instance = new CommonSource[HList]{}
+  }
+
+  trait Targets[Arrows <: HList] { type Targets <: HList }
+  object Targets {
+    type Aux[Arrows <: HList, Ts <: HList] = Targets[Arrows] { type Targets = Ts }
+    def apply[Arrows <: HList](implicit t: Targets[Arrows]): Aux[Arrows, t.Targets] = t
+
+    implicit def singleTarget[H <: Arrow, HT](implicit h: H <:< Arrow.Inv[_, HT]): Targets.Aux[H :: HNil, HT :: HNil] =
+      instance.asInstanceOf[Targets.Aux[H :: HNil, HT :: HNil]]
+    implicit def multipleTargets[H <: Arrow, T <: HList, HT](
+      implicit
+      notSingle: T <:!< HNil,
+      h: H <:< Arrow.Inv[_, HT],
+      t: Targets[T]
+    ): Targets.Aux[H :: T, HT :: t.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, HT :: t.Targets]]
+
+    private lazy val instance = new Targets[HList] {}
   }
 }
 

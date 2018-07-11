@@ -5,7 +5,7 @@ import shapeless.syntax.singleton._
 
 import com.abraxas.slothql.mapper.{ GraphRepr, Schema }
 
-case class Book(author: Option[Author], pages: List[Page], meta: Meta)
+case class Book(title: String, author: Option[Author], pages: List[Page], meta: Meta)
 case class Author(name: String, pseudonym: Option[String])
 case class Page(text: String)
 case class Meta(isbn: String)
@@ -30,19 +30,19 @@ object Book {
 
   object BookRepr extends GraphRepr.Node {
     type Labels = Witness.`"Book"`.T :: HNil
-    type Fields = HNil
+    type Fields = Witness.`'title`.Field[GraphRepr.Property.Aux[String]] :: HNil
     type Outgoing = Witness.`'author`.Field[GraphRepr.Node.Optional[Author.AuthorRepr.type]] ::
                     Witness.`'pages` .Field[PageListRepr.type] ::
                     Witness.`'meta`  .Field[Meta.MetaRepr.type] :: HNil
 
     lazy val Labels: Labels = "Book".narrow :: HNil
-    lazy val Fields: Fields = HNil
+    lazy val Fields: Fields = 'title ->> GraphRepr.Property[String] :: HNil
     lazy val Outgoing: Outgoing = 'author ->> GraphRepr.Node.Optional(Author.AuthorRepr) ::
                                   'pages  ->> PageListRepr ::
                                   'meta   ->> Meta.MetaRepr :: HNil
 
     lazy val labels: List[String] = List("Book")
-    lazy val fields: Map[String, GraphRepr.Property] = Map()
+    lazy val fields: Map[String, GraphRepr.Property] = Map("title" -> GraphRepr.Property[String])
     // TODO =========================================================================================================
     lazy val outgoing: Map[String, GraphRepr.Relation] = ??? /*Map(
       "author" -> GraphRepr.Node.Optional(Author.AuthorRepr),
