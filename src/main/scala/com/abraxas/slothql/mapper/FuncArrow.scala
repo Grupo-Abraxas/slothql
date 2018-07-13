@@ -35,20 +35,19 @@ object FuncArrow {
     implicit def applyFunc1Arrow[S, T]: Case.Aux[(Func1Arrow[S, T], S), T] = at[(Func1Arrow[S, T], S)]{ case (f, s) => f(s) }
   }
 
-  // TODO: import is required
   implicit def mapSplitToFunc1Arrow[
-    A <: Arrow, Arrows <: HList, A1 <: Arrow, Arrows1 <: HList, S, T, N <: Nat, ZL <: HList, TL <: HList
+    A <: Arrow, Arrows <: HList, Mapped <: HList, Arrows1 <: HList, S, T, ZL <: HList, TL <: HList
   ](
     implicit
     isSplit0: A <:< Arrow.Split[Arrows],
-    fmap: Functor.Aux[A, FuncArrow, A1],
-    isSplit1: A1 <:< Arrow.Split.Aux[Arrows1, S, T],
+    fmap: Lazy[Functor.FMapHList.Aux[Arrows, FuncArrow, Mapped]],
+    split: Arrow.Split.Splitter.Aux[Mapped, Arrow.Split.Aux[Arrows1, S, T]],
     zip: ops.hlist.ZipConst.Aux[S, Arrows1, ZL],
     applyArrows: ops.hlist.Mapper.Aux[ApplyTupled.type, ZL, TL],
     tupler: ops.hlist.Tupler.Aux[TL, T]
   ): Functor.Aux[A, FuncArrow, Func1Arrow[S, T]] =
     Functor.define[A, FuncArrow](t =>
-      Func1Arrow(s => tupler(applyArrows(zip(s, isSplit1(fmap(t)).arrows))))
+      Func1Arrow(s => tupler(applyArrows(zip(s, split(fmap.value(t.arrows)).arrows))))
     )
 
   implicit def mapScalaExprIdToFunc1Arrow[A]: Functor.Aux[ScalaExpr.Id[A], FuncArrow, Func1Arrow[A, A]] =
@@ -57,12 +56,10 @@ object FuncArrow {
 
   implicit def mapScalaExprSelectFieldToFunc1Arrow[Obj, K <: String, V, Repr <: HList](
     implicit
-    generic: Cached[LabelledGeneric.Aux[Obj, Repr]],
-    select:  Cached[ops.record.Selector.Aux[Repr, Symbol @@ K, V]]
+    generic: LabelledGeneric.Aux[Obj, Repr],
+    select:  ops.record.Selector.Aux[Repr, Symbol @@ K, V]
   ): Functor.Aux[ScalaExpr.SelectField[Obj, K, V], FuncArrow, Func1Arrow[Obj, V]] =
-    Functor.define[ScalaExpr.SelectField[Obj, K, V], FuncArrow](_ =>
-      Func1Arrow(select.value.apply _ compose generic.value.to)
-    )
+    Functor.define[ScalaExpr.SelectField[Obj, K, V], FuncArrow](_ => Func1Arrow(select.apply _ compose generic.to))
 
   implicit def mapScalaExprFMapToFunc1Arrow[F[_], E <: ScalaExpr, S, T](
     implicit

@@ -38,7 +38,7 @@ object Arrow {
 
     trait Splitter[Arrows <: HList] extends DepFn1[Arrows] { type Out <: Split[Arrows] }
     object Splitter {
-      type Aux[Arrows <: HList, Ts <: Split[Arrows]] = Splitter[Arrows] { type Out = Ts }
+      type Aux[Arrows <: HList, Ts <: Split[_]] = Splitter[Arrows] { type Out = Ts }
 
       implicit def arrowSplitter[Arrows <: HList, S, T <: HList](
         implicit
@@ -238,19 +238,19 @@ object Functor {
   implicit def compositionFunctor[From <: Arrow, To <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
     implicit
     composition: From <:< Arrow.Composition[FromF, FromG],
-    fF: Functor.Aux[FromF, To, ToF],
-    fG: Functor.Aux[FromG, To, ToG],
+    fF: Lazy[Functor.Aux[FromF, To, ToF]],
+    fG: Lazy[Functor.Aux[FromG, To, ToG]],
     compose: Arrow.Compose[ToF, ToG],
     lowPriority: LowPriority
-   ): Functor.Aux[From, To, compose.Out] = define[From, To](t => compose(fF(t.F), fG(t.G)))
+   ): Functor.Aux[From, To, compose.Out] = define[From, To](t => compose(fF.value(t.F), fG.value(t.G)))
 
   implicit def splitFunctor[From <: Arrow, To <: Arrow, Arrows <: HList, Mapped <: HList](
     implicit
     isSplit: From <:< Arrow.Split[Arrows],
-    fmap: FMapHList.Aux[Arrows, To, Mapped],
+    fmap: Lazy[FMapHList.Aux[Arrows, To, Mapped]],
     split: Arrow.Split.Splitter[Mapped],
     lowPriority: LowPriority
-  ): Functor.Aux[From, To, split.Out] = define[From, To](t => split(fmap(t.arrows)))
+  ): Functor.Aux[From, To, split.Out] = define[From, To](t => split(fmap.value(t.arrows)))
 
 
   trait FMapHList[Arrows <: HList, To <: Arrow] extends DepFn1[Arrows] { type Out <: HList }
@@ -264,14 +264,14 @@ object Functor {
       def apply(t: HNil): HNil = HNil
     }
 
-    implicit def fmapHcons[H <: Arrow, T <: HList, To <: Arrow](
+    implicit def fmapHcons[H <: Arrow, T <: HList, To <: Arrow, H1 <: Arrow, T1 <: HList](
       implicit
-      mapH: Functor[H, To],
-      mapT: FMapHList[T, To]
-    ): FMapHList.Aux[H :: T, To, mapH.Out :: mapT.Out] =
+      mapH: Lazy[Functor.Aux[H, To, H1]],
+      mapT: Lazy[FMapHList.Aux[T, To, T1]]
+    ): FMapHList.Aux[H :: T, To, H1 :: T1] =
       new FMapHList[H :: T, To] {
-        type Out = mapH.Out :: mapT.Out
-        def apply(t: H :: T): mapH.Out :: mapT.Out = mapH(t.head) :: mapT(t.tail)
+        type Out = H1 :: T1
+        def apply(t: H :: T): H1 :: T1 = mapH.value(t.head) :: mapT.value(t.tail)
       }
   }
 }

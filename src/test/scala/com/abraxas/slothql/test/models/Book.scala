@@ -67,6 +67,7 @@ object Author {
                                                       "pseudonym" -> GraphRepr.Property[Option[String]])
     val outgoing: Map[String, GraphRepr.Relation] = Map()
   }
+  implicit def authorSchema: Schema.Aux[Author, AuthorRepr.type] = Schema.defineFor[Author](AuthorRepr)
 }
 
 object Page {
@@ -98,4 +99,5 @@ object Meta {
     val fields: Map[String, GraphRepr.Property] = Map("isbn" -> GraphRepr.Property[String])
     val outgoing: Map[String, GraphRepr.Relation] = Map()
   }
+  implicit def authorSchema: Schema.Aux[Meta, MetaRepr.type] = Schema.defineFor[Meta](MetaRepr)
 }

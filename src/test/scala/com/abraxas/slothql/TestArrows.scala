@@ -197,7 +197,6 @@ object FunctorsTest {
   mapAuthorPseudonymF(book)
   // Option[String] = None
 
-  // TODO: test mapping to GraphPath                                                              <<< High Priority >>>
   val selIsbn = ScalaExpr[Book].meta.isbn
   // Arrow.Composition[
   //  ScalaExpr.SelectField[Meta, isbn, String],
@@ -208,6 +207,18 @@ object FunctorsTest {
   // Func1Arrow[Book, String] = <function1>
   selIsbnF(book)
   // String = "9786610240531"
+  val pathIsbn = Functor.map(selIsbn).to[GraphPath]
+  // Arrow.Composition[
+  //  GraphPath.PropSelection[Meta.MetaRepr.type, GraphRepr.Property{type Type = String}],
+  //  Arrow.Composition[
+  //    GraphPath.RelationTarget[GraphRepr.Relation.Empty[meta, Book.BookRepr.type, Meta.MetaRepr.type], Meta.MetaRepr.type],
+  //    GraphPath.OutgoingRelation[Book.BookRepr.type, GraphRepr.Relation.Empty[meta, Book.BookRepr.type, Meta.MetaRepr.type]]
+  //  ]{type Source = Book.BookRepr.type;type Target = Meta.MetaRepr.type}
+  // ]{type Source = Book.BookRepr.type;type Target = GraphRepr.Property{type Type = String}}
+  // = PropSelection(Node(labels = Meta; fields = isbn -> Property[String]; outgoing = ),Property[String])
+  // ∘ RelationTarget(Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"]),Node(labels = Meta; fields = isbn -> Property[String]; outgoing = ))
+  // ∘ OutgoingRelation(Node(labels = Book; fields = title -> Property[String]; outgoing = ),Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"]))
+
 
   val bookId = ScalaExpr[Book]
   // ScalaExpr.Id[Book] = Id
@@ -234,8 +245,6 @@ object FunctorsTest {
   // ]{type Source = Book;type Target = (String, Option[Author], String)}
   // = Split(SelectField(title) :: SelectField(author) :: SelectField(isbn) ∘ SelectField(meta) :: HNil)
 
-  // TODO: import is required
-  import FuncArrow.mapSplitToFunc1Arrow
   // TODO: test mapping to GraphPath
   val split1F = FuncArrow(split1)
   // Func1Arrow[Book, (String, Option[Author], String)] = <function1>
