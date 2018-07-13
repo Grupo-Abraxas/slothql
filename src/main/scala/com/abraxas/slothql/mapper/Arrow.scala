@@ -250,11 +250,7 @@ object Functor {
     fmap: FMapHList.Aux[Arrows, To, Mapped],
     split: Arrow.Split.Splitter[Mapped],
     lowPriority: LowPriority
-  ): Functor.Aux[From, To, split.Out] =
-    new Functor[From, To] {
-      type Out = split.Out
-      def apply(t: From): split.Out = split(fmap(t.arrows))
-    }
+  ): Functor.Aux[From, To, split.Out] = define[From, To](t => split(fmap(t.arrows)))
 
 
   trait FMapHList[Arrows <: HList, To <: Arrow] extends DepFn1[Arrows] { type Out <: HList }

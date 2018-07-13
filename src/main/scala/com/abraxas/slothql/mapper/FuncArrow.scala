@@ -47,29 +47,22 @@ object FuncArrow {
     applyArrows: ops.hlist.Mapper.Aux[ApplyTupled.type, ZL, TL],
     tupler: ops.hlist.Tupler.Aux[TL, T]
   ): Functor.Aux[A, FuncArrow, Func1Arrow[S, T]] =
-    new Functor[A, FuncArrow] {
-      type Out = Func1Arrow[S, T]
-      def apply(t: A): Func1Arrow[S, T] = Func1Arrow(s => tupler(applyArrows(zip(s, isSplit1(fmap(t)).arrows)))
-      )
-    }
+    Functor.define[A, FuncArrow](t =>
+      Func1Arrow(s => tupler(applyArrows(zip(s, isSplit1(fmap(t)).arrows))))
+    )
 
   implicit def mapScalaExprIdToFunc1Arrow[A]: Functor.Aux[ScalaExpr.Id[A], FuncArrow, Func1Arrow[A, A]] =
     scalaExprIdFunctor.asInstanceOf[Functor.Aux[ScalaExpr.Id[A], FuncArrow, Func1Arrow[A, A]]]
-  private lazy val scalaExprIdFunctor = new Functor[Arrow, FuncArrow] {
-    type Out = Func1Arrow[Any, Any]
-    def apply(t: Arrow): Func1Arrow[Any, Any] = Func1Arrow(identity[Any])
-  }
+  private lazy val scalaExprIdFunctor = Functor.define[Arrow, FuncArrow](_ => Func1Arrow(identity[Any]))
 
   implicit def mapScalaExprSelectFieldToFunc1Arrow[Obj, K <: String, V, Repr <: HList](
     implicit
     generic: Cached[LabelledGeneric.Aux[Obj, Repr]],
     select:  Cached[ops.record.Selector.Aux[Repr, Symbol @@ K, V]]
   ): Functor.Aux[ScalaExpr.SelectField[Obj, K, V], FuncArrow, Func1Arrow[Obj, V]] =
-    new Functor[ScalaExpr.SelectField[Obj, K, V], FuncArrow] {
-      type Out = Func1Arrow[Obj, V]
-      def apply(t: ScalaExpr.SelectField[Obj, K, V]): Func1Arrow[Obj, V] =
-        Func1Arrow(select.value.apply _ compose generic.value.to)
-    }
+    Functor.define[ScalaExpr.SelectField[Obj, K, V], FuncArrow](_ =>
+      Func1Arrow(select.value.apply _ compose generic.value.to)
+    )
 
   implicit def mapScalaExprFMapToFunc1Arrow[F[_], E <: ScalaExpr, S, T](
     implicit
@@ -77,10 +70,7 @@ object FuncArrow {
     types0: Arrow.Types.Aux[E, S, T],
     mapE: Functor.Aux[E, FuncArrow, Func1Arrow[S, T]]
   ): Functor.Aux[ScalaExpr.FMap[F, E], FuncArrow, Func1Arrow[F[S], F[T]]] =
-    new Functor[ScalaExpr.FMap[F, E], FuncArrow] {
-      type Out = Func1Arrow[F[S], F[T]]
-      def apply(t: ScalaExpr.FMap[F, E]): Func1Arrow[F[S], F[T]] = Func1Arrow(_.map(mapE(t.expr)))
-    }
+    Functor.define[ScalaExpr.FMap[F, E], FuncArrow](t => Func1Arrow(_.map(mapE(t.expr))))
 
   implicit def mapScalaExprMBindToFunc1Arrow[F[_], E <: ScalaExpr, S, T, T0](
     implicit
@@ -89,10 +79,9 @@ object FuncArrow {
     mapE: Functor.Aux[E, FuncArrow, Func1Arrow[S, T]],
     targetIsF: T <:< F[T0]
   ): Functor.Aux[ScalaExpr.MBind[F, E], FuncArrow, Func1Arrow[F[S], F[T0]]] =
-    new Functor[ScalaExpr.MBind[F, E], FuncArrow] {
-      type Out = Func1Arrow[F[S], F[T0]]
-      def apply(t: ScalaExpr.MBind[F, E]): Func1Arrow[F[S], F[T0]] = Func1Arrow(_ flatMap mapE(t.expr).andThen(targetIsF))
-    }
+    Functor.define[ScalaExpr.MBind[F, E], FuncArrow](t =>
+      Func1Arrow(_ flatMap mapE(t.expr).andThen(targetIsF))
+    )
 
 //  implicit def mapScalaExpr?ToFunc1Arrow: Functor.Aux[ScalaExpr.?, FuncArrow, Func1Arrow[?, ?]] = ???
 
