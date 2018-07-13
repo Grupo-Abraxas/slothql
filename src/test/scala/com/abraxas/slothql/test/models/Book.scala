@@ -17,15 +17,12 @@ object Book {
     type From = BookRepr.type
     type To = Page.PageRepr.type
 
-    lazy val Type: Type = "pages"
-    lazy val Fields: Fields = 'index ->> GraphRepr.Property[Long] :: HNil
-    lazy val From: From = BookRepr
-    lazy val To: To = Page.PageRepr
+    lazy val tpe: Type = "pages"
+    lazy val fields: Fields = 'index ->> GraphRepr.Property[Long] :: HNil
+    lazy val from: From = BookRepr
+    lazy val to: To = Page.PageRepr
 
-    lazy val tpe: String = "pages"
-    lazy val fields: Map[String, GraphRepr.Property] = Map("index" -> GraphRepr.Property[Long])
-    lazy val from: GraphRepr.Node = BookRepr
-    lazy val to: GraphRepr.Node = Page.PageRepr
+    lazy val fieldsMap: Map[String, GraphRepr.Property] = Map("index" -> GraphRepr.Property[Long])
   }
 
   object BookRepr extends GraphRepr.Node {
@@ -44,7 +41,7 @@ object Book {
     lazy val labels: List[String] = List("Book")
     lazy val fields: Map[String, GraphRepr.Property] = Map("title" -> GraphRepr.Property[String])
     // TODO =========================================================================================================
-    lazy val outgoing: Map[String, GraphRepr.Relation] = ??? /*Map(
+    lazy val outgoing: Map[String, GraphRepr.Relation] = Map() /*Map(
       "author" -> GraphRepr.Node.Optional(Author.AuthorRepr),
       "pages"  -> PageListRepr,
       "meta"   -> Meta.MetaRepr

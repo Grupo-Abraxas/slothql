@@ -44,6 +44,7 @@ object GraphRepr {
   }
 
   sealed trait Element extends GraphRepr {
+    def toStringShort: String
     protected def toStringName: String
     protected def toStringFields: List[String]
     override def toString: String = toStringName + (if (toStringFields.nonEmpty) toStringFields.mkString("(", "; ", ")") else "")
@@ -70,8 +71,9 @@ object GraphRepr {
     protected def toStringFields: List[String] = List(
       s"labels = ${labels.mkString(", ")}",
       s"fields = ${printMap(fields)}",
-      s"outgoing = ${printMap(outgoing)}"
+      s"outgoing = ${printMap(outgoing, printV = (_: Relation).toStringShort)}"
     )
+    def toStringShort: String = s"Node[${labels.map("\"" + _ + "\"").mkString(":")}]"
   }
 
   trait Relation extends Element {
@@ -80,26 +82,28 @@ object GraphRepr {
     type From   <: Node
     type To     <: Node
 
-    val Type: Type
-    val Fields: Fields
-    val From: From
-    val To: To
+    val tpe: Type
+    val fields: Fields
+    val from: From
+    val to: To
 
-    val tpe: String
-    val fields: Map[String, Property]
-    val from: Node
-    val to: Node
+    val fieldsMap: Map[String, Property]
 
     protected def toStringName: String = "Relation"
     protected def toStringFields: List[String] = List(
       s"type = $tpe",
-      s"fields = ${printMap(fields)}",
-      s"from = $from",
-      s"to = $to"
+      s"fields = ${printMap(fieldsMap)}",
+      s"from = ${from.toStringShort}",
+      s"to = ${to.toStringShort}"
     )
+    def toStringShort: String = s"""Relation["$tpe"]"""
   }
 
-  private def printMap(m: Map[_, _]) = m.map{ case (k, v) => s"$k -> $v" }.mkString(", ")
+  private def printMap[K, V](
+    m: Map[K, V],
+    printK: K => String = (_: K).toString,
+    printV: V => String = (_: V).toString
+  ) = m.map{ case (k, v) => s"${printK(k)} -> ${printV(v)}" }.mkString(", ")
 
   trait Identifiable {
     repr: Element =>
@@ -122,7 +126,7 @@ object GraphRepr {
       case prop: Property => prop.manifest
     }
   }
-  
+
   object Node {
     type Aux[Labels0 <: HList, Fields0 <: HList, Outgoing0 <: HList] =
       Node { type Labels = Labels0; type Fields = Fields0; type Outgoing = Outgoing0 }
@@ -146,7 +150,16 @@ object GraphRepr {
     type Aux[Type0 <: String, Fields0 <: HList, From0 <: Node, To0 <: Node] =
       Relation { type Type = Type0; type Fields = Fields0; type From = From0; type To = To0 }
     def unapply(repr: GraphRepr): Option[(String, Map[String, Property], Node, Node)] =
-      PartialFunction.condOpt(repr) { case rel: Relation => (rel.tpe, rel.fields, rel.from, rel.to) }
+      PartialFunction.condOpt(repr) { case rel: Relation => (rel.tpe, rel.fieldsMap, rel.from, rel.to) }
+
+    case class Empty[Type0 <: String, From0 <: Node, To0 <: Node](tpe: Type0, from: From0, to: To0) extends Relation {
+      type Type = Type0
+      type Fields = HNil
+      type From = From0
+      type To = To0
+      val fields: HNil = HNil
+      val fieldsMap: Map[String, Property] = Map()
+    }
   }
   
   object Identifiable {

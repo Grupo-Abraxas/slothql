@@ -57,6 +57,7 @@ object FunctorsTest {
   import cats.instances.list._
   import cats.instances.option._
 
+  import com.abraxas.slothql.mapper.MapScalaExprToGraphPath._
   import com.abraxas.slothql.test.models._
 
   lazy val book = Book("History of Rome", Some(author), Nil, meta)
@@ -73,16 +74,34 @@ object FunctorsTest {
   // Func1Arrow[Book, List[Page]] = <function1>
   selPagesF(book)
   // List[Page] = List()
+  val pathPages = Functor.map(selPages).to[GraphPath]
+  // GraphPath.OutgoingRelation[
+  //  Book.BookRepr.type,
+  //  Book.PageListRepr.type
+  // ]
+  // = OutgoingRelation(
+  //  Node(labels = Book; fields = title -> Property[String]; outgoing = ),
+  //  Relation(type = pages; fields = index -> Property[long]; from = Node["Book"]; to = Node["Page"])
+  // )
 
-
-  val selText  = ScalaExpr[Page].text
+  val selText = ScalaExpr[Page].text
   // ScalaExpr.SelectField[Page, text, String]
   // = SelectField("text")
   val selTextF = FuncArrow(selText)
   // Func1Arrow[Page, String] = <function1>
   selTextF(somePage)
   // String = "..."
+  val pathText = Functor.map(selText).to[GraphPath]
+  // GraphPath.PropSelection[
+  //  Page.PageRepr.type,
+  //  GraphRepr.Property{type Type = String}
+  // ]
+  // = PropSelection(
+  //  Node(labels = Page; fields = text -> Property[String]; outgoing = ),
+  //  Property[String]
+  // )
 
+  // TODO: test mapping to GraphPath
   val selTextFMap = ScalaExpr.FMap.mk[List](selText)
   // ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]]
   // = FMap(SelectField("text"))
@@ -91,6 +110,7 @@ object FunctorsTest {
   selTextFMapF(List(somePage))
   // List[String] = List("...")
 
+  // TODO: test mapping to GraphPath
   val mapPagesText1_0 = selTextFMap ∘ selPages
   // Arrow.Composition[
   //  ScalaExpr.FMap[List[A], ScalaExpr.SelectField[Page, text, String]],
@@ -102,6 +122,7 @@ object FunctorsTest {
   mapPagesText1_0F(book)
   // List[String] = List()
 
+  // TODO: test mapping to GraphPath
   val mapPagesText1 = selPages.map(selText)
   // Arrow.Composition[
   //  ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]],
@@ -114,6 +135,7 @@ object FunctorsTest {
   // List[String] = List()
 
 
+  // TODO: test mapping to GraphPath
   val mapPagesText2 = selPages.map(_.text)
   // Arrow.Composition[
   //  ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]],
@@ -132,7 +154,26 @@ object FunctorsTest {
   // Func1Arrow[Book, Option[Author]] = <function1>
   selAuthorF(book)
   // Option[Author] = Some(Author("Theodor Mommsen", None))
+  val pathAuthor = Functor.map(selAuthor).to[GraphPath]
+  // Arrow.Composition[
+  //  GraphPath.RelationTarget[
+  //    GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]],
+  //    GraphRepr.Node.Optional[Author.AuthorRepr.type]
+  //  ],
+  //  GraphPath.OutgoingRelation[
+  //    Book.BookRepr.type,
+  //    GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]]
+  //  ]
+  // ]{type Source = Book.BookRepr.type;type Target = GraphRepr.Node.Optional[Author.AuthorRepr.type]}
+  // =   RelationTarget(
+  //       Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"]),
+  //       Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = )
+  // ) ∘ OutgoingRelation(
+  //       Node(labels = Book; fields = title -> Property[String]; outgoing = ),
+  //       Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"])
+  // )
 
+  // TODO: test mapping to GraphPath
   val mapAuthorName = selAuthor.map(_.name)
   // Arrow.Composition[
   //  ScalaExpr.FMap[Option, ScalaExpr.SelectField[Author, name, String]],
@@ -144,6 +185,7 @@ object FunctorsTest {
   mapAuthorNameF(book)
   // Option[String] = Some("Theodor Mommsen")
 
+  // TODO: test mapping to GraphPath
   val mapAuthorPseudonym = selAuthor.flatMap(_.pseudonym)
   // Arrow.Composition[
   //  ScalaExpr.MBind[Option, ScalaExpr.SelectField[Author, pseudonym, Option[String]]],
@@ -155,6 +197,7 @@ object FunctorsTest {
   mapAuthorPseudonymF(book)
   // Option[String] = None
 
+  // TODO: test mapping to GraphPath                                                              <<< High Priority >>>
   val selIsbn = ScalaExpr[Book].meta.isbn
   // Arrow.Composition[
   //  ScalaExpr.SelectField[Meta, isbn, String],
@@ -174,6 +217,11 @@ object FunctorsTest {
   bookIdF(book)
   // Book = Book("History of Rome", Some(Author("Theodor Mommsen", None)), List(), Meta("9786610240531"))
 
+  val bookIdPath = Functor.map(bookId).to[GraphPath]
+  // GraphPath.Initial[Book.BookRepr.type]
+  // = Initial(Node(labels = Book; fields = title -> Property[String]; outgoing = ))
+
+  // TODO: test mapping to GraphPath
   val split1 = bookId >>> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
   // Arrow.Split[
   //  ScalaExpr.SelectField[Book, title, String] ::
@@ -188,6 +236,7 @@ object FunctorsTest {
 
   // TODO: import is required
   import FuncArrow.mapSplitToFunc1Arrow
+  // TODO: test mapping to GraphPath
   val split1F = FuncArrow(split1)
   // Func1Arrow[Book, (String, Option[Author], String)] = <function1>
   split1F(book)
