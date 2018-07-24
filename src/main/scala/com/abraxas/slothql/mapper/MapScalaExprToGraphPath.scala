@@ -52,8 +52,8 @@ object MapScalaExprToGraphPath {
     nodeA: N <:< GraphRepr.Node.Aux[_, Props, _],
     selectP: ops.record.Selector.Aux[Props, Symbol @@ K, P]
   ): Functor.Aux[ScalaExpr.SelectField[A, K, V], GraphPath, GraphPath.PropSelection[N, P]] =
-    Functor.define[ScalaExpr.SelectField[A, K, V], GraphPath](_ =>
-      GraphPath.PropSelection(schemaA.repr, selectP(nodeA(schemaA.repr).Fields))
+    Functor.define[ScalaExpr.SelectField[A, K, V], GraphPath](sel =>
+      GraphPath.PropSelection(schemaA.repr, sel.field, selectP(nodeA(schemaA.repr).Fields))
     )
 
 

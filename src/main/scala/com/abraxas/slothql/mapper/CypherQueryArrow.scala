@@ -4,6 +4,7 @@ import cats.data.NonEmptyList
 import shapeless._
 
 import com.abraxas.slothql.cypher.CypherFragment._
+import com.abraxas.slothql.util.FilterNotCov
 
 
 trait CypherQueryArrow extends FuncArrow {
@@ -67,12 +68,14 @@ object CypherQueryArrow {
     }
 
     implicit def buildPatternFromGraphPath[
-      A <: Arrow, U0 <: HList, UR <: HList, U <: HList, Len <: Nat, Last <: Nat, EmptyAliases <: HList, Aliases <: HList, Ps <: HList
+      A <: Arrow, U0 <: HList, UR <: HList, U1 <: HList, U <: HList,
+      Len <: Nat, Last <: Nat, EmptyAliases <: HList, Aliases <: HList, Ps <: HList
     ](
       implicit
       unchain: Arrow.Unchain.Aux[A, U0],
       reverse: ops.hlist.Reverse.Aux[U0, UR],
-      prependInitial: InitialPrepend.Aux[UR, U],
+      prependInitial: InitialPrepend.Aux[UR, U1],
+      dropPropSelection: FilterNotCov.Aux[U1, GraphPath.PropSelection[_, _], U],
       length: ops.hlist.Length.Aux[U, Len],
       emptyAliases: ops.hlist.Fill.Aux[Len, Option[String], EmptyAliases],
       last: ops.nat.Pred.Aux[Len, Last],
@@ -82,7 +85,8 @@ object CypherQueryArrow {
     ): PatternBuilder[A] =
       new PatternBuilder[A] {
         private val aliases = replaceLastAlias(emptyAliases(None), theOnlyNodeAliasOpt)._2
-        def apply(t: A): Known[Pattern.Pattern0] = buildPattern(map(prependInitial(reverse(unchain(t))), aliases))
+        def apply(t: A): Known[Pattern.Pattern0] =
+          buildPattern(map(dropPropSelection(prependInitial(reverse(unchain(t)))), aliases))
       }
 
     trait InitialPrepend[L <: HList] extends DepFn1[L] { type Out <: HList }
@@ -106,6 +110,15 @@ object CypherQueryArrow {
           type Out = GraphPath.Initial[N] :: H :: T
           def apply(t: H :: T): GraphPath.Initial[N] :: H :: T = GraphPath.Initial(t.head.node) :: t.head :: t.tail
         }
+
+      implicit def prependInitialToPropSelection[H, T <: HList, N <: GraphRepr.Node](
+        implicit
+        headIsOutgoingRel: H <:< GraphPath.PropSelection[N, _]
+      ): InitialPrepend.Aux[H :: T, GraphPath.Initial[N] :: H :: T] =
+        new InitialPrepend[H :: T] {
+          type Out = GraphPath.Initial[N] :: H :: T
+          def apply(t: H :: T): GraphPath.Initial[N] :: H :: T = GraphPath.Initial(t.head.elem) :: t.head :: t.tail
+        }
     }
   }
 
@@ -121,7 +134,7 @@ object CypherQueryArrow {
       implicit
       unchain: Arrow.Unchain.Aux[A, U],
       head: ops.hlist.IsHCons.Aux[U, H, _],
-      lastIsNode: H <:< GraphPath.RelationArrow[_, _]
+      isNode: H <:< GraphPath.RelationArrow[_, _]
     ): ReturnBuilder.Aux[A, Map[String, Any]] =
       returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any]]]
     private lazy val returnLastNodeInstance = new ReturnBuilder[Arrow] {
@@ -129,5 +142,20 @@ object CypherQueryArrow {
       private val ret = Return.Expr(Expr.Var[Map[String, Any]](theOnlyNodeAlias), as = None).known
       def apply(t: Arrow): Known[Return.Expr[Map[String, Any]]] = ret
     }
+
+    implicit def returnPropSelection[A <: Arrow, U <: HList, H, P <: GraphRepr.Property, R](
+      implicit
+      unchain: Arrow.Unchain.Aux[A, U],
+      head: ops.hlist.IsHCons.Aux[U, H, _],
+      isProperty: H <:< GraphPath.PropSelection[_, P],
+      propertyType: P <:< GraphRepr.Property.Aux[R]
+    ): ReturnBuilder.Aux[A, R] =
+      new ReturnBuilder[A] {
+        type Result = R
+        def apply(t: A): Known[Return[R]] = {
+          val nodeKey = Expr.Key(Expr.Var[Map[String, Any]](theOnlyNodeAlias), unchain(t).head.propName)
+          Return.Expr(nodeKey, as = None)
+        }
+      }
   }
 }

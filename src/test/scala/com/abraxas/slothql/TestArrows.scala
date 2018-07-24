@@ -67,6 +67,7 @@ object FunctorsTest {
   lazy val somePage = Page("...")
 
 
+  // TODO: test CypherQueryArrow
   val selPages = ScalaExpr[Book].pages
   // ScalaExpr.SelectField[Book, pages, List[Page]]
   // = SelectField("pages")
@@ -84,6 +85,7 @@ object FunctorsTest {
   //  Relation(type = pages; fields = index -> Property[long]; from = Node["Book"]; to = Node["Page"])
   // )
 
+
   val selText = ScalaExpr[Page].text
   // ScalaExpr.SelectField[Page, text, String]
   // = SelectField("text")
@@ -100,8 +102,27 @@ object FunctorsTest {
   //  Node(labels = Page; fields = text -> Property[String]; outgoing = ),
   //  Property[String]
   // )
+  val unchainedRevPathText = pathText.unchainRev
+  // GraphPath.PropSelection[Page.PageRepr.type, GraphRepr.Property{type Type = String}] :: HNil
+  // = PropSelection(Node(labels = Page; fields = text -> Property[String]; outgoing = ), "text", Property[String]) :: HNil
+  val textPattern = CypherQueryArrow.PatternBuilder(pathText)
+  // CypherFragment.Known[CypherFragment.Pattern.Pattern0]
+  // = KnownNode(Some(n),List(Page),Map())
+  // { (`n`:`Page`) }
+  val textReturn = CypherQueryArrow.ReturnBuilder(pathText)
+  // CypherFragment.Known[CypherFragment.Return[String]]
+  // = KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },text){ `n`.`text` },None)
+  // { `n`.`text` }
+  val textCypherArrow = Functor.map(pathText).to[CypherQueryArrow]
+  // CypherQueryArrow{type Source = Unit;type Result = String}
+  // = <CypherQueryArrow>
+  val textCypherQuery = textCypherArrow(())
+  // textCypherArrow.Target
+  // = KnownClause(KnownMatch(NonEmptyList(KnownNode(Some(n),List(Page),Map()){ (`n`:`Page`) }),false,None){ MATCH (`n`:`Page`) },KnownReturn(KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },text){ `n`.`text` },None){ `n`.`text` }){ RETURN `n`.`text` })
+  // { MATCH (`n`:`Page`) RETURN `n`.`text` }
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val selTextFMap = ScalaExpr.FMap.mk[List](selText)
   // ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]]
   // = FMap(SelectField("text"))
@@ -111,6 +132,7 @@ object FunctorsTest {
   // List[String] = List("...")
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val mapPagesText1_0 = selTextFMap ∘ selPages
   // Arrow.Composition[
   //  ScalaExpr.FMap[List[A], ScalaExpr.SelectField[Page, text, String]],
@@ -123,6 +145,7 @@ object FunctorsTest {
   // List[String] = List()
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val mapPagesText1 = selPages.map(selText)
   // Arrow.Composition[
   //  ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]],
@@ -136,6 +159,7 @@ object FunctorsTest {
 
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val mapPagesText2 = selPages.map(_.text)
   // Arrow.Composition[
   //  ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]],
@@ -146,6 +170,7 @@ object FunctorsTest {
   // Func1Arrow[Book, List[String]] = <function1>
   mapPagesText2F(book)
   // List[String] = List()
+
 
   val selAuthor = ScalaExpr[Book].selectDynamic("author") // same as `.author`
   // ScalaExpr.SelectField[Book, author, Option[Author]]
@@ -172,7 +197,7 @@ object FunctorsTest {
   //       Node(labels = Book; fields = title -> Property[String]; outgoing = ),
   //       Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"])
   // )
-  val unchainedPathAuthor = pathAuthor.unchainRev
+  val unchainedRevPathAuthor = pathAuthor.unchainRev
   //  GraphPath.OutgoingRelation[Book.BookRepr.type, GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]]] ::
   //  GraphPath.RelationTarget[GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]], GraphRepr.Node.Optional[Author.AuthorRepr.type]] ::
   //  HNil =
@@ -183,7 +208,6 @@ object FunctorsTest {
   //  Empty("author", Node(labels = Book; fields = title -> Property[String]; outgoing = ), Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))),
   //  Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))
   // ) :: HNil
-
   val authorPattern = CypherQueryArrow.PatternBuilder(pathAuthor)
   // CypherFragment.Known[CypherFragment.Pattern.Pattern0]
   // = KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n),List(Author),Map()){ (`n`:`Author`) })
@@ -201,6 +225,7 @@ object FunctorsTest {
   // { MATCH (:`Book`) -[:`author`]-> (`n`:`Author`) RETURN `n` }
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val mapAuthorName = selAuthor.map(_.name)
   // Arrow.Composition[
   //  ScalaExpr.FMap[Option, ScalaExpr.SelectField[Author, name, String]],
@@ -213,6 +238,7 @@ object FunctorsTest {
   // Option[String] = Some("Theodor Mommsen")
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val mapAuthorPseudonym = selAuthor.flatMap(_.pseudonym)
   // Arrow.Composition[
   //  ScalaExpr.MBind[Option, ScalaExpr.SelectField[Author, pseudonym, Option[String]]],
@@ -223,6 +249,7 @@ object FunctorsTest {
   // Func1Arrow[Book, Option[String]] = <function1>
   mapAuthorPseudonymF(book)
   // Option[String] = None
+
 
   val selIsbn = ScalaExpr[Book].meta.isbn
   // Arrow.Composition[
@@ -245,21 +272,28 @@ object FunctorsTest {
   // = PropSelection(Node(labels = Meta; fields = isbn -> Property[String]; outgoing = ),Property[String])
   // ∘ RelationTarget(Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"]),Node(labels = Meta; fields = isbn -> Property[String]; outgoing = ))
   // ∘ OutgoingRelation(Node(labels = Book; fields = title -> Property[String]; outgoing = ),Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"]))
+  val isbnCypherArrow = Functor.map(pathIsbn).to[CypherQueryArrow]
+  // CypherQueryArrow{type Source = Unit;type Result = String}
+  // = <CypherQueryArrow>
+  val isbnCypherQuery = isbnCypherArrow(())
+  // isbnCypherArrow.Target
+  // = KnownClause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(meta),Map(),None,Outgoing){ -[:`meta`]-> },KnownNode(Some(n),List(Meta),Map()){ (`n`:`Meta`) }){ (:`Book`) -[:`meta`]-> (`n`:`Meta`) }),false,None){ MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) },KnownReturn(KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },isbn){ `n`.`isbn` },None){ `n`.`isbn` }){ RETURN `n`.`isbn` })
+  // { MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) RETURN `n`.`isbn` }
 
 
+  // TODO: test CypherQueryArrow
   val bookId = ScalaExpr[Book]
   // ScalaExpr.Id[Book] = Id
-
   val bookIdF = FuncArrow.from(bookId)
   // Func1Arrow[Book, Book] = <function1>
   bookIdF(book)
   // Book = Book("History of Rome", Some(Author("Theodor Mommsen", None)), List(), Meta("9786610240531"))
-
   val bookIdPath = Functor.map(bookId).to[GraphPath]
   // GraphPath.Initial[Book.BookRepr.type]
   // = Initial(Node(labels = Book; fields = title -> Property[String]; outgoing = ))
 
   // TODO: test mapping to GraphPath
+  // TODO: test CypherQueryArrow
   val split1 = bookId >>> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
   // Arrow.Split[
   //  ScalaExpr.SelectField[Book, title, String] ::
@@ -271,12 +305,14 @@ object FunctorsTest {
   //  HNil
   // ]{type Source = Book;type Target = (String, Option[Author], String)}
   // = Split(SelectField(title) :: SelectField(author) :: SelectField(isbn) ∘ SelectField(meta) :: HNil)
-
-  // TODO: test mapping to GraphPath
   val split1F = FuncArrow.from(split1)
   // Func1Arrow[Book, (String, Option[Author], String)] = <function1>
   split1F(book)
   // (String, Option[Author], String) = ("History of Rome", Some(Author("Theodor Mommsen", None)), "9786610240531")
+
+
+
+
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]

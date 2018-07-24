@@ -172,7 +172,7 @@ object Arrow {
           concat(unchainF.value(c.F.asInstanceOf[F]), unchainG.value(c.G.asInstanceOf[G]))
       }
 
-    implicit def notChained[F <: Arrow](implicit lowPriority: LowPriority): Unchain.Aux[F, F :: HNil] =
+    implicit def notChained[F <: Arrow](implicit ev: F <:!< Composition[_, _]): Unchain.Aux[F, F :: HNil] =
       _notChained.asInstanceOf[Unchain.Aux[F, F :: HNil]]
     private lazy val _notChained = new Unchain[Arrow] {
       type Out = Arrow :: HNil

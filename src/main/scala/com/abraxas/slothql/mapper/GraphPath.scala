@@ -12,7 +12,7 @@ object GraphPath {
   case class InitialUnique[N <: GraphRepr.Node with GraphRepr.Identifiable.Aux[Id], Id](node: N, id: Id)
     extends GraphPath { type Source = N; type Target = N }
 
-  case class PropSelection[E <: GraphRepr.Element, P <: GraphRepr.Property](elem: E, prop: P)
+  case class PropSelection[E <: GraphRepr.Element, P <: GraphRepr.Property](elem: E, propName: String, prop: P)
     extends GraphPath { type Source = E; type Target = P }
 
   sealed trait NodeRelationArrow[N <: GraphRepr.Node, R <: GraphRepr.Relation] extends GraphPath {
