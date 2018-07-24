@@ -505,6 +505,21 @@ object CypherFragment {
       case Nil => ""
       case _ => xs.map(escapeName).mkString(":", sep, "")
     }
+
+    /** Typeclass building a pattern from HList of pattern elements. */
+    trait HBuilder[Ps <: HList] extends DepFn1[Ps] { type Out = Pattern0 }
+    object HBuilder {
+
+      implicit def singleNodePatternBuilder: HBuilder[Node #: HNil] = instance0
+      private lazy val instance0 = new HBuilder[Node #: HNil] {
+        def apply(t: Node #: HNil): Node = t.head
+      }
+
+      implicit def pathPatternBuilder[T <: HList](implicit right: HBuilder[T]): HBuilder[Node #: Rel #: T] =
+        new HBuilder[Node #: Rel #: T] {
+          def apply(t: Node #: Rel #: T): Path = Path(t.head, t.tail.head, right(t.tail.tail))
+        }
+    }
   }
 
   private def escapeName(name: String) = "`" + name.replaceAll("`", "``") + "`"

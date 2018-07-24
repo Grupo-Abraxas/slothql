@@ -172,6 +172,33 @@ object FunctorsTest {
   //       Node(labels = Book; fields = title -> Property[String]; outgoing = ),
   //       Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"])
   // )
+  val unchainedPathAuthor = pathAuthor.unchainRev
+  //  GraphPath.OutgoingRelation[Book.BookRepr.type, GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]]] ::
+  //  GraphPath.RelationTarget[GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]], GraphRepr.Node.Optional[Author.AuthorRepr.type]] ::
+  //  HNil =
+  // OutgoingRelation(
+  //  Node(labels = Book; fields = title -> Property[String]; outgoing = ),
+  //  Empty("author", Node(labels = Book; fields = title -> Property[String]; outgoing = ), Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = )))
+  // ) :: RelationTarget(
+  //  Empty("author", Node(labels = Book; fields = title -> Property[String]; outgoing = ), Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))),
+  //  Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))
+  // ) :: HNil
+
+  val authorPattern = CypherQueryArrow.PatternBuilder(pathAuthor)
+  // CypherFragment.Known[CypherFragment.Pattern.Pattern0]
+  // = KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n),List(Author),Map()){ (`n`:`Author`) })
+  // { (:`Book`) -[:`author`]-> (`n`:`Author`) }
+  val authorReturn = CypherQueryArrow.ReturnBuilder(pathAuthor)
+  // CypherFragment.Known[CypherFragment.Return[Map[String, Any]]]
+  // = KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },None)
+  // { `n` }
+  val authorCypherArrow = Functor.map(pathAuthor).to[CypherQueryArrow]
+  // CypherQueryArrow{type Source = Unit;type Result = scala.collection.immutable.Map[String,Any]}
+  // = <CypherQueryArrow>
+  val authorCypherQuery = authorCypherArrow(())
+  // authorCypherArrow.Target
+  // = KnownClause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n),List(Author),Map()){ (`n`:`Author`) }){ (:`Book`) -[:`author`]-> (`n`:`Author`) }),false,None){ MATCH (:`Book`) -[:`author`]-> (`n`:`Author`) },KnownReturn(KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },None){ `n` }){ RETURN `n` })
+  // { MATCH (:`Book`) -[:`author`]-> (`n`:`Author`) RETURN `n` }
 
   // TODO: test mapping to GraphPath
   val mapAuthorName = selAuthor.map(_.name)

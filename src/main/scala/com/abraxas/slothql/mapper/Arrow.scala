@@ -92,6 +92,12 @@ object Arrow {
     def >>>    [G <: Arrow](fg: F => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(f), f)
   }
 
+  /** Syntax sugar for unchaining composed arrows. */
+  implicit class UnchainOps[F <: Arrow](f: F) {
+    def unchain(implicit ev: Unchain[F]): ev.Out = ev(f)
+    def unchainRev[L <: HList](implicit ev: Unchain.Aux[F, L], reverse: ops.hlist.Reverse[L]): reverse.Out = reverse(ev(f))
+  }
+
 
 
   /** Typeclass witnessing `Source` and `Target` of an [[Arrow]]. */
