@@ -7,32 +7,35 @@ import cats.syntax.functor._
 import shapeless._
 import shapeless.tag.@@
 
-sealed trait FuncArrow extends Arrow
-final class Func1Arrow[S, T](func: S => T) extends (S => T) with FuncArrow {
-  type Source = S
-  type Target = T
-  @inline def apply(s: S): T = func(s)
-  override def toString() = "<function1>"
-}
-
-object Func1Arrow {
-  type Aux[-S, +T] = Func1Arrow[_, _] { type Source >: S; type Target <: T }
-  def apply[S, T](func: S => T): Func1Arrow[S, T] = new Func1Arrow(func)
-
-  implicit def composeFunc1ArrowsAsFunctions[A, B, C]: Arrow.Compose.Aux[Func1Arrow[B, C], Func1Arrow[A, B], Func1Arrow[A, C]] =
-    composeInstance.asInstanceOf[Arrow.Compose.Aux[Func1Arrow[B, C], Func1Arrow[A, B], Func1Arrow[A, C]]]
-  private lazy val composeInstance = new Arrow.Compose[Func1Arrow[Any, Any], Func1Arrow[Any, Any]] {
-    type Out = Func1Arrow.Aux[Any, Any]
-    def apply(f: Func1Arrow[Any, Any], g: Func1Arrow[Any, Any]): Func1Arrow.Aux[Any, Any] = Func1Arrow(f compose g)
-  }
+trait FuncArrow extends Arrow {
+  def apply(src: Source): Target
 }
 
 object FuncArrow {
-  def apply[A <: Arrow](a: A)(implicit f: Functor[A, FuncArrow]): f.Out = f(a)
+  type Aux[-S, +T] = FuncArrow { type Source >: S; type Target <: T }
+  type Inv[ S,  T] = FuncArrow { type Source  = S; type Target  = T }
 
+  def from[A <: Arrow](a: A)(implicit f: Functor[A, FuncArrow]): f.Out = f(a)
+  def apply[S, T](func: S => T): FuncArrow.Inv[S, T] = new Impl[S, T](func)
+
+
+  protected class Impl[S, T](func: S => T) extends (S => T) with FuncArrow {
+    type Source = S
+    type Target = T
+    @inline def apply(s: S): T = func(s)
+    override def toString() = "<function1>"
+  }
+
+
+  implicit def composeFunc1ArrowsAsFunctions[A, B, C]: Arrow.Compose.Aux[FuncArrow.Inv[B, C], FuncArrow.Inv[A, B], FuncArrow.Inv[A, C]] =
+    composeInstance.asInstanceOf[Arrow.Compose.Aux[FuncArrow.Inv[B, C], FuncArrow.Inv[A, B], FuncArrow.Inv[A, C]]]
+  private lazy val composeInstance = new Arrow.Compose[FuncArrow.Inv[Any, Any], FuncArrow.Inv[Any, Any]] {
+    type Out = FuncArrow.Aux[Any, Any]
+    def apply(f: FuncArrow.Inv[Any, Any], g: FuncArrow.Inv[Any, Any]): FuncArrow.Aux[Any, Any] = FuncArrow(f.apply _ compose g.apply)
+  }
 
   object ApplyTupled extends Poly1 {
-    implicit def applyFunc1Arrow[S, T]: Case.Aux[(Func1Arrow[S, T], S), T] = at[(Func1Arrow[S, T], S)]{ case (f, s) => f(s) }
+    implicit def applyFunc1Arrow[S, T]: Case.Aux[(FuncArrow.Inv[S, T], S), T] = at[(FuncArrow.Inv[S, T], S)]{ case (f, s) => f(s) }
   }
 
   implicit def mapSplitToFunc1Arrow[
@@ -45,42 +48,42 @@ object FuncArrow {
     zip: ops.hlist.ZipConst.Aux[S, Arrows1, ZL],
     applyArrows: ops.hlist.Mapper.Aux[ApplyTupled.type, ZL, TL],
     tupler: ops.hlist.Tupler.Aux[TL, T]
-  ): Functor.Aux[A, FuncArrow, Func1Arrow[S, T]] =
+  ): Functor.Aux[A, FuncArrow, FuncArrow.Inv[S, T]] =
     Functor.define[A, FuncArrow](t =>
-      Func1Arrow(s => tupler(applyArrows(zip(s, split(fmap.value(t.arrows)).arrows))))
+      FuncArrow(s => tupler(applyArrows(zip(s, split(fmap.value(t.arrows)).arrows))))
     )
 
-  implicit def mapScalaExprIdToFunc1Arrow[A]: Functor.Aux[ScalaExpr.Id[A], FuncArrow, Func1Arrow[A, A]] =
-    scalaExprIdFunctor.asInstanceOf[Functor.Aux[ScalaExpr.Id[A], FuncArrow, Func1Arrow[A, A]]]
-  private lazy val scalaExprIdFunctor = Functor.define[Arrow, FuncArrow](_ => Func1Arrow(identity[Any]))
+  implicit def mapScalaExprIdToFunc1Arrow[A]: Functor.Aux[ScalaExpr.Id[A], FuncArrow, FuncArrow.Inv[A, A]] =
+    scalaExprIdFunctor.asInstanceOf[Functor.Aux[ScalaExpr.Id[A], FuncArrow, FuncArrow.Inv[A, A]]]
+  private lazy val scalaExprIdFunctor = Functor.define[Arrow, FuncArrow](_ => FuncArrow(identity[Any]))
 
   implicit def mapScalaExprSelectFieldToFunc1Arrow[Obj, K <: String, V, Repr <: HList](
     implicit
     generic: LabelledGeneric.Aux[Obj, Repr],
     select:  ops.record.Selector.Aux[Repr, Symbol @@ K, V]
-  ): Functor.Aux[ScalaExpr.SelectField[Obj, K, V], FuncArrow, Func1Arrow[Obj, V]] =
-    Functor.define[ScalaExpr.SelectField[Obj, K, V], FuncArrow](_ => Func1Arrow(select.apply _ compose generic.to))
+  ): Functor.Aux[ScalaExpr.SelectField[Obj, K, V], FuncArrow, FuncArrow.Inv[Obj, V]] =
+    Functor.define[ScalaExpr.SelectField[Obj, K, V], FuncArrow](_ => FuncArrow(select.apply _ compose generic.to))
 
   implicit def mapScalaExprFMapToFunc1Arrow[F[_], E <: ScalaExpr, S, T](
     implicit
     functor: cats.Functor[F],
     types0: Arrow.Types.Aux[E, S, T],
-    mapE: Functor.Aux[E, FuncArrow, Func1Arrow[S, T]]
-  ): Functor.Aux[ScalaExpr.FMap[F, E], FuncArrow, Func1Arrow[F[S], F[T]]] =
-    Functor.define[ScalaExpr.FMap[F, E], FuncArrow](t => Func1Arrow(_.map(mapE(t.expr))))
+    mapE: Functor.Aux[E, FuncArrow, FuncArrow.Inv[S, T]]
+  ): Functor.Aux[ScalaExpr.FMap[F, E], FuncArrow, FuncArrow.Inv[F[S], F[T]]] =
+    Functor.define[ScalaExpr.FMap[F, E], FuncArrow](t => FuncArrow(_.map(mapE(t.expr).apply)))
 
   implicit def mapScalaExprMBindToFunc1Arrow[F[_], E <: ScalaExpr, S, T, T0](
     implicit
     monad: cats.Monad[F],
     types0: Arrow.Types.Aux[E, S, T],
-    mapE: Functor.Aux[E, FuncArrow, Func1Arrow[S, T]],
+    mapE: Functor.Aux[E, FuncArrow, FuncArrow.Inv[S, T]],
     targetIsF: T <:< F[T0]
-  ): Functor.Aux[ScalaExpr.MBind[F, E], FuncArrow, Func1Arrow[F[S], F[T0]]] =
+  ): Functor.Aux[ScalaExpr.MBind[F, E], FuncArrow, FuncArrow.Inv[F[S], F[T0]]] =
     Functor.define[ScalaExpr.MBind[F, E], FuncArrow](t =>
-      Func1Arrow(_ flatMap mapE(t.expr).andThen(targetIsF))
+      FuncArrow(_ flatMap (mapE(t.expr).apply _  andThen targetIsF))
     )
 
-//  implicit def mapScalaExpr?ToFunc1Arrow: Functor.Aux[ScalaExpr.?, FuncArrow, Func1Arrow[?, ?]] = ???
+//  implicit def mapScalaExpr?ToFunc1Arrow: Functor.Aux[ScalaExpr.?, FuncArrow, FuncArrow.Inv[?, ?]] = ???
 
 }
 

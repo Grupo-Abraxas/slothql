@@ -70,7 +70,7 @@ object FunctorsTest {
   val selPages = ScalaExpr[Book].pages
   // ScalaExpr.SelectField[Book, pages, List[Page]]
   // = SelectField("pages")
-  val selPagesF = FuncArrow(selPages)
+  val selPagesF = FuncArrow.from(selPages)
   // Func1Arrow[Book, List[Page]] = <function1>
   selPagesF(book)
   // List[Page] = List()
@@ -87,7 +87,7 @@ object FunctorsTest {
   val selText = ScalaExpr[Page].text
   // ScalaExpr.SelectField[Page, text, String]
   // = SelectField("text")
-  val selTextF = FuncArrow(selText)
+  val selTextF = FuncArrow.from(selText)
   // Func1Arrow[Page, String] = <function1>
   selTextF(somePage)
   // String = "..."
@@ -105,7 +105,7 @@ object FunctorsTest {
   val selTextFMap = ScalaExpr.FMap.mk[List](selText)
   // ScalaExpr.FMap[List, ScalaExpr.SelectField[Page, text, String]]
   // = FMap(SelectField("text"))
-  val selTextFMapF = FuncArrow(selTextFMap)
+  val selTextFMapF = FuncArrow.from(selTextFMap)
   // Func1Arrow[List[Page], List[String]] = <function1>
   selTextFMapF(List(somePage))
   // List[String] = List("...")
@@ -129,7 +129,7 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, pages, List[Page]]
   // ]{type Source = Book;type Target = List[String]}
   // = FMap(SelectField(text)) ∘ SelectField(pages)
-  val mapPagesText1F = FuncArrow(mapPagesText1)
+  val mapPagesText1F = FuncArrow.from(mapPagesText1)
   // Func1Arrow[Book, List[String]] = <function1>
   mapPagesText1F(book)
   // List[String] = List()
@@ -142,7 +142,7 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, pages, List[Page]]
   // ]{type Source = Book;type Target = List[String]}
   // = FMap(SelectField(text)) ∘ SelectField(pages)
-  val mapPagesText2F = FuncArrow(mapPagesText2)
+  val mapPagesText2F = FuncArrow.from(mapPagesText2)
   // Func1Arrow[Book, List[String]] = <function1>
   mapPagesText2F(book)
   // List[String] = List()
@@ -150,7 +150,7 @@ object FunctorsTest {
   val selAuthor = ScalaExpr[Book].selectDynamic("author") // same as `.author`
   // ScalaExpr.SelectField[Book, author, Option[Author]]
   // = SelectField("author")
-  val selAuthorF = FuncArrow(selAuthor)
+  val selAuthorF = FuncArrow.from(selAuthor)
   // Func1Arrow[Book, Option[Author]] = <function1>
   selAuthorF(book)
   // Option[Author] = Some(Author("Theodor Mommsen", None))
@@ -180,7 +180,7 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, author, Option[Author]]
   // ]{type Source = Book;type Target = Option[String]}
   // = FMap(SelectField(name)) ∘ SelectField(author)
-  val mapAuthorNameF = FuncArrow(mapAuthorName)
+  val mapAuthorNameF = FuncArrow.from(mapAuthorName)
   // Func1Arrow[Book, Option[String]] = <function1>
   mapAuthorNameF(book)
   // Option[String] = Some("Theodor Mommsen")
@@ -192,7 +192,7 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, author, Option[Author]]
   // ]{type Source = Book;type Target = Option[String]}
   // = MBind(SelectField(pseudonym)) ∘ SelectField(author)
-  val mapAuthorPseudonymF = FuncArrow(mapAuthorPseudonym)
+  val mapAuthorPseudonymF = FuncArrow.from(mapAuthorPseudonym)
   // Func1Arrow[Book, Option[String]] = <function1>
   mapAuthorPseudonymF(book)
   // Option[String] = None
@@ -203,7 +203,7 @@ object FunctorsTest {
   //  ScalaExpr.SelectField[Book, meta, Meta]
   // ]{type Source = Book;type Target = String}
   // = SelectField(isbn) ∘ SelectField(meta)
-  val selIsbnF = FuncArrow(selIsbn)
+  val selIsbnF = FuncArrow.from(selIsbn)
   // Func1Arrow[Book, String] = <function1>
   selIsbnF(book)
   // String = "9786610240531"
@@ -223,7 +223,7 @@ object FunctorsTest {
   val bookId = ScalaExpr[Book]
   // ScalaExpr.Id[Book] = Id
 
-  val bookIdF = FuncArrow(bookId)
+  val bookIdF = FuncArrow.from(bookId)
   // Func1Arrow[Book, Book] = <function1>
   bookIdF(book)
   // Book = Book("History of Rome", Some(Author("Theodor Mommsen", None)), List(), Meta("9786610240531"))
@@ -246,7 +246,7 @@ object FunctorsTest {
   // = Split(SelectField(title) :: SelectField(author) :: SelectField(isbn) ∘ SelectField(meta) :: HNil)
 
   // TODO: test mapping to GraphPath
-  val split1F = FuncArrow(split1)
+  val split1F = FuncArrow.from(split1)
   // Func1Arrow[Book, (String, Option[Author], String)] = <function1>
   split1F(book)
   // (String, Option[Author], String) = ("History of Rome", Some(Author("Theodor Mommsen", None)), "9786610240531")
