@@ -137,6 +137,15 @@ object CypherQueryArrow {
       isNode: H <:< GraphPath.RelationArrow[_, _]
     ): ReturnBuilder.Aux[A, Map[String, Any]] =
       returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any]]]
+
+    implicit def returnInitialNodeIfSingle[A <: Arrow, U <: HList, H](
+      implicit
+      unchain: Arrow.Unchain.Aux[A, U],
+      head: ops.hlist.IsHCons.Aux[U, H, HNil],
+      isInitial: H <:< GraphPath.Initial[_]
+    ): ReturnBuilder.Aux[A, Map[String, Any]] =
+      returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any]]]
+
     private lazy val returnLastNodeInstance = new ReturnBuilder[Arrow] {
       type Result = Map[String, Any]
       private val ret = Return.Expr(Expr.Var[Map[String, Any]](theOnlyNodeAlias), as = None).known

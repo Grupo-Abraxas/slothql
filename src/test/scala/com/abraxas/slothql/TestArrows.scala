@@ -281,7 +281,6 @@ object FunctorsTest {
   // { MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) RETURN `n`.`isbn` }
 
 
-  // TODO: test CypherQueryArrow
   val bookId = ScalaExpr[Book]
   // ScalaExpr.Id[Book] = Id
   val bookIdF = FuncArrow.from(bookId)
@@ -291,6 +290,13 @@ object FunctorsTest {
   val bookIdPath = Functor.map(bookId).to[GraphPath]
   // GraphPath.Initial[Book.BookRepr.type]
   // = Initial(Node(labels = Book; fields = title -> Property[String]; outgoing = ))
+  val bookIdCypherArrow = Functor.map(bookIdPath).to[CypherQueryArrow]
+  // CypherQueryArrow{type Source = Unit;type Result = scala.collection.immutable.Map[String,Any]}
+  // = <CypherQueryArrow>
+  val bookIdCypherQuery = bookIdCypherArrow(())
+  // bookIdCypherArrow.Target
+  // = KnownClause(KnownMatch(NonEmptyList(KnownNode(Some(n),List(Book),Map()){ (`n`:`Book`) }),false,None){ MATCH (`n`:`Book`) },KnownReturn(KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },None){ `n` }){ RETURN `n` })
+  // { MATCH (`n`:`Book`) RETURN `n` }
 
   // TODO: test mapping to GraphPath
   // TODO: test CypherQueryArrow
