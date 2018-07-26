@@ -284,6 +284,15 @@ object FunctorsTest {
   // = KnownClause(KnownMatch(NonEmptyList(KnownNode(Some(n0),List(Book),Map()){ (`n0`:`Book`) }, KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n1),List(Author),Map()){ (`n1`:`Author`) }){ (:`Book`) -[:`author`]-> (`n1`:`Author`) }, KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(meta),Map(),None,Outgoing){ -[:`meta`]-> },KnownNode(Some(n2),List(Meta),Map()){ (`n2`:`Meta`) }){ (:`Book`) -[:`meta`]-> (`n2`:`Meta`) }),false,None){ MATCH (`n0`:`Book`), (:`Book`) -[:`author`]-> (`n1`:`Author`), (:`Book`) -[:`meta`]-> (`n2`:`Meta`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n0){ `n0` },title){ `n0`.`title` },None){ `n0`.`title` }, KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n1){ `n1` },None){ `n1` }, KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n2){ `n2` },isbn){ `n2`.`isbn` },None){ `n2`.`isbn` }){ `n0`.`title`, `n1`, `n2`.`isbn` }){ RETURN `n0`.`title`, `n1`, `n2`.`isbn` })
   // { MATCH (`n0`:`Book`), (:`Book`) -[:`author`]-> (`n1`:`Author`), (:`Book`) -[:`meta`]-> (`n2`:`Meta`) RETURN `n0`.`title`, `n1`, `n2`.`isbn` }
 
+  // Tested with `populate-2`
+  // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- // -- //
+  // Seq[(String, Map[String, Any], String)] = Vector(
+  //  ("History of Rome", Map("name" -> "Theodor Mommsen"), "9786610240531"),
+  //  ("Homotopy Type Theory", Map("name" -> "Theodor Mommsen"), "9786610240531"),
+  //  ("History of Rome", Map("name" -> "Theodor Mommsen"), ""),
+  //  ("Homotopy Type Theory", Map("name" -> "Theodor Mommsen"), "")
+  // )
+  // TODO: fail ========================================================================================================
 
 
 
