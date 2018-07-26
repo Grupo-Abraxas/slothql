@@ -2,7 +2,9 @@ package com.abraxas.slothql.mapper
 
 import cats.data.NonEmptyList
 import shapeless._
+import shapeless.ops.nat.ToInt
 
+import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.util.FilterNotCov
 
@@ -23,24 +25,56 @@ object CypherQueryArrow {
       override def apply(src: Source): Known[Query[R]] = mkQuery(src)
     }
 
-  implicit def mapGraphPathToCypherQueryArrow[A <: Arrow, R](
+  implicit def mapGraphPathToCypherQueryArrow[A <: Arrow, R, RE <: Expr[R]](
     implicit
     pat: PatternBuilder[A],
-    ret: ReturnBuilder.Aux[A, R]
+    ret: ReturnBuilder.Aux[A, R, RE],
+    exprFragment: CypherFragment[RE]
   ): Functor.Aux[A, CypherQueryArrow, CypherQueryArrow.Aux[Unit, R]] = // TODO: arrow source =================================
     Functor.define[A, CypherQueryArrow] { arr =>
-      val clause = Clause.Match(NonEmptyList.of(pat(arr)), optional = false, where = None)
-      val query = Query.Clause(clause, Query.Return[R](ret(arr))).known
+      val clause = Clause.Match(NonEmptyList.of(pat(arr, theOnlyNodeAlias0)), optional = false, where = None)
+      val query = Query.Clause(clause, Query.Return[R](Return.Expr(ret(arr, theOnlyNodeAlias0), as = None))).known
       CypherQueryArrow(_ => query)
     }
 
-  private lazy val theOnlyNodeAlias = "n"
-  private lazy val theOnlyNodeAliasOpt: Option[String] = Some(theOnlyNodeAlias)
+  object PatternsBuilderPoly extends Poly1 {
+    implicit def impl[A <: Arrow, N <: Nat](implicit pb: PatternBuilder[A], toInt: ops.nat.ToInt[N]): Case.Aux[(A, N), pb.Out] =
+      at[(A, N)]{ case (a, _) => pb(a, mkAlias[N]) }
+  }
+
+  object ReturnsBuilderPoly extends Poly1 {
+    implicit def impl[A <: Arrow, N <: Nat](implicit rb: ReturnBuilder[A], toInt: ops.nat.ToInt[N]): Case.Aux[(A, N), rb.Out] =
+      at[(A, N)]{ case (a, _) => rb(a, mkAlias) }
+  }
 
 
-  trait PatternBuilder[A <: Arrow] extends DepFn1[A] { type Out = Known[Pattern.Pattern0] }
+  /** It creates a pattern for each underlying `Split` element. */
+  implicit def dummyMapSplitGraphPathToCypherQueryArrow[
+    A <: Arrow, ASplit <: HList, ASplitWithIndex <: HList, Patterns <: HList, Returns <: HList, R <: HList
+  ](
+    implicit
+    isSplit: A <:< Arrow.Split[ASplit],
+    zipWithIndex: ops.hlist.ZipWithIndex.Aux[ASplit, ASplitWithIndex],
+    pats: ops.hlist.Mapper.Aux[PatternsBuilderPoly.type, ASplitWithIndex, Patterns],
+    patsToList: ops.hlist.ToTraversable.Aux[Patterns, List, Known[Pattern]],
+    rets: ops.hlist.Mapper.Aux[ReturnsBuilderPoly.type, ASplitWithIndex, Returns],
+    retHList: Return.List.Build.Aux[Returns, R, _]
+  ): Functor.Aux[A, CypherQueryArrow, CypherQueryArrow.Aux[Unit, R]] = // TODO: arrow source =================================
+    Functor.define[A, CypherQueryArrow] { a =>
+      val splitWithIndex = zipWithIndex(a.arrows)
+      val patternsNel = NonEmptyList.fromListUnsafe(patsToList(pats(splitWithIndex))) // TODO: NonEmptyList.fromListUnsafe
+      val returnList = retHList(rets(splitWithIndex))
+      val clause = Clause.Match(patternsNel, optional = false, where = None)
+      val query = Query.Clause(clause, Query.Return[R](returnList)).known
+      CypherQueryArrow(_ => query)
+    }
+
+  private lazy val theOnlyNodeAlias0 = "n"
+  private def mkAlias[N <: Nat: ToInt] = theOnlyNodeAlias0 + ToInt[N].apply()
+
+  trait PatternBuilder[A <: Arrow] extends DepFn2[A, String] { type Out = Known[Pattern.Pattern0] }
   object PatternBuilder {
-    def apply[A <: Arrow](a: A)(implicit pb: PatternBuilder[A]): Known[Pattern.Pattern0] = pb(a)
+    def apply[A <: Arrow](a: A)(implicit pb: PatternBuilder[A]): Known[Pattern.Pattern0] = pb(a, theOnlyNodeAlias0)
 
     object GraphPathToCypherPattern extends Poly2 {
       implicit def mapInitialToNode[A](
@@ -84,9 +118,10 @@ object CypherQueryArrow {
       buildPattern: Pattern.HBuilder[Ps]
     ): PatternBuilder[A] =
       new PatternBuilder[A] {
-        private val aliases = replaceLastAlias(emptyAliases(None), theOnlyNodeAliasOpt)._2
-        def apply(t: A): Known[Pattern.Pattern0] =
-          buildPattern(map(dropPropSelection(prependInitial(reverse(unchain(t)))), aliases))
+        def apply(a: A, theOnlyNodeAlias: String): Known[Pattern.Pattern0] = {
+          val aliases = replaceLastAlias(emptyAliases(None), Option(theOnlyNodeAlias))._2
+          buildPattern(map(dropPropSelection(prependInitial(reverse(unchain(a)))), aliases))
+        }
       }
 
     trait InitialPrepend[L <: HList] extends DepFn1[L] { type Out <: HList }
@@ -122,34 +157,36 @@ object CypherQueryArrow {
     }
   }
 
-  trait ReturnBuilder[A <: Arrow] extends DepFn1[A] {
+  trait ReturnBuilder[A <: Arrow] extends DepFn2[A, String] {
     type Result
-    type Out = Known[Return[Result]]
+    type Out <: Expr[Result]
   }
   object ReturnBuilder {
-    type Aux[A <: Arrow, R] = ReturnBuilder[A] { type Result = R }
-    def apply[A <: Arrow](arrow: A)(implicit rb: ReturnBuilder[A]): rb.Out = rb(arrow)
+    type Aux[A <: Arrow, R, Out0 <: Expr[R]] = ReturnBuilder[A] { type Result = R; type Out = Out0 }
+    def apply[A <: Arrow](arrow: A)(implicit rb: ReturnBuilder[A]): rb.Out = rb(arrow, theOnlyNodeAlias0)
 
     implicit def returnLastNode[A <: Arrow, U <: HList, H](
       implicit
       unchain: Arrow.Unchain.Aux[A, U],
       head: ops.hlist.IsHCons.Aux[U, H, _],
       isNode: H <:< GraphPath.RelationArrow[_, _]
-    ): ReturnBuilder.Aux[A, Map[String, Any]] =
-      returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any]]]
+    ): ReturnBuilder.Aux[A, Map[String, Any], Expr.Var[Map[String, Any]]] =
+      returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any], Expr.Var[Map[String, Any]]]]
 
     implicit def returnInitialNodeIfSingle[A <: Arrow, U <: HList, H](
       implicit
       unchain: Arrow.Unchain.Aux[A, U],
       head: ops.hlist.IsHCons.Aux[U, H, HNil],
       isInitial: H <:< GraphPath.Initial[_]
-    ): ReturnBuilder.Aux[A, Map[String, Any]] =
-      returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any]]]
+    ): ReturnBuilder.Aux[A, Map[String, Any], Expr.Var[Map[String, Any]]] =
+      returnLastNodeInstance.asInstanceOf[ReturnBuilder.Aux[A, Map[String, Any], Expr.Var[Map[String, Any]]]]
 
     private lazy val returnLastNodeInstance = new ReturnBuilder[Arrow] {
       type Result = Map[String, Any]
-      private val ret = Return.Expr(Expr.Var[Map[String, Any]](theOnlyNodeAlias), as = None).known
-      def apply(t: Arrow): Known[Return.Expr[Map[String, Any]]] = ret
+      type Out = Expr.Var[Map[String, Any]]
+      def apply(a: Arrow, theOnlyNodeAlias: String): Expr.Var[Map[String, Any]] = {
+        Expr.Var[Map[String, Any]](theOnlyNodeAlias)
+      }
     }
 
     implicit def returnPropSelection[A <: Arrow, U <: HList, H, P <: GraphRepr.Property, R](
@@ -158,12 +195,14 @@ object CypherQueryArrow {
       head: ops.hlist.IsHCons.Aux[U, H, _],
       isProperty: H <:< GraphPath.PropSelection[_, P],
       propertyType: P <:< GraphRepr.Property.Aux[R]
-    ): ReturnBuilder.Aux[A, R] =
+    ): ReturnBuilder.Aux[A, R, Expr.Key[R]] =
       new ReturnBuilder[A] {
         type Result = R
-        def apply(t: A): Known[Return[R]] = {
-          val nodeKey = Expr.Key(Expr.Var[Map[String, Any]](theOnlyNodeAlias), unchain(t).head.propName)
-          Return.Expr(nodeKey, as = None)
+        type Out = Expr.Key[R]
+        def apply(a: A, theOnlyNodeAlias: String): Expr.Key[R] = {
+          val propSel = unchain(a).head
+          implicit val rManifest = propSel.prop.manifest.asInstanceOf[Manifest[R]]
+          Expr.Key[R](Expr.Var[Map[String, Any]](theOnlyNodeAlias), propSel.propName)
         }
       }
   }

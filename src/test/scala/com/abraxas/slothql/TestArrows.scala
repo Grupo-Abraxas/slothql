@@ -102,17 +102,6 @@ object FunctorsTest {
   //  Node(labels = Page; fields = text -> Property[String]; outgoing = ),
   //  Property[String]
   // )
-  val unchainedRevPathText = pathText.unchainRev
-  // GraphPath.PropSelection[Page.PageRepr.type, GraphRepr.Property{type Type = String}] :: HNil
-  // = PropSelection(Node(labels = Page; fields = text -> Property[String]; outgoing = ), "text", Property[String]) :: HNil
-  val textPattern = CypherQueryArrow.PatternBuilder(pathText)
-  // CypherFragment.Known[CypherFragment.Pattern.Pattern0]
-  // = KnownNode(Some(n),List(Page),Map())
-  // { (`n`:`Page`) }
-  val textReturn = CypherQueryArrow.ReturnBuilder(pathText)
-  // CypherFragment.Known[CypherFragment.Return[String]]
-  // = KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },text){ `n`.`text` },None)
-  // { `n`.`text` }
   val textCypherArrow = Functor.map(pathText).to[CypherQueryArrow]
   // CypherQueryArrow{type Source = Unit;type Result = String}
   // = <CypherQueryArrow>
@@ -197,25 +186,6 @@ object FunctorsTest {
   //       Node(labels = Book; fields = title -> Property[String]; outgoing = ),
   //       Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"])
   // )
-  val unchainedRevPathAuthor = pathAuthor.unchainRev
-  //  GraphPath.OutgoingRelation[Book.BookRepr.type, GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]]] ::
-  //  GraphPath.RelationTarget[GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]], GraphRepr.Node.Optional[Author.AuthorRepr.type]] ::
-  //  HNil =
-  // OutgoingRelation(
-  //  Node(labels = Book; fields = title -> Property[String]; outgoing = ),
-  //  Empty("author", Node(labels = Book; fields = title -> Property[String]; outgoing = ), Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = )))
-  // ) :: RelationTarget(
-  //  Empty("author", Node(labels = Book; fields = title -> Property[String]; outgoing = ), Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))),
-  //  Optional(Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))
-  // ) :: HNil
-  val authorPattern = CypherQueryArrow.PatternBuilder(pathAuthor)
-  // CypherFragment.Known[CypherFragment.Pattern.Pattern0]
-  // = KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n),List(Author),Map()){ (`n`:`Author`) })
-  // { (:`Book`) -[:`author`]-> (`n`:`Author`) }
-  val authorReturn = CypherQueryArrow.ReturnBuilder(pathAuthor)
-  // CypherFragment.Known[CypherFragment.Return[Map[String, Any]]]
-  // = KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },None)
-  // { `n` }
   val authorCypherArrow = Functor.map(pathAuthor).to[CypherQueryArrow]
   // CypherQueryArrow{type Source = Unit;type Result = scala.collection.immutable.Map[String,Any]}
   // = <CypherQueryArrow>
@@ -298,8 +268,7 @@ object FunctorsTest {
   // = KnownClause(KnownMatch(NonEmptyList(KnownNode(Some(n),List(Book),Map()){ (`n`:`Book`) }),false,None){ MATCH (`n`:`Book`) },KnownReturn(KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },None){ `n` }){ RETURN `n` })
   // { MATCH (`n`:`Book`) RETURN `n` }
 
-  // TODO: test mapping to GraphPath
-  // TODO: test CypherQueryArrow
+
   val split1 = bookId >>> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
   // Arrow.Split[
   //  ScalaExpr.SelectField[Book, title, String] ::
@@ -315,7 +284,53 @@ object FunctorsTest {
   // Func1Arrow[Book, (String, Option[Author], String)] = <function1>
   split1F(book)
   // (String, Option[Author], String) = ("History of Rome", Some(Author("Theodor Mommsen", None)), "9786610240531")
-
+  val split1Path = Functor.map(split1).to[GraphPath]
+  // Arrow.Split[
+  //  GraphPath.PropSelection[Book.BookRepr.type, GraphRepr.Property{type Type = String}] ::
+  //  Arrow.Composition[
+  //      GraphPath.RelationTarget[
+  //        GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]],
+  //        GraphRepr.Node.Optional[Author.AuthorRepr.type]
+  //      ],
+  //      GraphPath.OutgoingRelation[
+  //        Book.BookRepr.type,
+  //        GraphRepr.Relation.Empty[author, Book.BookRepr.type, GraphRepr.Node.Optional[Author.AuthorRepr.type]]
+  //      ]
+  //    ]{type Source = Book.BookRepr.type;type Target = GraphRepr.Node.Optional[Author.AuthorRepr.type]} ::
+  //  Arrow.Composition[
+  //      GraphPath.PropSelection[Meta.MetaRepr.type, GraphRepr.Property{type Type = String}],
+  //      Arrow.Composition[
+  //        GraphPath.RelationTarget[
+  //          GraphRepr.Relation.Empty[meta, Book.BookRepr.type, Meta.MetaRepr.type],
+  //          Meta.MetaRepr.type
+  //        ],
+  //        GraphPath.OutgoingRelation[
+  //          Book.BookRepr.type,
+  //          GraphRepr.Relation.Empty[meta, Book.BookRepr.type, Meta.MetaRepr.type]
+  //        ]
+  //      ]{type Source = Book.BookRepr.type;type Target = Meta.MetaRepr.type}
+  //    ]{type Source = Book.BookRepr.type;type Target = GraphRepr.Property{type Type = String}} ::
+  //  HNil
+  // ]{
+  //  type Source = Book.BookRepr.type
+  //  type Target = (GraphRepr.Property{type Type = String}, GraphRepr.Node.Optional[Author.AuthorRepr.type], GraphRepr.Property{type Type = String})
+  // }
+  // = Split(
+  //  PropSelection(Node(labels = Book; fields = title -> Property[String]; outgoing = ),title,Property[String]) ::
+  //  RelationTarget(Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"]),Node(labels = Author; fields = name -> Property[String], pseudonym -> Property[Option[String]]; outgoing = ))
+  //    ∘ OutgoingRelation(Node(labels = Book; fields = title -> Property[String]; outgoing = ),Relation(type = author; fields = ; from = Node["Book"]; to = Node["Author"])) ::
+  //  PropSelection(Node(labels = Meta; fields = isbn -> Property[String]; outgoing = ),isbn,Property[String])
+  //    ∘ RelationTarget(Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"]),Node(labels = Meta; fields = isbn -> Property[String]; outgoing = ))
+  //    ∘ OutgoingRelation(Node(labels = Book; fields = title -> Property[String]; outgoing = ),Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"])) ::
+  //  HNil
+  // )
+  val split1CypherArrow = Functor.map(split1Path).to[CypherQueryArrow]
+  // CypherQueryArrow{type Source = Unit; type Result = String :: scala.collection.immutable.Map[String,Any] :: String :: HNil}
+  // = <CypherQueryArrow>
+  val split1CypherQuery = split1CypherArrow(())
+  // split1CypherArrow.Target
+  // = KnownClause(KnownMatch(NonEmptyList(KnownNode(Some(n0),List(Book),Map()){ (`n0`:`Book`) }, KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n1),List(Author),Map()){ (`n1`:`Author`) }){ (:`Book`) -[:`author`]-> (`n1`:`Author`) }, KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(meta),Map(),None,Outgoing){ -[:`meta`]-> },KnownNode(Some(n2),List(Meta),Map()){ (`n2`:`Meta`) }){ (:`Book`) -[:`meta`]-> (`n2`:`Meta`) }),false,None){ MATCH (`n0`:`Book`), (:`Book`) -[:`author`]-> (`n1`:`Author`), (:`Book`) -[:`meta`]-> (`n2`:`Meta`) },KnownReturn(KnownRetList(KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n0){ `n0` },title){ `n0`.`title` },None){ `n0`.`title` }, KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n1){ `n1` },None){ `n1` }, KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n2){ `n2` },isbn){ `n2`.`isbn` },None){ `n2`.`isbn` }){ `n0`.`title`, `n1`, `n2`.`isbn` }){ RETURN `n0`.`title`, `n1`, `n2`.`isbn` })
+  // { MATCH (`n0`:`Book`), (:`Book`) -[:`author`]-> (`n1`:`Author`), (:`Book`) -[:`meta`]-> (`n2`:`Meta`) RETURN `n0`.`title`, `n1`, `n2`.`isbn` }
 
 
 
