@@ -5,54 +5,6 @@ import scala.language.higherKinds
 import com.abraxas.slothql.mapper._
 
 
-
-
-object Functors {
-/*
-  implicit def fieldFocusToDBArrowLeaf[
-    A <: Arrow, Obj, K <: Symbol, V, Repr <: GraphRepr.Element, Fields <: HList, Field <: GraphRepr.Property, V0
-  ](
-    implicit
-    arr: A <:< FieldFocus[Obj, K, V],
-    schema: Schema.Aux[Obj, Repr],
-    node: Repr <:< GraphRepr.Node.Aux[_, Fields, _],
-    select: shapeless.ops.record.Selector.Aux[Fields, K, Field],
-    prop: Field <:< GraphRepr.Property.Aux[V0],
-    ev: V <:< V0
-  ): Functor.Aux[A, GraphPath, PropSelection[Repr, Field]] =
-    Functor.define[A, GraphPath](_ => PropSelection(schema.repr, select(schema.repr.Fields)))
-
-  implicit def fieldAndSeqFocusToDBArrow[
-    A <: Arrow, AField <: Arrow, ASeq <: Arrow,
-    Obj, K <: Symbol, V, Repr <: GraphRepr.Node,
-    CC[x] <: Seq[x], V0,
-    Rels <: HList, Rel <: GraphRepr.Relation, RelFields <: HList, RelTarget <: GraphRepr.Node,
-    IndexField, IndexProp <: GraphRepr.Property, Index
-  ](
-    implicit
-    arr: A <:< Arrow.Composition[ASeq, AField],
-    fieldArr: AField <:< FieldFocus[Obj, K, V],
-    seqArr: ASeq <:< SeqFocus[CC, V0],
-    seq: V <:< CC[V0],
-    schema: Schema.Aux[Obj, Repr],
-    node: Repr <:< GraphRepr.Node.Aux[_, _, Rels],
-    select: shapeless.ops.record.Selector.Aux[Rels, K, Rel],
-    outgoing: Rel <:< GraphRepr.Relation.Aux[_, RelFields, _, RelTarget],
-    onlyIndex: shapeless.ops.hlist.IsHCons.Aux[RelFields, IndexField, HNil],
-    indexProp: IndexField <:< Witness.`'index`.Field[IndexProp],
-    index: IndexProp <:< GraphRepr.Property.Aux[Index],
-    integralIndex: Integral[Index],
-    compose: Compose[RelationTarget[Rel, RelTarget], OutgoingRelation[Repr, Rel]]
-   ): Functor.Aux[A, GraphPath, compose.Out] =
-    Functor.define[A, GraphPath]{ _ =>
-      val rel = select(schema.repr.Outgoing.asInstanceOf[Rels])
-      compose(RelationTarget(rel, rel.To.asInstanceOf[RelTarget]), OutgoingRelation(schema.repr, rel))
-    }
-*/
-}
-
-
-
 object FunctorsTest {
   import cats.instances.list._
   import cats.instances.option._
