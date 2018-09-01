@@ -3,6 +3,8 @@ package com.abraxas.slothql.mapper
 import shapeless.{ ops, HList }
 import shapeless.tag.@@
 
+import com.abraxas.slothql.arrow.{ Arrow, Functor, ScalaExpr }
+
 object MapScalaExprToGraphPath {
 
   implicit def mapScalaExprIdToGraphPath[A, N <: GraphRepr.Node](

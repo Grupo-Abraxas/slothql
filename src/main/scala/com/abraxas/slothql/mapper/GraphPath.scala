@@ -1,5 +1,7 @@
 package com.abraxas.slothql.mapper
 
+import com.abraxas.slothql.arrow.Arrow
+
 
 sealed trait GraphPath extends Arrow {
   type Source <: GraphRepr

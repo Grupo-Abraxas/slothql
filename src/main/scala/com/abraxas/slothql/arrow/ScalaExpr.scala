@@ -1,11 +1,11 @@
-package com.abraxas.slothql.mapper
+package com.abraxas.slothql.arrow
 
 import scala.language.{ dynamics, higherKinds }
 
 import shapeless.tag.@@
 import shapeless.{ Cached, HList, LabelledGeneric, ops }
 
-import com.abraxas.slothql.mapper.Arrow.Types
+import com.abraxas.slothql.arrow.Arrow.Types
 
 
 sealed trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps

@@ -4,6 +4,7 @@ import cats.data.NonEmptyList
 import shapeless._
 import shapeless.ops.nat.ToInt
 
+import com.abraxas.slothql.arrow.{ Arrow, FuncArrow, Functor }
 import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.util.FilterNotCov

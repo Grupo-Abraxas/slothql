@@ -2,6 +2,7 @@ package com.abraxas.slothql
 
 import scala.language.higherKinds
 
+import com.abraxas.slothql.arrow.{ Arrow, FuncArrow, Functor, ScalaExpr }
 import com.abraxas.slothql.mapper._
 
 

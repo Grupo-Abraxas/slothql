@@ -1,4 +1,4 @@
-package com.abraxas.slothql.mapper
+package com.abraxas.slothql.arrow
 
 import shapeless._
 
