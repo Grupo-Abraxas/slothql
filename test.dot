@@ -1,0 +1,40 @@
+digraph {
+    Book_1343868283 [label="Book"]
+    split_tuple_147018219 [label="Tuple3"];
+
+    String_1221237120 [label="String"]
+
+    edge [label="SelectField"];
+    Book_1343868283 -> String_1221237120;
+
+
+    Option_476122992 [label="Option[Author]"]
+
+    edge [label="SelectField"];
+    Book_1343868283 -> Option_476122992;
+
+
+    Meta_1039228012 [label="Meta"]
+
+    edge [label="SelectField"];
+    Book_1343868283 -> Meta_1039228012;
+
+
+    String_1175992241 [label="String"]
+
+    edge [label="SelectField"];
+    Meta_1039228012 -> String_1175992241;
+
+
+
+    edge [label="_1"];
+    String_1221237120 -> split_tuple_147018219;
+
+    edge [label="_2"];
+    Option_476122992 -> split_tuple_147018219;
+
+    edge [label="_3"];
+    String_1175992241 -> split_tuple_147018219;
+
+
+}

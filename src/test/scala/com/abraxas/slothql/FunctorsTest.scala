@@ -2,6 +2,7 @@ package com.abraxas.slothql
 
 import scala.language.higherKinds
 
+import com.abraxas.slothql.arrow.util.{ ArrowToDot, ToDot }
 import com.abraxas.slothql.arrow.{ Arrow, FuncArrow, Functor, ScalaExpr }
 import com.abraxas.slothql.mapper._
 
@@ -277,6 +278,10 @@ object FunctorsTest {
   //    ∘ OutgoingRelation(Node(labels = Book; fields = title -> Property[String]; outgoing = ),Relation(type = meta; fields = ; from = Node["Book"]; to = Node["Meta"])) ::
   //  HNil
   // )
+
+  lazy val split1PathDot = ToDot(split1Path)
+  // println(s"split1PathDot = $split1PathDot")
+
   val split1CypherArrow = Functor.map(split1Path).to[CypherQueryArrow]
   // CypherQueryArrow{type Source = Unit; type Result = String :: scala.collection.immutable.Map[String,Any] :: String :: HNil}
   // = <CypherQueryArrow>
@@ -295,6 +300,16 @@ object FunctorsTest {
   // )
   // TODO: fail ========================================================================================================
 
+  val split2 = bookId >>> { book =>
+    Arrow.Split(
+      book.title,
+//      book.author.map(author => author.pseudonym),
+//      book.author.map(author => author.name),
+//      book.author.map(author => Arrow.Split(author.name)),
+//      book.author.map(author => Arrow.Split(author.name, author.pseudonym)), // TODO: it doesn't work!!!
+      book.meta.isbn
+    )
+  }
 
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]

@@ -38,7 +38,7 @@ object GraphRepr {
   // GraphRepr tree leaf
   sealed trait Property extends GraphRepr {
     type Type
-    val manifest: Manifest[_]
+    val manifest: Manifest[Type]
 
     override def toString: String = s"Property[${ShowManifest(manifest)}]"
   }
@@ -120,7 +120,7 @@ object GraphRepr {
     type Aux[T] = Property{ type Type = T }
     def apply[T: Manifest]: Property.Aux[T] = new Property {
       type Type = T
-      val manifest: Manifest[_] = implicitly[Manifest[T]]
+      val manifest: Manifest[T] = implicitly[Manifest[T]]
     }
     def unapply(repr: GraphRepr): Option[Manifest[_]] = PartialFunction.condOpt(repr) {
       case prop: Property => prop.manifest
