@@ -594,6 +594,35 @@ object SyntaxTest21 extends App {
 }
 
 /*
+TODO: fails to compile =================================================================================================
+
+object SyntaxTest22 extends App {
+  val email = "user@example.com"
+  val query = Match {
+    case Vertex("User", "email" := `email`) -(e)> (g@Vertex("Group")) => g.prop[String]("id")
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`g`:`Group`) RETURN `g`
+  // result = Vector(Map(name -> Root Group, id -> g1), Map(name -> Sub Group, id -> g2))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[String] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+*/
+
+/*
 
 
 */
