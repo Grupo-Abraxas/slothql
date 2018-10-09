@@ -82,6 +82,9 @@ package object syntax extends LowPriorityImplicits {
   object := {
     def unapply(arg: Any): Option[(String, Any)] = Some(???)
   }
+  object :?= {
+    def unapply(arg: Any): Option[(String, Option[Any])] = Some(???)
+  }
 
   object *: {
     def unapply(edge: Edge): Option[(Expr.Var[List[Map[String, Any]]], -[Int, Int], Edge)] = Some(???)

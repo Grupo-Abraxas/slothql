@@ -36,6 +36,7 @@ object Match {
     val `syntax E-V` = typeOf[EV]
     val `syntax Int-Int` = typeOf[II]
     val `syntax :=` = typeOf[:=.type]
+    val `syntax :?=` = typeOf[:?=.type]
     val `syntax *:` = typeOf[*:.type]
     val GraphVertexType = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Vertex]]
     val GraphEdgeType   = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Edge]]
@@ -56,7 +57,12 @@ object Match {
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :=` =>
             (args2: @unchecked) match {
               case List(Literal(Constant(k: String)), v) =>
-                q"($k, _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
+                q"Some($k -> _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
+            }
+          case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :?=` =>
+            (args2: @unchecked) match {
+              case List(Literal(Constant(k: String)), v) =>
+                q"$v.map(_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit(_)).map($k -> _)"
             }
         }
         (labels, values)
@@ -76,7 +82,8 @@ object Match {
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(
             alias = ${aliasTree(name)},
             labels = _root_.scala.List(..$labels),
-            map = _root_.scala.Predef.Map(..$values)
+            map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
+                                             (..$values).flatten.toMap
           )
         )
       """
@@ -90,7 +97,8 @@ object Match {
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel(
             alias = ${name.map(aliasTree(_)).getOrElse(q"_root_.scala.None")},
             types = _root_.scala.List(..$labels),
-            map = _root_.scala.Predef.Map(..$values),
+            map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
+                                             (..$values).flatten.toMap,
             length = ${length.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None")},
             dir = ${dir.tree}
           )

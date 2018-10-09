@@ -543,6 +543,56 @@ object SyntaxTest19 extends App {
 }
 
 
+object SyntaxTest20 extends App {
+  val id = Some("g1")
+  val query = Match {
+    case g@Vertex("Group", "id" :?= `id`) => g
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`g`:`Group`{ `id`: "g1" }) RETURN `g`
+  // result = Vector(Map(name -> Root Group, id -> g1))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest21 extends App {
+  val id = Option.empty[String]
+  val query = Match {
+    case g@Vertex("Group", "id" :?= `id`) => g
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`g`:`Group`) RETURN `g`
+  // result = Vector(Map(name -> Root Group, id -> g1), Map(name -> Sub Group, id -> g2))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 /*
 
 
