@@ -209,7 +209,9 @@ package object syntax extends LowPriorityImplicits {
   implicit def lit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
   implicit def knownLit[A: Manifest](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
 
-  implicit def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
+  def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
+  def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]], mf: Manifest[A]): Expr.List[A] =
+    Expr.List[A](exprs.map(Expr.Lit(_).known).toList)
 
 
   sealed trait QueryReturn[T]{
