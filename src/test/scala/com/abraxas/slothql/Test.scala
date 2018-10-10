@@ -196,3 +196,37 @@ object Test6 extends App {
   driver.close()
   sys.exit()
 }
+
+object Test7 extends App {
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val q1 = Match { case g@Vertex("Group") => g.id }
+  def q2(id: Long) = Match {
+    case (u@Vertex("User")) `<-` _ `<-` g if g.id === lit(id) => u
+  }
+
+  println("q1 = " + q1.known.toCypher)
+  val query = for {
+    groupIds <- tx.read(q1).gather
+    q2is = groupIds.map(q2)
+    users <- q2is.traverse(tx.read(_))
+    _ = println(s"users = $users")
+    user <- tx.Read.unwind(users.map(_("name").asInstanceOf[String]))
+    _ = println(s"user = $user")
+  } yield user
+
+  val io = tx.run(query)
+  val result: Seq[String] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  //  q1 = MATCH (`g`:`Group`) RETURN `id`(`g`)
+  //  users = Vector(Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1), Map(name -> John, email -> john@example.com, confirmed -> true, age -> 28, id -> u1))
+  //  user = John
+  //  user = John
+  //  result = Vector(John, John)
+
+  driver.close()
+  sys.exit()
+}

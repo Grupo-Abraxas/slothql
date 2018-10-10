@@ -20,9 +20,7 @@ trait CypherTransactor {
   type Operation[R] = txBuilder.Operation[R]
   type Read[R]      = txBuilder.Read[R]
   type ReadWrite[R] = txBuilder.ReadWrite[R]
-  type Gather[R]    = txBuilder.Gather[R]
 
-  final lazy val Gather = txBuilder.Gather
   final lazy val Read   = txBuilder.Read
 
   final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
@@ -68,10 +66,15 @@ trait CypherTxBuilder {
     override val query: Known[Query[A]] // TODO: `Query[A]`
   }
 
-  sealed case class Gather[R](read: Read[R]) extends Read[Vector[R]] {
+  protected[cypher] case class Gather[R](read: Read[R]) extends Read[Vector[R]] {
     type A = read.A
     lazy val query: Known[Query[read.A]] = ???
     lazy val reader: CypherTransactor.Reader.Aux[Result, read.A, Vector[R]] = ???
+  }
+  protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R] {
+    type A = R
+    lazy val query: Known[Query[R]] = ???
+    lazy val reader: CypherTransactor.Reader.Aux[Result, R, R] = ???
   }
 
   object Read {
@@ -84,6 +87,8 @@ trait CypherTxBuilder {
           r.asInstanceOf[CypherTransactor.Reader.Aux[Result, A, r.Out]]
       }
 
+    def const[A](a: A): ReadTx[A] = Free.pure(a)
+    def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
 
     implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
       def pure[A](x: A): ReadTx[Vector[A]] =
