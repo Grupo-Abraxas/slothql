@@ -22,8 +22,8 @@ trait CypherTransactor {
   type ReadWrite[R] = txBuilder.ReadWrite[R]
   type Gather[R]    = txBuilder.Gather[R]
 
-  final val Gather = txBuilder.Gather
-  final val Read   = txBuilder.Read
+  final lazy val Gather = txBuilder.Gather
+  final lazy val Read   = txBuilder.Read
 
   final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
 
