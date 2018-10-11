@@ -11,8 +11,8 @@ import com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
 import com.abraxas.slothql.cypher.CypherFragment._
 
 object Match { MatchObj =>
-
-  def apply[R](f: Graph => Match.Result[R]): Query[R] = macro impl[R]
+  def apply[R]   (f: Graph => Match.Result[R]): Query[R] = macro implApply[R]
+  def optional[R](f: Graph => Match.Result[R]): Query[R] = macro implOptional[R]
 
   sealed trait Result[R]
   object Result{
@@ -33,7 +33,9 @@ object Match { MatchObj =>
     @inline def graph: Graph = Graph.instance
   }
 
-  def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
+  def implApply[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = false, c)(f)
+  def implOptional[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = true, c)(f)
+  def impl[R: c.WeakTypeTag](optional: Boolean, c: whitebox.Context)(f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
     import c.universe._
 
     val `syntax pkg` = c.typeOf[com.abraxas.slothql.cypher.syntax.`package`.type]
@@ -328,7 +330,7 @@ object Match { MatchObj =>
           Query.Clause(
             Clause.Match(
               NonEmptyList(pattern.splice, Nil),
-              optional = false,
+              optional = c.Expr[Boolean](Literal(Constant(optional))).splice,
               where = whereIdentExpr.splice
             ),
             ret.asInstanceOf[Result.Impl[R]].result.known

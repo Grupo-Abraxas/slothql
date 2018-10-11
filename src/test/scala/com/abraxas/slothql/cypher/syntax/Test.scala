@@ -622,6 +622,52 @@ object SyntaxTest22 extends App {
 
 }
 
+object SyntaxTest23 extends App {
+  val query = Match {
+    case u@Vertex("User") =>
+      Match {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("FooBar")> u2 if u === u2 => u.prop[String]("email") -> g.prop[String]("name")
+      }
+  }
+
+  val queryOpt = Match {
+    case u@Vertex("User") =>
+      Match.optional {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("FooBar")> u2 if u === u2 => u.prop[String]("email") -> g.prop[String]("name")
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`) MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`FooBar`]-> (`u2`) WHERE `u` = `u2` RETURN `u`.`email`, `g`.`name`
+  // result = Vector()
+
+
+  println(queryOpt)
+  println(queryOpt.known.toCypher)
+
+  // MATCH (`u`:`User`) OPTIONAL MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`FooBar`]-> (`u2`) WHERE `u` = `u2` RETURN `u`.`email`, `g`.`name`
+  // result = Vector((john@example.com,null))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[(String, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  val ioOpt = tx.readIO(queryOpt)
+  val resultOpt: Seq[(String, String)] = ioOpt.unsafeRunSync()
+
+  println("result = " + resultOpt)
+
+  driver.close()
+  sys.exit()
+
+}
+
 /*
 TODO: fails to compile =================================================================================================
 
