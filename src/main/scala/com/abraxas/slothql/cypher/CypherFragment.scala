@@ -359,6 +359,14 @@ object CypherFragment {
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A]
 
+
+    /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
+    sealed trait UntypedList extends Return0[scala.List[Any]] {
+      val toList: scala.List[Known[Expr[_]]]
+
+      override def toString: String = s"RetUntypedList(${toList.mkString(", ")})"
+    }
+
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
     sealed trait List[L <: HList] extends Return0[L] {
       type Expressions <: HList
@@ -368,6 +376,8 @@ object CypherFragment {
       override def toString: String = s"RetList(${toList.mkString(", ")})"
     }
     object List extends ProductArgs {
+      def untyped(exprs: Known[Expr[_]]*): UntypedList = new UntypedList { val toList: scala.List[Known[Expr[_]]] = exprs.toList }
+
       type Aux[L <: HList, E <: HList] = List[L] { type Expressions = E }
 
       sealed trait Build[L <: HList] {
@@ -414,7 +424,8 @@ object CypherFragment {
       def fromHList[L <: HList](l: L)(implicit build: Build[L]): build.Out = build(l)
 
       def unapply(ret: Return[_]): Option[scala.List[Known[Expr[_]]]] = PartialFunction.condOpt(ret) {
-        case list: List[_] => list.toList
+        case list: List[_]     => list.toList
+        case list: UntypedList => list.toList
       }
     }
 
