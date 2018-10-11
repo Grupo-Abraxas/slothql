@@ -593,6 +593,35 @@ object SyntaxTest21 extends App {
 
 }
 
+object SyntaxTest22 extends App {
+  val id = Option.empty[String]
+  val query = Match {
+    case u@Vertex("User", "id" :?= `id`) =>
+      Match {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> u2 if u === u2 => u.prop[String]("email") -> g.prop[String]("name")
+        // case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> `u` => u.prop[String]("email") -> g.prop[String]("name") // TODO: syntax =============
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`) MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`u2`) WHERE `u` = `u2` RETURN `u`.`email`, `g`.`name`
+  // result = Vector((john@example.com,Root Group))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[(String, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 /*
 TODO: fails to compile =================================================================================================
 

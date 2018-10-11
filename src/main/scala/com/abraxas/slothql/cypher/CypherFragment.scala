@@ -346,12 +346,6 @@ object CypherFragment {
       def unapply[A](ret: Return[A]): Option[(Known[Return0[A]], Boolean, Order, Option[Long], Option[Long])] = PartialFunction.condOpt(ret) {
         case ops: Options[A @unchecked] => (ops.ret, ops.distinct, ops.order, ops.skip, ops.limit)
       }
-
-      protected[slothql] object Internal {
-        trait Ops[+A] extends Return[A] {
-          protected[slothql] val options: Known[Options[A]]
-        }
-      }
     }
 
     case object All extends Return1[Any]
@@ -449,7 +443,6 @@ object CypherFragment {
         val skipFrag = skip map (" SKIP " + _) getOrElse ""
         val limitFrag = limit map (" LIMIT " + _) getOrElse ""
         s"$distinctFrag${expr.toCypher}$orderFrag$skipFrag$limitFrag"
-      case ops: Options.Internal.Ops[_] => ops.options.toCypher
     }
   }
 

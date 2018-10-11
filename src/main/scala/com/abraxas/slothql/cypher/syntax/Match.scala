@@ -10,9 +10,18 @@ import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
 import com.abraxas.slothql.cypher.CypherFragment._
 
-object Match {
-  def apply[R](f: Graph => Return[R]): Query[R] = macro impl[R]
+object Match { MatchObj =>
 
+  def apply[R](f: Graph => Match.Result[R]): Query[R] = macro impl[R]
+
+  sealed trait Result[R]
+  object Result{
+    sealed trait Impl[R] extends Result[R] { def result: Query.Query0[R] }
+    protected[syntax] trait Ret[R]    extends Impl[R] { protected[slothql] def ret: Known[Return[R]];   def result: Query.Query0[R] = Query.Return(ret) }
+    protected[syntax] trait Clause[R] extends Impl[R] { protected[slothql] def clause: Query.Clause[R]; def result: Query.Query0[R] = clause }
+    // TODO =========================================================
+    // TODO: rename clause's aliases to avoid collision!?
+  }
 
   private type VE = Vertex - Edge
   private type EV = Edge - Vertex
@@ -24,7 +33,7 @@ object Match {
     @inline def graph: Graph = Graph.instance
   }
 
-  def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Return[R]]): c.Expr[Query[R]] = {
+  def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
     import c.universe._
 
     val `syntax pkg` = c.typeOf[com.abraxas.slothql.cypher.syntax.`package`.type]
@@ -311,7 +320,7 @@ object Match {
             }
         }
 
-        val f2 = c.Expr[Graph => CypherFragment.Return[R]](fTransormer.transform(f.tree))
+        val f2 = c.Expr[Graph => MatchObj.Result[R]](fTransormer.transform(f.tree))
 
         val res = reify {
           whereVarExpr.splice
@@ -322,7 +331,7 @@ object Match {
               optional = false,
               where = whereIdentExpr.splice
             ),
-            Query.Return(ret)
+            ret.asInstanceOf[Result.Impl[R]].result.known
           )
         }
 
