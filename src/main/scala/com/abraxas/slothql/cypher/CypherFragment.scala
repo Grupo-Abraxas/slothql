@@ -121,14 +121,14 @@ object CypherFragment {
     type Inv[T] = Expr[T]
 
     // // // Values and Variables // // //
-    case class Lit[A](value: A)(implicit val m: Manifest[A]) extends Expr[A]
+    case class Lit[+A](value: A) extends Expr[A]
     trait Var[A] extends Expr[A] {
       val name: String
       val m: Manifest[A]
 
       override def toString: String = s"Var[$m]($name)"
     }
-    case class Call[A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
+    case class Call[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
@@ -160,8 +160,8 @@ object CypherFragment {
     }
 
     // // // Maps // // //
-    case class Map[A](get: Predef.Map[String, Known[Expr[A]]]) extends Expr[Predef.Map[String, A]]
-    case class Key[A](map: Known[Expr[Predef.Map[String, _]]], key: String)(implicit val m: Manifest[A]) extends Expr[A]
+    case class Map[+A](get: Predef.Map[String, Known[Expr[A]]]) extends Expr[Predef.Map[String, A]]
+    case class Key[+A](map: Known[Expr[Predef.Map[String, _]]], key: String) extends Expr[A]
 
     object Map {
       implicit def fragment[A]: CypherFragment[Map[A]] = instance.asInstanceOf[CypherFragment[Map[A]]]
@@ -175,7 +175,7 @@ object CypherFragment {
     }
 
     // // // Lists // // //
-    case class List[A](get: scala.List[Known[Expr[A]]]) extends Expr[scala.List[A]]
+    case class List[+A](get: scala.List[Known[Expr[A]]]) extends Expr[scala.List[A]]
     case class In[A](elem: Known[Expr[A]], list: Known[Expr[scala.List[A]]]) extends Expr[Boolean]
     case class AtIndex[A](list: Known[Expr[scala.List[A]]], index: Known[Expr[Long]]) extends Expr[A]
     case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends Expr[scala.List[A]]
