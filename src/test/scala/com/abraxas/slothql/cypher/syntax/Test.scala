@@ -6,6 +6,7 @@ import com.abraxas.slothql.Connection
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
 import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
+// DB contains `populate-1.cypher`
 
 object SyntaxTest {
 
@@ -672,10 +673,10 @@ object SyntaxTest24 extends App {
   val query = Match {
     case u@Vertex("User") => dict(
       "id" -> u.prop[String]("id"),
-      MapEntry.pairToMapEntry("personal" -> dict(
+      "personal" -> dict(
         "name" -> u.prop[String]("name"),
         "age"  -> u.prop[Int]("age")
-      )),
+      ),
       "account" -> dict(
         "email"     -> u.prop[String]("email"),
         "confirmed" -> u.prop[Boolean]("confirmed")
@@ -688,6 +689,44 @@ object SyntaxTest24 extends App {
 
   // MATCH (`u`:`User`) RETURN { `id`: `u`.`id`, `personal`: { `name`: `u`.`name`, `age`: `u`.`age` }, `account`: { `email`: `u`.`email`, `confirmed`: `u`.`confirmed` } }
   // result = Vector(Map(personal -> Map(name -> John, age -> 28), id -> u1, account -> Map(confirmed -> true, email -> john@example.com)))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest25 extends App {
+  val query = Match {
+    case u@Vertex("User") =>
+      Match.optional { // TODO: syntax: reuse `u` in second pattern ===========================================================================================
+        case (u0@Vertex("User")) <(role)- Vertex("Members") `<-` (g@Vertex("Group")) if u === u0 =>
+          dict(
+            "user" -> u.prop("email"),
+            "groups" -> collect(dict(
+              "id" -> g.prop("id"),
+              "role" -> role.tpe
+            ))
+          )
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`)
+  // OPTIONAL MATCH (`u0`:`User`) <-[`role`]- (:`Members`) <-[]- (`g`:`Group`)
+  // WHERE `u` = `u0`
+  // RETURN { `user`: `u`.`email`, `groups`: `collect`({ `id`: `g`.`id`, `role`: `type`(`role`) }) }
+
+  // result = Vector(Map(user -> john@example.com, groups -> List(Map(id -> g2, role -> Edit), Map(id -> g1, role -> Admin))))
 
   val driver = Connection.driver
   val tx = Neo4jCypherTransactor(driver.session())

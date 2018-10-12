@@ -9,6 +9,8 @@ import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.cypher.syntax._
 import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
+// DB contains `populate-1.cypher`
+
 object Test1 extends App {
   val driver = Connection.driver
   val tx = Neo4jCypherTransactor(driver.session())
