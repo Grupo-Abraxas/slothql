@@ -5,6 +5,7 @@ import scala.collection.convert.decorateAsScala._
 import cats.effect.IO
 import cats.instances.vector._
 import cats.~>
+import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
 import shapeless._
 
@@ -95,7 +96,12 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     implicit def map[A](implicit reader: ValueReader[A]): ValueReader[Map[String, A]] =
       ValueReader define (_.asMap(reader.apply(_: Value)).asScala.toMap)
 
-    implicit lazy val any: ValueReader[Any] = ValueReader define (_.asObject())
+    implicit lazy val any: ValueReader[Any] = ValueReader define {
+      case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.LIST) => list[Any].apply(v)
+      case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.MAP)  => map[Any].apply(v)
+      case v if v.isNull => None
+      case v             => v.asObject()
+    }
     implicit lazy val boolean: ValueReader[Boolean] = ValueReader define (_.asBoolean())
     implicit lazy val string: ValueReader[String] = ValueReader define (_.asString())
 

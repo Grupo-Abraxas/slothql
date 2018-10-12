@@ -668,6 +668,40 @@ object SyntaxTest23 extends App {
 
 }
 
+object SyntaxTest24 extends App {
+  val query = Match {
+    case u@Vertex("User") => dict(
+      "id" -> u.prop[String]("id"),
+      MapEntry.pairToMapEntry("personal" -> dict(
+        "name" -> u.prop[String]("name"),
+        "age"  -> u.prop[Int]("age")
+      )),
+      "account" -> dict(
+        "email"     -> u.prop[String]("email"),
+        "confirmed" -> u.prop[Boolean]("confirmed")
+      )
+    )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`) RETURN { `id`: `u`.`id`, `personal`: { `name`: `u`.`name`, `age`: `u`.`age` }, `account`: { `email`: `u`.`email`, `confirmed`: `u`.`confirmed` } }
+  // result = Vector(Map(personal -> Map(name -> John, age -> 28), id -> u1, account -> Map(confirmed -> true, email -> john@example.com)))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 /*
 TODO: fails to compile =================================================================================================
 

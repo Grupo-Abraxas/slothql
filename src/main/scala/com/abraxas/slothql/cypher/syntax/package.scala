@@ -213,6 +213,15 @@ package object syntax extends LowPriorityImplicits {
   def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]], mf: Manifest[A]): Expr.List[A] =
     Expr.List[A](exprs.map(Expr.Lit(_).known).toList)
 
+  def dict(entries: MapEntry[Any]*): Expr.Map[Any] = Expr.Map(entries.map(_.toPair).toMap)
+  def dict(map: Map[String, Known[Expr[Any]]]): Expr.Map[Any] = Expr.Map(map)
+
+  case class MapEntry[+A](key: String, value: Known[Expr[A]]) { def toPair: (String, Known[Expr[A]]) = key -> value }
+  object MapEntry {
+    implicit def pairKnownToMapEntry[A](pair: (String, Known[Expr[A]])): MapEntry[A] = MapEntry(pair._1, pair._2)
+    implicit def pairToMapEntry[A, E[_] <: Expr[_]](pair: (String, E[A]))(implicit frag: CypherFragment[E[A]]): MapEntry[A] =
+      MapEntry(pair._1, Known(pair._2)(frag).asInstanceOf[Known[Expr[A]]])
+  }
 
   sealed trait QueryReturn[T]{
     type Ret

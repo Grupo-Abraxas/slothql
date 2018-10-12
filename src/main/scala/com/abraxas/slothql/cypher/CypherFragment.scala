@@ -164,11 +164,12 @@ object CypherFragment {
     case class Key[A](map: Known[Expr[Predef.Map[String, _]]], key: String)(implicit val m: Manifest[A]) extends Expr[A]
 
     object Map {
-      implicit lazy val fragment: CypherFragment[Map[_]] = define(m => mapStr(m.get))
+      implicit def fragment[A]: CypherFragment[Map[A]] = instance.asInstanceOf[CypherFragment[Map[A]]]
+      lazy val instance: CypherFragment[Map[_]] = define(m => mapStr(m.get))
     }
     object Key {
       implicit def fragment[A]: CypherFragment[Key[A]] = instance.asInstanceOf[CypherFragment[Key[A]]]
-      implicit lazy val instance: CypherFragment[Key[_]] = define {
+      lazy val instance: CypherFragment[Key[_]] = define {
         case Key(m, k) => s"${m.toCypher}.${escapeName(k)}"
       }
     }
