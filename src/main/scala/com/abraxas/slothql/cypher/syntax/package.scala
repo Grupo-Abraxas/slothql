@@ -24,21 +24,20 @@ package object syntax extends LowPriorityImplicits {
     }
   }
 
-  // TODO: remove manifests ==============================================================================================================================================================================================
   final implicit class GraphElemOps(e: GraphElem) {
     /** Select vertex/edge property. */
-    def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](e, k)
+    def prop[A](k: String): Expr.Key[A] = Expr.Key[A](e, k)
     /** Select vertex/edge property as [[Option]]. */
-    def propOpt[A: Manifest](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
+    def propOpt[A](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
 
     /** Alias for [[prop]]. */
     @deprecated("seems to break query type resolution", since = "03.06.18")
-    def apply[A: Manifest](k: String): Expr.Key[A] = prop(k)
+    def apply[A](k: String): Expr.Key[A] = prop(k)
     /** Alias for [[propOpt]]. */
-    def opt[A: Manifest](k: String): Expr.Key[Option[A]] = propOpt(k)
+    def opt[A](k: String): Expr.Key[Option[A]] = propOpt(k)
 
     /** Call built-in function `func` passing `this` expression as first argument. */
-    def call[R: Manifest](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
+    def call[R](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
       Expr.Call(func, e.known :: args.toList)
 
     /** Call built-in `id` function. */
@@ -207,11 +206,11 @@ package object syntax extends LowPriorityImplicits {
   lazy val ⟷ : --.type = --
 
 
-  implicit def lit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
-  implicit def knownLit[A: Manifest](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
+  implicit def lit[A](a: A): Expr.Lit[A] = Expr.Lit[A](a)
+  implicit def knownLit[A](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
 
   def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
-  def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]], mf: Manifest[A]): Expr.List[A] =
+  def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]]): Expr.List[A] =
     Expr.List[A](exprs.map(Expr.Lit(_).known).toList)
 
   def collect[A](expr: Known[Expr[A]]): Expr.Call[List[A]] = 'collect.call[List[A]](expr)
