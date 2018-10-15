@@ -289,8 +289,11 @@ package object syntax extends LowPriorityImplicits {
 
     def orderBy(by: ReturnOps.OrderBy*): ReturnOps[A] = copy(_order = _order ++ by.map(_.asPair).toMap)
     def skip(n: Long): ReturnOps[A] = copy(_skip = Some(n))
+    def skip(n: Option[Long]): ReturnOps[A] = copy(_skip = n)
     def limit(n: Long): ReturnOps[A] = copy(_limit = Some(n))
+    def limit(n: Option[Long]): ReturnOps[A] = copy(_limit = n)
     def distinct: ReturnOps[A] = copy(_distinct = true)
+    def distinct(b: Boolean): ReturnOps[A] = copy(_distinct = b)
   }
 
   object ReturnOps {
