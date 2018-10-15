@@ -741,6 +741,46 @@ object SyntaxTest25 extends App {
 
 }
 
+object SyntaxTest26 extends App {
+  val query = Match {
+    case u@Vertex("User") =>
+      `with`(_.orderBy(u.prop[String]("name")).limit(5)) {
+        Match.optional { // TODO: syntax: reuse `u` in second pattern ===========================================================================================
+          case (u0@Vertex("User")) <(role)- Vertex("Members") `<-` (g@Vertex("Group")) if u === u0 =>
+            dict(
+              "user" -> u.prop("email"),
+              "groups" -> collect(dict(
+                "id" -> g.prop("id"),
+                "role" -> role.tpe
+              )).to(lit(1))
+            )
+        }
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`)
+  // WITH * ORDER BY `u`.`name` LIMIT 5
+  // OPTIONAL MATCH (`u0`:`User`) <-[`role`]- (:`Members`) <-[]- (`g`:`Group`) WHERE `u` = `u0`
+  // RETURN { `user`: `u`.`email`, `groups`: `collect`({ `id`: `g`.`id`, `role`: `type`(`role`) })[..1] }
+
+  // result = Vector(Map(user -> john@example.com, groups -> List(Map(id -> g2, role -> Edit))))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
 /*
 TODO: fails to compile =================================================================================================
 

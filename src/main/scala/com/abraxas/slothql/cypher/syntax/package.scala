@@ -24,6 +24,7 @@ package object syntax extends LowPriorityImplicits {
     }
   }
 
+  // TODO: remove manifests ==============================================================================================================================================================================================
   final implicit class GraphElemOps(e: GraphElem) {
     /** Select vertex/edge property. */
     def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](e, k)
@@ -266,19 +267,25 @@ package object syntax extends LowPriorityImplicits {
   }
 
 
-  implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e), false, Map(), None, None)
-  implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[slothql] def clause: Query.Clause[R] = q }
+  implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e))
+  implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
 
 
-  final case class ReturnOps[A] protected[syntax](
+  def `with`[R](ops: ReturnOps[Any] => ReturnOps[Any])(res: Match.Result[R]): Match.Result.With[R] =
+    new Match.Result.With[R] {
+      protected[syntax] def ret: Known[Return[R]] = ops(ReturnOps(Return.All)).copy(_ret = Return.All.as[R]).ret
+      protected[syntax] def query: Known[Query.Query0[R]] = res.result
+    }
+
+  protected final case class ReturnOps[A](
       private val _ret: Known[Return.Return0[A]],
-      private val _distinct: Boolean,
-      private val _order: Return.Order,
-      private val _skip: Option[Long],
-      private val _limit: Option[Long]
+      private val _distinct: Boolean    = false,
+      private val _order: Return.Order  = Map(),
+      private val _skip: Option[Long]   = None,
+      private val _limit: Option[Long]  = None
   ) extends Match.Result.Ret[A]
   {
-    protected[slothql] def ret: Known[Return[A]] = Return.Options(_ret, _distinct, _order, _skip, _limit).known
+    protected[syntax] def ret: Known[Return[A]] = Return.Options(_ret, _distinct, _order, _skip, _limit).known
 
     def orderBy(by: ReturnOps.OrderBy*): ReturnOps[A] = copy(_order = _order ++ by.map(_.asPair).toMap)
     def skip(n: Long): ReturnOps[A] = copy(_skip = Some(n))

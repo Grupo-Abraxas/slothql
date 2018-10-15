@@ -14,11 +14,21 @@ object Match { MatchObj =>
   def apply[R]   (f: Graph => Match.Result[R]): Query[R] = macro implApply[R]
   def optional[R](f: Graph => Match.Result[R]): Query[R] = macro implOptional[R]
 
-  sealed trait Result[R]
+  sealed trait Result[R] { def result: Query.Query0[R] }
   object Result{
-    sealed trait Impl[R] extends Result[R] { def result: Query.Query0[R] }
-    protected[syntax] trait Ret[R]    extends Impl[R] { protected[slothql] def ret: Known[Return[R]];   def result: Query.Query0[R] = Query.Return(ret) }
-    protected[syntax] trait Clause[R] extends Impl[R] { protected[slothql] def clause: Query.Clause[R]; def result: Query.Query0[R] = clause }
+    protected[syntax] trait Ret[R] extends Result[R] {
+      protected[syntax] def ret: Known[Return[R]]
+      def result: Query.Query0[R] = Query.Return(ret)
+    }
+    protected[syntax] trait Clause[R] extends Result[R] {
+      protected[syntax] def clause: Query.Clause[R]
+      def result: Query.Query0[R] = clause
+    }
+    protected[syntax] trait With[R] extends Result[R] {
+      protected[syntax] def ret: Known[Return[R]]
+      protected[syntax] def query: Known[Query.Query0[R]]
+      def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = None), query)
+    }
     // TODO =========================================================
     // TODO: rename clause's aliases to avoid collision!?
   }
@@ -333,7 +343,7 @@ object Match { MatchObj =>
               optional = c.Expr[Boolean](Literal(Constant(optional))).splice,
               where = whereIdentExpr.splice
             ),
-            ret.asInstanceOf[Result.Impl[R]].result.known
+            ret.result.known
           )
         }
 

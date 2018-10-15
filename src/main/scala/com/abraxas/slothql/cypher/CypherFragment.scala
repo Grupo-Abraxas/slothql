@@ -349,7 +349,9 @@ object CypherFragment {
       }
     }
 
-    case object All extends Return1[Any]
+    case object All extends Return1[Any] {
+      def as[A]: Return1[A] = this.asInstanceOf[Return1[A]]
+    }
     type All = All.type
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A]
