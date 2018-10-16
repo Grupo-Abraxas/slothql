@@ -781,6 +781,31 @@ object SyntaxTest26 extends App {
 
 }
 
+object SyntaxTest27 extends App {
+  val label = "User"
+  val prop  = "name"
+  val query = Match {
+    case v@Vertex(`label`) => v.prop[Any](prop)
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Any] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+  // MATCH (`v`:`User`) RETURN `v`.`name`
+  // result = Vector(John, Jane)
+}
+
 /*
 TODO: fails to compile =================================================================================================
 
