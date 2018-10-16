@@ -310,8 +310,12 @@ package object syntax extends LowPriorityImplicits {
   implicit class OrderDescendingOps[E <: Expr[_]: CypherFragment](e: E) {
     def desc: ReturnOps.Descending = ReturnOps.Descending(e)
   }
+
+  def conditionOpt[T](cond: Option[T => CypherFragment.Known[CypherFragment.Expr[Boolean]]])(t: T): Known[Expr[Boolean]] =
+    cond.map(_(t)).getOrElse(lit(true))
 }
 
 trait LowPriorityImplicits {
   implicit def unwrapBooleanExprInIfGuard(e: Expr[Boolean]): Boolean = ???
+  implicit def unwrapKnownBooleanExprInIfGuard(e: Known[Expr[Boolean]]): Boolean = ???
 }

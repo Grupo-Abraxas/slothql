@@ -3,6 +3,7 @@ package com.abraxas.slothql.cypher.syntax
 import shapeless.HNil
 
 import com.abraxas.slothql.Connection
+import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
 import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
@@ -781,6 +782,11 @@ object SyntaxTest26 extends App {
 
 }
 
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+// DB contains `populate-2.cypher`
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+
+
 object SyntaxTest27 extends App {
   val label = "User"
   val prop  = "name"
@@ -803,6 +809,31 @@ object SyntaxTest27 extends App {
   sys.exit()
 
   // MATCH (`v`:`User`) RETURN `v`.`name`
+  // result = Vector(John, Jane)
+}
+
+object SyntaxTest28 extends App {
+  val cond0: Option[Vertex => CypherFragment.Known[CypherFragment.Expr[Boolean]]] = Some(_.prop[Int]("age") >= lit(18))
+  val query = Match {
+    // case v@Vertex("User") if cond0.map(_(v)).getOrElse(lit(true)) => v.prop[String]("name") // TODO: syntax ==================
+    case v@Vertex("User") if conditionOpt(cond0)(v) => v.prop[String]("name")
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Any] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+  // MATCH (`v`) WHERE `v`.`age` >= 18 RETURN `v`.`name`
   // result = Vector(John, Jane)
 }
 
