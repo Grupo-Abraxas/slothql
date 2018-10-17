@@ -2,7 +2,7 @@ import scala.sys.process.Process
 
 organization := "com.abraxas"
 
-name := "slothql-dev"
+name := "slothql-dev-mapper"
 
 version := "0.1-SNAPSHOT"
 
