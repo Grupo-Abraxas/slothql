@@ -12,15 +12,18 @@ import shapeless.{ DepFn1, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Known, Query }
 
-trait CypherQueryExecutor {
-  type Result
-  type Reader[A] <: CypherTransactor.Reader[Result, A]
+trait CypherTransactor {
+  type TxBuilder <: CypherTxBuilder
+  val txBuilder: TxBuilder
+  import txBuilder._
 
-  def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]]
-}
+  type Operation[R] = txBuilder.Operation[R]
+  type Read[R]      = txBuilder.Read[R]
+  type ReadWrite[R] = txBuilder.ReadWrite[R]
 
-trait CypherTransactor extends CypherQueryExecutor with CypherTxBuilder {
-  type Transactor = this.type
+  final lazy val Read   = txBuilder.Read
+
+  final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
 
   def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]] =
     runRead(read(query))
@@ -50,34 +53,42 @@ object CypherTransactor {
 
 
 trait CypherTxBuilder {
-  type Transactor <: CypherTransactor
+  type Result
+  type Reader[A] <: CypherTransactor.Reader[Result, A]
 
   sealed trait Operation[R]
   sealed trait Read[R] extends Operation[Seq[R]] {
     type A
     val query: Known[Query[A]]
-    val reader: CypherTransactor.Reader.Aux[Transactor#Result, A, R]
+    val reader: CypherTransactor.Reader.Aux[Result, A, R]
   }
   sealed trait ReadWrite[R] extends Read[R] {
     override val query: Known[Query[A]] // TODO: `Query[A]`
   }
 
-  protected case class Gather[R](read: Read[R]) extends Read[Vector[R]] {
+  protected[cypher] case class Gather[R](read: Read[R]) extends Read[Vector[R]] {
     type A = read.A
     lazy val query: Known[Query[read.A]] = ???
-    lazy val reader: CypherTransactor.Reader.Aux[Transactor#Result, read.A, Vector[R]] = ???
+    lazy val reader: CypherTransactor.Reader.Aux[Result, read.A, Vector[R]] = ???
+  }
+  protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R] {
+    type A = R
+    lazy val query: Known[Query[R]] = ???
+    lazy val reader: CypherTransactor.Reader.Aux[Result, R, R] = ???
   }
 
-  protected object Read {
+  object Read {
     type Aux[R, A0] = Read[R] { type A = A0 }
-    def apply[A0](q: Known[Query[A0]])(implicit r: Transactor#Reader[A0]): Aux[r.Out, A0] =
+    def apply[A0](q: Known[Query[A0]])(implicit r: Reader[A0]): Aux[r.Out, A0] =
       new Read[r.Out] {
         type A = A0
         val query: Known[Query[A]] = q
-        val reader: CypherTransactor.Reader.Aux[Transactor#Result, A, r.Out] =
-          r.asInstanceOf[CypherTransactor.Reader.Aux[Transactor#Result, A, r.Out]]
+        val reader: CypherTransactor.Reader.Aux[Result, A, r.Out] =
+          r.asInstanceOf[CypherTransactor.Reader.Aux[Result, A, r.Out]]
       }
 
+    def const[A](a: A): ReadTx[A] = Free.pure(a)
+    def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
 
     implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
       def pure[A](x: A): ReadTx[Vector[A]] =
@@ -112,6 +123,6 @@ trait CypherTxBuilder {
   type WriteTx[R] = Free[ReadWrite, R]
 
 
-  def read[A](query: Known[Query[A]])(implicit read: Transactor#Reader[A]): ReadTx[read.Out] =
+  def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] =
     liftF[Read, read.Out](Read[A](query))
 }

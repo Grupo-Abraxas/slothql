@@ -5,7 +5,7 @@ import scala.language.{ higherKinds, implicitConversions }
 import cats.data.Ior
 import shapeless.{ <:!<, Generic, HList, |∨| }
 
-import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Return }
+import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Query, Return }
 
 package object syntax extends LowPriorityImplicits {
 
@@ -26,18 +26,18 @@ package object syntax extends LowPriorityImplicits {
 
   final implicit class GraphElemOps(e: GraphElem) {
     /** Select vertex/edge property. */
-    def prop[A: Manifest](k: String): Expr.Key[A] = Expr.Key[A](e, k)
+    def prop[A](k: String): Expr.Key[A] = Expr.Key[A](e, k)
     /** Select vertex/edge property as [[Option]]. */
-    def propOpt[A: Manifest](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
+    def propOpt[A](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
 
     /** Alias for [[prop]]. */
     @deprecated("seems to break query type resolution", since = "03.06.18")
-    def apply[A: Manifest](k: String): Expr.Key[A] = prop(k)
+    def apply[A](k: String): Expr.Key[A] = prop(k)
     /** Alias for [[propOpt]]. */
-    def opt[A: Manifest](k: String): Expr.Key[Option[A]] = propOpt(k)
+    def opt[A](k: String): Expr.Key[Option[A]] = propOpt(k)
 
     /** Call built-in function `func` passing `this` expression as first argument. */
-    def call[R: Manifest](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
+    def call[R](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
       Expr.Call(func, e.known :: args.toList)
 
     /** Call built-in `id` function. */
@@ -81,6 +81,9 @@ package object syntax extends LowPriorityImplicits {
 
   object := {
     def unapply(arg: Any): Option[(String, Any)] = Some(???)
+  }
+  object :?= {
+    def unapply(arg: Any): Option[(String, Option[Any])] = Some(???)
   }
 
   object *: {
@@ -203,11 +206,24 @@ package object syntax extends LowPriorityImplicits {
   lazy val ⟷ : --.type = --
 
 
-  implicit def lit[A: Manifest](a: A): Expr.Lit[A] = Expr.Lit[A](a)
-  implicit def knownLit[A: Manifest](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
+  implicit def lit[A](a: A): Expr.Lit[A] = Expr.Lit[A](a)
+  implicit def knownLit[A](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
 
-  implicit def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
+  def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
+  def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]]): Expr.List[A] =
+    Expr.List[A](exprs.map(Expr.Lit(_).known).toList)
 
+  def collect[A](expr: Known[Expr[A]]): Expr.Call[List[A]] = 'collect.call[List[A]](expr)
+
+  def dict(entries: MapEntry[Any]*): Expr.Map[Any] = Expr.Map(entries.map(_.toPair).toMap)
+  def dict(map: Map[String, Known[Expr[Any]]]): Expr.Map[Any] = Expr.Map(map)
+
+  case class MapEntry[+A](key: String, value: Known[Expr[A]]) { def toPair: (String, Known[Expr[A]]) = key -> value }
+  object MapEntry {
+    implicit def pairKnownToMapEntry[A](pair: (String, Known[Expr[A]])): MapEntry[A] = MapEntry(pair._1, pair._2)
+    implicit def pairToMapEntry[A, E[_] <: Expr[_]](pair: (String, E[A]))(implicit frag: CypherFragment[E[A]]): MapEntry[A] =
+      MapEntry(pair._1, Known(pair._2)(frag).asInstanceOf[Known[Expr[A]]])
+  }
 
   sealed trait QueryReturn[T]{
     type Ret
@@ -250,23 +266,33 @@ package object syntax extends LowPriorityImplicits {
   }
 
 
-  implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e), false, Map(), None, None)
+  implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e))
+  implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
 
 
-  final case class ReturnOps[A] protected[syntax](
+  def `with`[R](ops: ReturnOps[Any] => ReturnOps[Any])(res: Match.Result[R]): Match.Result.With[R] =
+    new Match.Result.With[R] {
+      protected[syntax] def ret: Known[Return[R]] = ops(ReturnOps(Return.All)).copy(_ret = Return.All.as[R]).ret
+      protected[syntax] def query: Known[Query.Query0[R]] = res.result
+    }
+
+  protected final case class ReturnOps[A](
       private val _ret: Known[Return.Return0[A]],
-      private val _distinct: Boolean,
-      private val _order: Return.Order,
-      private val _skip: Option[Long],
-      private val _limit: Option[Long]
-  ) extends Return.Options.Internal.Ops[A]
+      private val _distinct: Boolean    = false,
+      private val _order: Return.Order  = Map(),
+      private val _skip: Option[Long]   = None,
+      private val _limit: Option[Long]  = None
+  ) extends Match.Result.Ret[A]
   {
-    protected[slothql] lazy val options: Known[Return.Options[A]] = Known(Return.Options(_ret, _distinct, _order, _skip, _limit))
+    protected[syntax] def ret: Known[Return[A]] = Return.Options(_ret, _distinct, _order, _skip, _limit).known
 
     def orderBy(by: ReturnOps.OrderBy*): ReturnOps[A] = copy(_order = _order ++ by.map(_.asPair).toMap)
     def skip(n: Long): ReturnOps[A] = copy(_skip = Some(n))
+    def skip(n: Option[Long]): ReturnOps[A] = copy(_skip = n)
     def limit(n: Long): ReturnOps[A] = copy(_limit = Some(n))
+    def limit(n: Option[Long]): ReturnOps[A] = copy(_limit = n)
     def distinct: ReturnOps[A] = copy(_distinct = true)
+    def distinct(b: Boolean): ReturnOps[A] = copy(_distinct = b)
   }
 
   object ReturnOps {
@@ -284,8 +310,12 @@ package object syntax extends LowPriorityImplicits {
   implicit class OrderDescendingOps[E <: Expr[_]: CypherFragment](e: E) {
     def desc: ReturnOps.Descending = ReturnOps.Descending(e)
   }
+
+  def conditionOpt[T](cond: Option[T => CypherFragment.Known[CypherFragment.Expr[Boolean]]])(t: T): Known[Expr[Boolean]] =
+    cond.map(_(t)).getOrElse(lit(true))
 }
 
 trait LowPriorityImplicits {
   implicit def unwrapBooleanExprInIfGuard(e: Expr[Boolean]): Boolean = ???
+  implicit def unwrapKnownBooleanExprInIfGuard(e: Known[Expr[Boolean]]): Boolean = ???
 }

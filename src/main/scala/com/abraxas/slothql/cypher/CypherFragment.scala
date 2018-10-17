@@ -121,14 +121,14 @@ object CypherFragment {
     type Inv[T] = Expr[T]
 
     // // // Values and Variables // // //
-    case class Lit[A](value: A)(implicit val m: Manifest[A]) extends Expr[A]
+    case class Lit[+A](value: A) extends Expr[A]
     trait Var[A] extends Expr[A] {
       val name: String
       val m: Manifest[A]
 
       override def toString: String = s"Var[$m]($name)"
     }
-    case class Call[A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
+    case class Call[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
@@ -160,21 +160,22 @@ object CypherFragment {
     }
 
     // // // Maps // // //
-    case class Map[A](get: Predef.Map[String, Known[Expr[A]]]) extends Expr[Predef.Map[String, A]]
-    case class Key[A](map: Known[Expr[Predef.Map[String, _]]], key: String)(implicit val m: Manifest[A]) extends Expr[A]
+    case class Map[+A](get: Predef.Map[String, Known[Expr[A]]]) extends Expr[Predef.Map[String, A]]
+    case class Key[+A](map: Known[Expr[Predef.Map[String, _]]], key: String) extends Expr[A]
 
     object Map {
-      implicit lazy val fragment: CypherFragment[Map[_]] = define(m => mapStr(m.get))
+      implicit def fragment[A]: CypherFragment[Map[A]] = instance.asInstanceOf[CypherFragment[Map[A]]]
+      lazy val instance: CypherFragment[Map[_]] = define(m => mapStr(m.get))
     }
     object Key {
       implicit def fragment[A]: CypherFragment[Key[A]] = instance.asInstanceOf[CypherFragment[Key[A]]]
-      implicit lazy val instance: CypherFragment[Key[_]] = define {
+      lazy val instance: CypherFragment[Key[_]] = define {
         case Key(m, k) => s"${m.toCypher}.${escapeName(k)}"
       }
     }
 
     // // // Lists // // //
-    case class List[A](get: scala.List[Known[Expr[A]]]) extends Expr[scala.List[A]]
+    case class List[+A](get: scala.List[Known[Expr[A]]]) extends Expr[scala.List[A]]
     case class In[A](elem: Known[Expr[A]], list: Known[Expr[scala.List[A]]]) extends Expr[Boolean]
     case class AtIndex[A](list: Known[Expr[scala.List[A]]], index: Known[Expr[Long]]) extends Expr[A]
     case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends Expr[scala.List[A]]
@@ -346,18 +347,22 @@ object CypherFragment {
       def unapply[A](ret: Return[A]): Option[(Known[Return0[A]], Boolean, Order, Option[Long], Option[Long])] = PartialFunction.condOpt(ret) {
         case ops: Options[A @unchecked] => (ops.ret, ops.distinct, ops.order, ops.skip, ops.limit)
       }
-
-      protected[slothql] object Internal {
-        trait Ops[+A] extends Return[A] {
-          protected[slothql] val options: Known[Options[A]]
-        }
-      }
     }
 
-    case object All extends Return1[Any]
+    case object All extends Return1[Any] {
+      def as[A]: Return1[A] = this.asInstanceOf[Return1[A]]
+    }
     type All = All.type
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A]
+
+
+    /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
+    sealed trait UntypedList extends Return0[scala.List[Any]] {
+      val toList: scala.List[Known[Expr[_]]]
+
+      override def toString: String = s"RetUntypedList(${toList.mkString(", ")})"
+    }
 
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
     sealed trait List[L <: HList] extends Return0[L] {
@@ -368,6 +373,8 @@ object CypherFragment {
       override def toString: String = s"RetList(${toList.mkString(", ")})"
     }
     object List extends ProductArgs {
+      def untyped(exprs: Known[Expr[_]]*): UntypedList = new UntypedList { val toList: scala.List[Known[Expr[_]]] = exprs.toList }
+
       type Aux[L <: HList, E <: HList] = List[L] { type Expressions = E }
 
       sealed trait Build[L <: HList] {
@@ -414,7 +421,8 @@ object CypherFragment {
       def fromHList[L <: HList](l: L)(implicit build: Build[L]): build.Out = build(l)
 
       def unapply(ret: Return[_]): Option[scala.List[Known[Expr[_]]]] = PartialFunction.condOpt(ret) {
-        case list: List[_] => list.toList
+        case list: List[_]     => list.toList
+        case list: UntypedList => list.toList
       }
     }
 
@@ -438,7 +446,6 @@ object CypherFragment {
         val skipFrag = skip map (" SKIP " + _) getOrElse ""
         val limitFrag = limit map (" LIMIT " + _) getOrElse ""
         s"$distinctFrag${expr.toCypher}$orderFrag$skipFrag$limitFrag"
-      case ops: Options.Internal.Ops[_] => ops.options.toCypher
     }
   }
 

@@ -3,9 +3,11 @@ package com.abraxas.slothql.cypher.syntax
 import shapeless.HNil
 
 import com.abraxas.slothql.Connection
+import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.{ Query, Return }
 import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
+// DB contains `populate-1.cypher`
 
 object SyntaxTest {
 
@@ -542,6 +544,327 @@ object SyntaxTest19 extends App {
 
 }
 
+
+object SyntaxTest20 extends App {
+  val id = Some("g1")
+  val query = Match {
+    case g@Vertex("Group", "id" :?= `id`) => g
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`g`:`Group`{ `id`: "g1" }) RETURN `g`
+  // result = Vector(Map(name -> Root Group, id -> g1))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest21 extends App {
+  val id = Option.empty[String]
+  val query = Match {
+    case g@Vertex("Group", "id" :?= `id`) => g
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`g`:`Group`) RETURN `g`
+  // result = Vector(Map(name -> Root Group, id -> g1), Map(name -> Sub Group, id -> g2))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Map[String, Any]] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest22 extends App {
+  val id = Option.empty[String]
+  val query = Match {
+    case u@Vertex("User", "id" :?= `id`) =>
+      Match {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> u2 if u === u2 => u.prop[String]("email") -> g.prop[String]("name")
+        // case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> `u` => u.prop[String]("email") -> g.prop[String]("name") // TODO: syntax =============
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`) MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`u2`) WHERE `u` = `u2` RETURN `u`.`email`, `g`.`name`
+  // result = Vector((john@example.com,Root Group))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[(String, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest23 extends App {
+  val query = Match {
+    case u@Vertex("User") =>
+      Match {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("FooBar")> u2 if u === u2 => u.prop[String]("email") -> g.prop[String]("name")
+      }
+  }
+
+  val queryOpt = Match {
+    case u@Vertex("User") =>
+      Match.optional {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("FooBar")> u2 if u === u2 => u.prop[String]("email") -> g.prop[String]("name")
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`) MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`FooBar`]-> (`u2`) WHERE `u` = `u2` RETURN `u`.`email`, `g`.`name`
+  // result = Vector()
+
+
+  println(queryOpt)
+  println(queryOpt.known.toCypher)
+
+  // MATCH (`u`:`User`) OPTIONAL MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`FooBar`]-> (`u2`) WHERE `u` = `u2` RETURN `u`.`email`, `g`.`name`
+  // result = Vector((john@example.com,null))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[(String, String)] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  val ioOpt = tx.readIO(queryOpt)
+  val resultOpt: Seq[(String, String)] = ioOpt.unsafeRunSync()
+
+  println("result = " + resultOpt)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest24 extends App {
+  val query = Match {
+    case u@Vertex("User") => dict(
+      "id" -> u.prop[String]("id"),
+      "personal" -> dict(
+        "name" -> u.prop[String]("name"),
+        "age"  -> u.prop[Int]("age")
+      ),
+      "account" -> dict(
+        "email"     -> u.prop[String]("email"),
+        "confirmed" -> u.prop[Boolean]("confirmed")
+      )
+    )
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`) RETURN { `id`: `u`.`id`, `personal`: { `name`: `u`.`name`, `age`: `u`.`age` }, `account`: { `email`: `u`.`email`, `confirmed`: `u`.`confirmed` } }
+  // result = Vector(Map(personal -> Map(name -> John, age -> 28), id -> u1, account -> Map(confirmed -> true, email -> john@example.com)))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest25 extends App {
+  val query = Match {
+    case u@Vertex("User") =>
+      Match.optional { // TODO: syntax: reuse `u` in second pattern ===========================================================================================
+        case (u0@Vertex("User")) <(role)- Vertex("Members") `<-` (g@Vertex("Group")) if u === u0 =>
+          dict(
+            "user" -> u.prop("email"),
+            "groups" -> collect(dict(
+              "id" -> g.prop("id"),
+              "role" -> role.tpe
+            ))
+          )
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`)
+  // OPTIONAL MATCH (`u0`:`User`) <-[`role`]- (:`Members`) <-[]- (`g`:`Group`)
+  // WHERE `u` = `u0`
+  // RETURN { `user`: `u`.`email`, `groups`: `collect`({ `id`: `g`.`id`, `role`: `type`(`role`) }) }
+
+  // result = Vector(Map(user -> john@example.com, groups -> List(Map(id -> g2, role -> Edit), Map(id -> g1, role -> Admin))))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+object SyntaxTest26 extends App {
+  val query = Match {
+    case u@Vertex("User") =>
+      `with`(_.orderBy(u.prop[String]("name")).limit(5)) {
+        Match.optional { // TODO: syntax: reuse `u` in second pattern ===========================================================================================
+          case (u0@Vertex("User")) <(role)- Vertex("Members") `<-` (g@Vertex("Group")) if u === u0 =>
+            dict(
+              "user" -> u.prop("email"),
+              "groups" -> collect(dict(
+                "id" -> g.prop("id"),
+                "role" -> role.tpe
+              )).to(lit(1))
+            )
+        }
+      }
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`u`:`User`)
+  // WITH * ORDER BY `u`.`name` LIMIT 5
+  // OPTIONAL MATCH (`u0`:`User`) <-[`role`]- (:`Members`) <-[]- (`g`:`Group`) WHERE `u` = `u0`
+  // RETURN { `user`: `u`.`email`, `groups`: `collect`({ `id`: `g`.`id`, `role`: `type`(`role`) })[..1] }
+
+  // result = Vector(Map(user -> john@example.com, groups -> List(Map(id -> g2, role -> Edit))))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+// DB contains `populate-2.cypher`
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+
+
+object SyntaxTest27 extends App {
+  val label = "User"
+  val prop  = "name"
+  val query = Match {
+    case v@Vertex(`label`) => v.prop[Any](prop)
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Any] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+  // MATCH (`v`:`User`) RETURN `v`.`name`
+  // result = Vector(John, Jane)
+}
+
+object SyntaxTest28 extends App {
+  val cond0: Option[Vertex => CypherFragment.Known[CypherFragment.Expr[Boolean]]] = Some(_.prop[Int]("age") >= lit(18))
+  val query = Match {
+    // case v@Vertex("User") if cond0.map(_(v)).getOrElse(lit(true)) => v.prop[String]("name") // TODO: syntax ==================
+    case v@Vertex("User") if conditionOpt(cond0)(v) => v.prop[String]("name")
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[Any] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+  // MATCH (`v`) WHERE `v`.`age` >= 18 RETURN `v`.`name`
+  // result = Vector(John, Jane)
+}
+
+/*
+TODO: fails to compile =================================================================================================
+
+object SyntaxTest22 extends App {
+  val email = "user@example.com"
+  val query = Match {
+    case Vertex("User", "email" := `email`) -(e)> (g@Vertex("Group")) => g.prop[String]("id")
+  }
+
+  println(query)
+  println(query.known.toCypher)
+
+  // MATCH (`g`:`Group`) RETURN `g`
+  // result = Vector(Map(name -> Root Group, id -> g1), Map(name -> Sub Group, id -> g2))
+
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val io = tx.readIO(query)
+  val result: Seq[String] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  driver.close()
+  sys.exit()
+
+}
+*/
 
 /*
 

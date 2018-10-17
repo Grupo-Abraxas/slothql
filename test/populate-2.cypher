@@ -1,15 +1,22 @@
-CREATE  (b:Book{ title: "History of Rome" }),
-        (a:Author{ name: "Theodor Mommsen" }),
-        (p1:Page{ text: "The Mediterranean Sea with its various branches, penetrating far into the great Continent, forms the largest gulf of the ocean, and, alternately narrowed by islands or projections of the land and expanding to considerable breadth, at once separates and connects the three divisions of the Old World." }),
-        (p2:Page{ text: "We have no information, not even a tradition, concerning the first migration of the human race into Italy. It was the universal belief of antiquity that in Italy, as well as elsewhere, the first population had sprung from the soil." }),
-        (m:Meta{ isbn: "9786610240531" }),
-        (b) -[:author]-> (a),
-        (b) -[:meta]-> (m),
-        (b) -[:pages{ index: 1 }] -> (p1),
-        (b) -[:pages{ index: 2 }] -> (p2);
 
-CREATE  (b:Book{ title: "Homotopy Type Theory" }),
-        (p:Page{ text: "Homotopy type theory is a new branch of mathematics that combines aspects of several different fields in a surprising way." }),
-        (m:Meta{ isbn: "" }),
-        (b) -[:meta]-> (m),
-        (b) -[:pages{ index: 1 }] -> (p);
+/*        (g2)
+    +-------------+   members   +-----------+    Edit
+    |  Sub-Group  |-----------▶ |  Members  |------------┐
+    +-------------+             +-----------+            ▼
+           |                                        +--------+
+           | parent                                 |  User  | (u1)
+           ▼                                        +--------+
+    +-------------+             +-----------+            ▲
+    |  Root Group |-----------▶ |  Members  |------------┘
+    +-------------+   members   +-----------+    Admin
+          (g1)                        |
+                                      | Read
+                                      ▼
+                                  +--------+
+                                  |  User  | (u2)
+                                  +--------+
+*/
+CREATE (:User {id: "u1", email: "john@example.com", name: "John", age: 28, confirmed: true}) <-[:Admin]- (:Members) <-[:members]- (_:Group{id: "g1", name: "Root Group"});
+MATCH (g:Group { id: "g1"}) CREATE (:Group { id: "g2", name: "Sub Group" }) -[:parent]-> (g);
+MATCH (u: User { id: "u1" }),(g:Group { id: "g2"}) CREATE (u) <-[:Edit]- (:Members) <-[:members]- (g);
+MATCH (:Group { id: "g1"}) -[:members]-> (m:Members) CREATE (:User {id: "u2", email: "jane@example.com", name: "Jane", age: 22, confirmed: false}) <-[:Read]- (m);

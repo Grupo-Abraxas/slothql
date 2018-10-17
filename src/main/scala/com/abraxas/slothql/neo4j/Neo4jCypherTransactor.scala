@@ -2,33 +2,24 @@ package com.abraxas.slothql.neo4j
 
 import scala.collection.convert.decorateAsScala._
 
-import cats.~>
-import cats.arrow.FunctionK
 import cats.effect.IO
 import cats.instances.vector._
+import cats.~>
+import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
 import shapeless._
 
-import com.abraxas.slothql.cypher.CypherFragment._
 import com.abraxas.slothql.cypher.{ CypherTransactor, CypherTxBuilder }
-import com.abraxas.slothql.cypher.CypherTransactor.Reader
 import com.abraxas.slothql.neo4j.util.JavaExt._
 
-trait Neo4jTxBuilder extends CypherTxBuilder {
-  type Transactor <: Neo4jCypherTransactor
-}
-object Neo4jTxBuilder extends Neo4jTxBuilder
 
-
-class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor with Neo4jTxBuilder {
+class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
   tx0 =>
 
+  type TxBuilder = Neo4jCypherTransactor.type
+  val txBuilder = Neo4jCypherTransactor
+
   import Neo4jCypherTransactor._
-
-  override type Transactor = this.type
-
-  type Result = Record
-  type Reader[A] = RecordReader[A]
 
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]] =
     IO {
@@ -40,10 +31,13 @@ class Neo4jCypherTransactor(protected val session: () => Session) extends Cypher
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
 }
 
-object Neo4jCypherTransactor {
+object Neo4jCypherTransactor extends CypherTxBuilder {
+  type Result = Record
+  type Reader[A] = RecordReader[A]
+
   def apply(session: => Session): Neo4jCypherTransactor = new Neo4jCypherTransactor(() => session)
 
-  trait RecordReader[A] extends Reader[Record, A]
+  trait RecordReader[A] extends CypherTransactor.Reader[Record, A]
   object RecordReader {
     type Aux[A, R] = RecordReader[A] { type Out = R }
 
@@ -83,7 +77,7 @@ object Neo4jCypherTransactor {
 
   }
 
-  trait ValueReader[A] extends Reader[Value, A] { type Out = A }
+  trait ValueReader[A] extends CypherTransactor.Reader[Value, A] { type Out = A }
   object ValueReader {
     def define[A](f: Value => A): ValueReader[A] =
       new ValueReader[A] {
@@ -102,7 +96,12 @@ object Neo4jCypherTransactor {
     implicit def map[A](implicit reader: ValueReader[A]): ValueReader[Map[String, A]] =
       ValueReader define (_.asMap(reader.apply(_: Value)).asScala.toMap)
 
-    implicit lazy val any: ValueReader[Any] = ValueReader define (_.asObject())
+    implicit lazy val any: ValueReader[Any] = ValueReader define {
+      case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.LIST) => list[Any].apply(v)
+      case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.MAP)  => map[Any].apply(v)
+      case v if v.isNull => None
+      case v             => v.asObject()
+    }
     implicit lazy val boolean: ValueReader[Boolean] = ValueReader define (_.asBoolean())
     implicit lazy val string: ValueReader[String] = ValueReader define (_.asString())
 
@@ -115,12 +114,12 @@ object Neo4jCypherTransactor {
 
   protected def syncInterpreter(t: Neo4jCypherTransactor, tx: Transaction): t.Read ~> Vector =
     λ[t.Read ~> Vector]{
-      case t.Gather(r) => Vector(runReadTxSync(tx, r))
-      case r           =>        runReadTxSync(tx, r)
+      case t.txBuilder.Unwind(i) => i.toVector
+      case t.txBuilder.Gather(r) => Vector(runReadTxSync(tx, r))
+      case r                     =>        runReadTxSync(tx, r)
     }
 
-  protected def runReadTxSync[A](tx: Transaction, r: Neo4jTxBuilder#Read[A]): Vector[A] =
+  protected def runReadTxSync[A](tx: Transaction, r: Read[A]): Vector[A] =
     tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala.toVector // TODO: issue #8
 
-  def tx: Neo4jTxBuilder = Neo4jTxBuilder
 }

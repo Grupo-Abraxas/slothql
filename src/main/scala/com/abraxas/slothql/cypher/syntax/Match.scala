@@ -10,9 +10,28 @@ import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
 import com.abraxas.slothql.cypher.CypherFragment._
 
-object Match {
-  def apply[R](f: Graph => Return[R]): Query[R] = macro impl[R]
+object Match { MatchObj =>
+  def apply[R]   (f: Graph => Match.Result[R]): Query[R] = macro implApply[R]
+  def optional[R](f: Graph => Match.Result[R]): Query[R] = macro implOptional[R]
 
+  sealed trait Result[R] { def result: Query.Query0[R] }
+  object Result{
+    protected[syntax] trait Ret[R] extends Result[R] {
+      protected[syntax] def ret: Known[Return[R]]
+      def result: Query.Query0[R] = Query.Return(ret)
+    }
+    protected[syntax] trait Clause[R] extends Result[R] {
+      protected[syntax] def clause: Query.Clause[R]
+      def result: Query.Query0[R] = clause
+    }
+    protected[syntax] trait With[R] extends Result[R] {
+      protected[syntax] def ret: Known[Return[R]]
+      protected[syntax] def query: Known[Query.Query0[R]]
+      def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = None), query)
+    }
+    // TODO =========================================================
+    // TODO: rename clause's aliases to avoid collision!?
+  }
 
   private type VE = Vertex - Edge
   private type EV = Edge - Vertex
@@ -24,7 +43,9 @@ object Match {
     @inline def graph: Graph = Graph.instance
   }
 
-  def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Return[R]]): c.Expr[Query[R]] = {
+  def implApply[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = false, c)(f)
+  def implOptional[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = true, c)(f)
+  def impl[R: c.WeakTypeTag](optional: Boolean, c: whitebox.Context)(f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
     import c.universe._
 
     val `syntax pkg` = c.typeOf[com.abraxas.slothql.cypher.syntax.`package`.type]
@@ -36,6 +57,7 @@ object Match {
     val `syntax E-V` = typeOf[EV]
     val `syntax Int-Int` = typeOf[II]
     val `syntax :=` = typeOf[:=.type]
+    val `syntax :?=` = typeOf[:?=.type]
     val `syntax *:` = typeOf[*:.type]
     val GraphVertexType = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Vertex]]
     val GraphEdgeType   = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Edge]]
@@ -48,15 +70,20 @@ object Match {
     }
 
 
-    def extractBindParams(body: Tree): (List[String], List[Tree]) = body match {
+    def extractBindParams(body: Tree): (List[Tree], List[Tree]) = body match {
       case UnApplyClassTag(_, arg) => extractBindParams(arg)
       case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
-        val labels = args.collect{ case Literal(Constant(label: String)) => label }
+        val labels = args.collect{ case label if label.tpe =:= typeOf[String] => label }
         val values = args.collect{
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :=` =>
             (args2: @unchecked) match {
               case List(Literal(Constant(k: String)), v) =>
-                q"($k, _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
+                q"Some($k -> _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
+            }
+          case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :?=` =>
+            (args2: @unchecked) match {
+              case List(Literal(Constant(k: String)), v) =>
+                q"$v.map(_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit(_)).map($k -> _)"
             }
         }
         (labels, values)
@@ -76,7 +103,8 @@ object Match {
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(
             alias = ${aliasTree(name)},
             labels = _root_.scala.List(..$labels),
-            map = _root_.scala.Predef.Map(..$values)
+            map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
+                                             (..$values).flatten.toMap
           )
         )
       """
@@ -90,7 +118,8 @@ object Match {
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel(
             alias = ${name.map(aliasTree(_)).getOrElse(q"_root_.scala.None")},
             types = _root_.scala.List(..$labels),
-            map = _root_.scala.Predef.Map(..$values),
+            map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
+                                             (..$values).flatten.toMap,
             length = ${length.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None")},
             dir = ${dir.tree}
           )
@@ -272,6 +301,8 @@ object Match {
         val whereClause = guard0 match {
           case Apply(Select(pkg, TermName("unwrapBooleanExprInIfGuard")), List(cond)) if pkg.tpe =:= `syntax pkg` =>
             q"_root_.scala.Some(_root_.com.abraxas.slothql.cypher.CypherFragment.Known($cond))"
+          case Apply(Select(pkg, TermName("unwrapKnownBooleanExprInIfGuard")), List(cond)) if pkg.tpe =:= `syntax pkg` =>
+            q"_root_.scala.Some($cond)"
           case EmptyTree => q"_root_.scala.None"
           case _ => c.abort(guard0.pos, "`if` contents cannot be transformed to WHERE clause:\n" + showRaw(guard0))
         }
@@ -303,7 +334,7 @@ object Match {
             }
         }
 
-        val f2 = c.Expr[Graph => CypherFragment.Return[R]](fTransormer.transform(f.tree))
+        val f2 = c.Expr[Graph => MatchObj.Result[R]](fTransormer.transform(f.tree))
 
         val res = reify {
           whereVarExpr.splice
@@ -311,10 +342,10 @@ object Match {
           Query.Clause(
             Clause.Match(
               NonEmptyList(pattern.splice, Nil),
-              optional = false,
+              optional = c.Expr[Boolean](Literal(Constant(optional))).splice,
               where = whereIdentExpr.splice
             ),
-            Query.Return(ret)
+            ret.result.known
           )
         }
 
