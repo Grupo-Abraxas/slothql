@@ -44,7 +44,7 @@ object FuncArrow {
     implicit
     isSplit0: A <:< Arrow.Split[Arrows],
     fmap: Lazy[Functor.FMapHList.Aux[Arrows, FuncArrow, Mapped]],
-    split: Arrow.Split.Splitter.Aux[Mapped, Arrow.Split.Aux[Arrows1, S, T]],
+    split: Arrow.Split.Splitter.Aux[Mapped, _ <: Arrow.Split.Aux[Arrows1, S, T]],
     zip: ops.hlist.ZipConst.Aux[S, Arrows1, ZL],
     applyArrows: ops.hlist.Mapper.Aux[ApplyTupled.type, ZL, TL],
     tupler: ops.hlist.Tupler.Aux[TL, T]

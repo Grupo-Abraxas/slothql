@@ -28,7 +28,7 @@ object Arrow {
   // case class Obj[A ](get: A) extends Arrow { type Source = A;    type Target =  A }
   // case class Lit[+A](get: A) extends Arrow { type Source = Unit; type Target <: A }
 
-  sealed trait Split[Arrows <: HList] extends Arrow {
+  trait Split[Arrows <: HList] extends Arrow {
     val arrows: Arrows
 
     override def toString: String = s"Split($arrows)"
@@ -42,13 +42,11 @@ object Arrow {
     object Splitter {
       type Aux[Arrows <: HList, Ts <: Split[_]] = Splitter[Arrows] { type Out = Ts }
 
-      implicit def arrowSplitter[Arrows <: HList, S, T <: HList](
+      implicit def arrowSplitter[Arrows <: HList, S, T](
         implicit
-        source: CommonSource.Aux[Arrows, S],
-        targets: Targets.Aux[Arrows, T],
-        tupler: ops.hlist.Tupler[T]
-      ): Splitter.Aux[Arrows, Split.Aux[Arrows, S, tupler.Out]] =
-        instance.asInstanceOf[Splitter.Aux[Arrows, Split.Aux[Arrows, S, tupler.Out]]]
+        canSplit: CanSplit.Aux[Arrows, S, T],
+        lowPriority: LowPriority
+      ): Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]] = instance.asInstanceOf[Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]]]
 
       private lazy val instance = new Splitter[HList] {
         type Out = Split.Aux[HList, Any, Any]
@@ -58,6 +56,23 @@ object Arrow {
             type Target = Any
             val arrows: HList = t
           }
+      }
+
+      trait CanSplit[Arrows <: HList] {
+        type Source
+        type Target
+      }
+      object CanSplit{
+        type Aux[Arrows <: HList, S, T] = CanSplit[Arrows] { type Source = S; type Target = T }
+
+        implicit def proveCanSplit[Arrows <: HList, S, Ts <: HList, T](
+          implicit
+          source: CommonSource.Aux[Arrows, S],
+          targets: Targets.Aux[Arrows, Ts],
+          tupler: ops.hlist.Tupler.Aux[Ts, T]
+        ): CanSplit.Aux[Arrows, S, T] = instance.asInstanceOf[CanSplit.Aux[Arrows, S, T]]
+
+        private lazy val instance = new CanSplit[HList] {}
       }
     }
   }
@@ -197,6 +212,7 @@ object Arrow {
     }
   }
 
+  @implicitNotFound("Arrows ${Arrows} have different sources")
   trait CommonSource[Arrows <: HList] { type Source }
   object CommonSource {
     type Aux[Arrows <: HList, S] = CommonSource[Arrows] { type Source = S }

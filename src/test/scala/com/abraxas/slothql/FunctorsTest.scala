@@ -287,6 +287,8 @@ object FunctorsTest {
   //  HNil
   // )
 
+  implicitly[split1.type <:< ScalaExpr]
+
   lazy val split1PathDot = ToDot(split1Path)
   // println(s"split1PathDot = $split1PathDot")
 
@@ -319,6 +321,7 @@ object FunctorsTest {
     )
   }
 
+  implicitly[split2.type <:< ScalaExpr]
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]

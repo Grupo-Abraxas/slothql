@@ -3,7 +3,7 @@ package com.abraxas.slothql.arrow
 import scala.language.{ dynamics, higherKinds }
 
 import shapeless.tag.@@
-import shapeless.{ <:!<, Cached, HList, LabelledGeneric, ops }
+import shapeless.{ <:!<, Cached, HList, LUBConstraint, LabelledGeneric, ops }
 
 import com.abraxas.slothql.arrow.Arrow.Types
 
@@ -45,6 +45,23 @@ object ScalaExpr {
       }
   }
 
+
+  sealed trait Split[Arrows <: HList] extends ScalaExpr with Arrow.Split[Arrows]
+  object Split {
+    type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
+  }
+
+  implicit def splitScalaExpr[Arrows <: HList, S, Ts <: HList, T](
+    implicit
+    areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
+    canSplit: Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, T]
+  ): Arrow.Split.Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]] =
+    splitterInstance.asInstanceOf[Arrow.Split.Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]]]
+
+  private lazy val splitterInstance = new Arrow.Split.Splitter[HList] {
+    type Out = Split[HList]
+    def apply(t: HList): Split[HList] = new Split[HList] { val arrows: HList = t }
+  }
 
 
   /** Expression representing selection of a field of an ADT (case class). */
