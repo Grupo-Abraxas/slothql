@@ -87,6 +87,8 @@ object FunctorsTest {
   mapPagesText1_0F(book)
   // List[String] = List()
 
+  implicitly[mapPagesText1_0.type <:< ScalaExpr]
+
   // TODO: test mapping to GraphPath
   // TODO: test CypherQueryArrow
   val mapPagesText1 = selPages.map(selText)
@@ -100,6 +102,7 @@ object FunctorsTest {
   mapPagesText1F(book)
   // List[String] = List()
 
+  implicitly[mapPagesText1.type <:< ScalaExpr]
 
   // TODO: test mapping to GraphPath
   // TODO: test CypherQueryArrow
@@ -114,6 +117,7 @@ object FunctorsTest {
   mapPagesText2F(book)
   // List[String] = List()
 
+  implicitly[mapPagesText2.type <:< ScalaExpr]
 
   val selAuthor = ScalaExpr[Book].selectDynamic("author") // same as `.author`
   // ScalaExpr.SelectField[Book, author, Option[Author]]
@@ -147,6 +151,8 @@ object FunctorsTest {
   // authorCypherArrow.Target
   // = KnownClause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(author),Map(),None,Outgoing){ -[:`author`]-> },KnownNode(Some(n),List(Author),Map()){ (`n`:`Author`) }){ (:`Book`) -[:`author`]-> (`n`:`Author`) }),false,None){ MATCH (:`Book`) -[:`author`]-> (`n`:`Author`) },KnownReturn(KnownExpr(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },None){ `n` }){ RETURN `n` })
   // { MATCH (:`Book`) -[:`author`]-> (`n`:`Author`) RETURN `n` }
+
+  implicitly[selAuthor.type <:< ScalaExpr]
 
   // TODO: test mapping to GraphPath
   // TODO: test CypherQueryArrow
@@ -203,6 +209,8 @@ object FunctorsTest {
   // isbnCypherArrow.Target
   // = KnownClause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(meta),Map(),None,Outgoing){ -[:`meta`]-> },KnownNode(Some(n),List(Meta),Map()){ (`n`:`Meta`) }){ (:`Book`) -[:`meta`]-> (`n`:`Meta`) }),false,None){ MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) },KnownReturn(KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },isbn){ `n`.`isbn` },None){ `n`.`isbn` }){ RETURN `n`.`isbn` })
   // { MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) RETURN `n`.`isbn` }
+
+  implicitly[selIsbn.type <:< ScalaExpr]
 
 
   val bookId = ScalaExpr[Book]

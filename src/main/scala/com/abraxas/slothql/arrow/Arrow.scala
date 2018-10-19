@@ -1,5 +1,7 @@
 package com.abraxas.slothql.arrow
 
+import scala.annotation.implicitNotFound
+
 import shapeless._
 
 trait Arrow {
@@ -139,16 +141,31 @@ object Arrow {
     }
 
 
-    implicit def canCompose[F <: Arrow, G <: Arrow, FS, FT, GS, GT](
+    implicit def canCompose[F <: Arrow, G <: Arrow, S, T](
       implicit
-      fTypes: Types.Aux[F, FS, FT],
-      gTypes: Types.Aux[G, GS, GT],
-      typesCorrespond: FS <:< GT,
+      typesCorrespond: TypesCorrespond.Aux[F, G, S, T],
       lowPriority: LowPriority
-    ): Aux[F, G, Composition.Aux[F, G, GS, FT]] = instance.asInstanceOf[Aux[F, G, Composition.Aux[F, G, GS, FT]]]
+    ): Compose.Aux[F, G, Composition.Aux[F, G, S, T]] = instance.asInstanceOf[Aux[F, G, Composition.Aux[F, G, S, T]]]
     private lazy val instance = new Compose[Arrow, Arrow] {
       type Out = Composition[Arrow, Arrow]
       def apply(f: Arrow, g: Arrow) = new Composition[Arrow, Arrow] { val F = f; val G = g }
+    }
+
+    @implicitNotFound("Types of ${F} and ${G} do not correspond for composition")
+    trait TypesCorrespond[F <: Arrow, G <: Arrow] {
+      type Source
+      type Target
+    }
+    object TypesCorrespond {
+      type Aux[F <: Arrow, G <: Arrow, S, T] = TypesCorrespond[F, G] { type Source = S; type Target = T }
+
+      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow, FS, FT, GS, GT](
+        implicit
+        fTypes: Types.Aux[F, FS, FT],
+        gTypes: Types.Aux[G, GS, GT],
+        typesCorrespond: FS <:< GT
+      ): TypesCorrespond.Aux[F, G, GS, FT] = instance.asInstanceOf[TypesCorrespond.Aux[F, G, GS, FT]]
+      private lazy val instance = new TypesCorrespond[Arrow, Arrow] {}
     }
   }
 

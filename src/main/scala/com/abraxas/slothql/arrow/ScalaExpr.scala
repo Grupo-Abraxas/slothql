@@ -3,7 +3,7 @@ package com.abraxas.slothql.arrow
 import scala.language.{ dynamics, higherKinds }
 
 import shapeless.tag.@@
-import shapeless.{ Cached, HList, LabelledGeneric, ops }
+import shapeless.{ <:!<, Cached, HList, LabelledGeneric, ops }
 
 import com.abraxas.slothql.arrow.Arrow.Types
 
@@ -22,6 +22,30 @@ object ScalaExpr {
     def apply[A]: Id[A] = instance.asInstanceOf[Id[A]]
     private lazy val instance = new Id[Any]{}
   }
+
+
+  sealed trait Composition[F <: ScalaExpr, G <: ScalaExpr] extends ScalaExpr with Arrow.Composition[F, G]
+  object Composition {
+    type Aux[F <: ScalaExpr, G <: ScalaExpr, S, T] = Composition[F, G] { type Source = S; type Target = T }
+  }
+
+  implicit def composeScalaExprs[F <: ScalaExpr, G <: ScalaExpr, S, T](
+    implicit
+    typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
+    fNotId: F <:!< Arrow.Id[_],
+    gNotId: G <:!< Arrow.Id[_]
+  ): Arrow.Compose.Aux[F, G, Composition.Aux[F, G, S, T]] = composeInstance.asInstanceOf[Arrow.Compose.Aux[F, G, Composition.Aux[F, G, S, T]]]
+
+  private lazy val composeInstance = new Arrow.Compose[ScalaExpr, ScalaExpr] {
+    type Out = Composition[ScalaExpr, ScalaExpr]
+    def apply(f: ScalaExpr, g: ScalaExpr): Composition[ScalaExpr, ScalaExpr] =
+      new Composition[ScalaExpr, ScalaExpr] {
+        val F: ScalaExpr = f
+        val G: ScalaExpr = g
+      }
+  }
+
+
 
   /** Expression representing selection of a field of an ADT (case class). */
   case class SelectField[Obj, K <: String, V](field: K)
