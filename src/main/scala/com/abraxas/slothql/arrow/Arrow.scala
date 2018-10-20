@@ -1,6 +1,8 @@
 package com.abraxas.slothql.arrow
 
 import scala.annotation.implicitNotFound
+import scala.language.experimental.macros
+import scala.reflect.macros.whitebox
 
 import shapeless._
 
@@ -76,6 +78,25 @@ object Arrow {
       }
     }
   }
+
+  implicit class SplitOps[F <: Arrow](protected val f: F) {
+    def split(arrows: (F => Arrow)*): Arrow = macro SplitOps.splitImpl[F]
+  }
+  object SplitOps {
+    def splitImpl[F: c.WeakTypeTag](c: whitebox.Context)(arrows: c.Tree*): c.Tree = {
+      import c.universe._
+
+      val f = c.prefix.tree match {
+        case q"new $clazz($param)" if clazz.tpe <:< typeOf[SplitOps[_]] => param
+        case q"arrow.this.Arrow.SplitOps[$_]($param)" => param
+        case other => c.abort(c.prefix.tree.pos, s"Unexpected: $other")
+      }
+      q"""
+        _root_.com.abraxas.slothql.arrow.Arrow.Split(..${arrows.map(t => q"$t($f)")})
+      """
+    }
+  }
+
 
   /** An arrow that represents arrows composition. */
   trait Composition[F <: Arrow, G <: Arrow] extends Arrow {

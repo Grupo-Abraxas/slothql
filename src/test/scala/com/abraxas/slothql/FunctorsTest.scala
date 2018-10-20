@@ -323,6 +323,11 @@ object FunctorsTest {
 
   implicitly[split2.type <:< ScalaExpr]
 
+  val split3 = bookId.split(_.title, _.meta.isbn)
+
+  implicitly[split3.type <:< ScalaExpr]
+
+
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]
 
