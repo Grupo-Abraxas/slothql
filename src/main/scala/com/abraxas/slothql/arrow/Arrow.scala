@@ -80,6 +80,10 @@ object Arrow {
   }
 
   implicit class SplitOps[F <: Arrow](protected val f: F) {
+    /**
+     *  Warning: any macro application error in the arguments (like incorrect field name) will be swallowed by this macro,
+     *  showing just `exception during macro expansion` error. Looks like [[https://github.com/scala/bug/issues/9889]].
+     */
     def split(arrows: (F => Arrow)*): Arrow = macro SplitOps.splitImpl[F]
   }
   object SplitOps {
