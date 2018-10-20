@@ -93,24 +93,24 @@ object Arrow {
     }
   }
 
-  implicit class SplitOps[F <: Arrow](protected val f: F) {
+  implicit class SplitOps[F <: Arrow, S, T, IdArr <: Arrow](f: F)(implicit types: Types.Aux[F, S, T], idArr: Id.Builder.Aux[F, T, IdArr]) {
     /**
      *  Warning: any macro application error in the arguments (like incorrect field name) will be swallowed by this macro,
      *  showing just `exception during macro expansion` error. Looks like [[https://github.com/scala/bug/issues/9889]].
      */
-    def split(arrows: (F => Arrow)*): Arrow = macro SplitOps.splitImpl[F]
+    def split(arrows: (IdArr => Arrow)*): Arrow = macro SplitOps.splitImpl[F]
   }
   object SplitOps {
     def splitImpl[F: c.WeakTypeTag](c: whitebox.Context)(arrows: c.Tree*): c.Tree = {
       import c.universe._
 
-      val f = c.prefix.tree match {
-        case q"new $clazz($param)" if clazz.tpe <:< typeOf[SplitOps[_]] => param
-        case q"arrow.this.Arrow.SplitOps[$_]($param)" => param
+      val (f, idBuilder) = c.prefix.tree match {
+        case q"new $clazz($param)($_, $id)" if clazz.tpe <:< typeOf[SplitOps[_, _, _, _]] => param -> id
+        case q"arrow.this.Arrow.SplitOps[..$_]($param)($_, $id)" => param -> id
         case other => c.abort(c.prefix.tree.pos, s"Unexpected: $other")
       }
       q"""
-        _root_.com.abraxas.slothql.arrow.Arrow.Split(..${arrows.map(t => q"$t($f)")})
+        _root_.com.abraxas.slothql.arrow.Arrow.Split(..${arrows.map(t => q"$t($idBuilder())")}) ∘ $f
       """
     }
   }

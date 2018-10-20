@@ -366,10 +366,36 @@ object FunctorsTest {
 
   implicitly[split2.type <:< ScalaExpr]
 
+  val split3_0 = new Arrow.SplitOps(bookId).split(_.title, _.meta.isbn)
   val split3 = bookId.split(_.title, _.meta.isbn)
+  //ScalaExpr.Split[
+  //  ScalaExpr.SelectField[Book, title, String] ::
+  //  ScalaExpr.Composition[
+  //      ScalaExpr.SelectField[Meta, isbn, String],
+  //      ScalaExpr.SelectField[Book, meta, Meta]
+  //    ]{ type Source = Book; type Target = String } ::
+  //  HNil
+  //]{ type Source = Book; type Target = (String, String) }
+  //= Split(
+  //  SelectField[Book, String](title) ::
+  //  SelectField[Meta, String](isbn) ∘ SelectField[Book, Meta](meta) ::
+  //  HNil
+  //)
 
   implicitly[split3.type <:< ScalaExpr]
 
+
+  val split4 = bookId.meta.split(_.isbn)
+  //ScalaExpr.Composition[
+  //  ScalaExpr.Split[
+  //      ScalaExpr.SelectField[Meta, isbn, String] ::
+  //      HNil
+  //    ]{ type Source = Meta; type Target = (String,) },
+  //  ScalaExpr.SelectField[Book, meta, Meta]
+  //]{ type Source = Book; type Target = (String,) }
+  //= Split(SelectField[Meta, String](isbn) :: HNil) ∘ SelectField[Book, Meta](meta)
+
+  implicitly[split4.type <:< ScalaExpr]
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]
