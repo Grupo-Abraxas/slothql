@@ -231,7 +231,7 @@ object FunctorsTest {
   // { MATCH (`n`:`Book`) RETURN `n` }
 
 
-  val split1 = bookId >>> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
+  val split1 = bookId >^> { book => Arrow.Split(book.title, book.author, book.meta.isbn) }
   // Arrow.Split[
   //  ScalaExpr.SelectField[Book, title, String] ::
   //  ScalaExpr.SelectField[Book, author, Option[Author]] ::
@@ -310,16 +310,59 @@ object FunctorsTest {
   // )
   // TODO: fail ========================================================================================================
 
-  val split2 = bookId >>> { book =>
+  val split2 = bookId andThenF { book =>
     Arrow.Split(
       book.title,
-//      book.author.map(author => author.pseudonym),
-//      book.author.map(author => author.name),
-//      book.author.map(author => Arrow.Split(author.name)),
-//      book.author.map(author => Arrow.Split(author.name, author.pseudonym)), // TODO: it doesn't work!!!
+      book.author.map(author => author.pseudonym),
+      book.author.map(author => author.name),
+      book.author.map(author => Arrow.Split(author.name)),
+      book.author.map(author => Arrow.Split(author.name, author.pseudonym)),
       book.meta.isbn
     )
   }
+  //ScalaExpr.Split[
+  //  ScalaExpr.SelectField[Book, title, String] ::
+  //  ScalaExpr.Composition[
+  //      ScalaExpr.FMap[Option, ScalaExpr.SelectField[Author, pseudonym, Option[String]]],
+  //      ScalaExpr.SelectField[Book, author, Option[Author]]
+  //    ]{ type Source = Book; type Target = Option[Option[String]] } ::
+  //  ScalaExpr.Composition[
+  //      ScalaExpr.FMap[Option,
+  //          ScalaExpr.SelectField[Author, name, String]
+  //        ],
+  //      ScalaExpr.SelectField[Book, author, Option[Author]]
+  //    ]{ type Source = Book; type Target = Option[String] } ::
+  //  ScalaExpr.Composition[
+  //      ScalaExpr.FMap[Option,
+  //          ScalaExpr.Split[ScalaExpr.SelectField[Author, name, String] :: HNil]]
+  //            { type Source = Author; type Target = (String,) }
+  //        ],
+  //      ScalaExpr.SelectField[Book, author, Option[Author]]
+  //    ]{ type Source = Book; type Target = Option[(String,)] } ::
+  //  ScalaExpr.Composition[
+  //      ScalaExpr.FMap[Option,
+  //          ScalaExpr.Split[ScalaExpr.SelectField[Author, name, String] :: ScalaExpr.SelectField[Author, pseudonym, Option[String]] :: HNil]
+  //            { type Source = Author; type Target = (String, Option[String]) }
+  //        ],
+  //      ScalaExpr.SelectField[Book, author, Option[Author]]
+  //    ]{ type Source = Book; type Target = Option[(String, Option[String])] } ::
+  //  ScalaExpr.Composition[
+  //      ScalaExpr.SelectField[Meta, isbn, String],
+  //      ScalaExpr.SelectField[Book, meta, Meta]
+  //    ]{type Source = Book;type Target = String} ::
+  //  HNil
+  //]{
+  //  type Source = Book
+  //  type Target = (String, Option[Option[String]], Option[String], Option[(String,)], Option[(String, Option[String])], String)
+  //} = Split(
+  //  SelectField[Book, String](title) ::
+  //  FMap[Option[Author], Option[Option[String]]](SelectField[Author, Option[String]](pseudonym)) ∘ SelectField[Book, Option[Author]](author) ::
+  //  FMap[Option[Author], Option[String]](SelectField[Author, String](name)) ∘ SelectField[Book, Option[Author]](author) ::
+  //  FMap[Option[Author], Option[Tuple1[String]]](Split(SelectField[Author, String](name) :: HNil)) ∘ SelectField[Book, Option[Author]](author) ::
+  //  FMap[Option[Author], Option[Tuple2[String, Option[String]]]](Split(SelectField[Author, String](name) :: SelectField[Author, Option[String]](pseudonym) :: HNil)) ∘ SelectField[Book, Option[Author]](author) ::
+  //  SelectField[Meta, String](isbn) ∘ SelectField[Book, Meta](meta) ::
+  //  HNil
+  //)
 
   implicitly[split2.type <:< ScalaExpr]
 

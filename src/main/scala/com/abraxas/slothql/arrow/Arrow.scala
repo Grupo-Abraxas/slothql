@@ -23,8 +23,22 @@ object Arrow {
 
     override def toString: String = "Id"
   }
-  private object Id extends Id[Any]
-  def Id[A]: Id[A] = Id.asInstanceOf[Id[A]]
+  object Id {
+    def apply[A]: Id[A] = instance.asInstanceOf[Id[A]]
+    protected[Id] lazy val instance = new Id[Any] {}
+
+    trait Builder[A <: Arrow, T] extends DepFn0 { type Out <: Arrow }
+    object Builder {
+      type Aux[A <: Arrow, T, Id <: Arrow] = Builder[A, T] { type Out = Id }
+
+      implicit def defaultIdArrowBuilder[A <: Arrow, T](implicit lowPriority: LowPriority): Builder.Aux[A, T, Arrow.Id[T]] =
+        instance.asInstanceOf[Builder.Aux[A, T, Arrow.Id[T]]]
+      private lazy val instance = new Builder[Arrow, Any] {
+        type Out = Arrow.Id[Any]
+        def apply(): Arrow.Id[Any] = Arrow.Id.instance
+      }
+    }
+  }
 
 
   // case class Obj[A ](get: A) extends Arrow { type Source = A;    type Target =  A }
@@ -129,9 +143,12 @@ object Arrow {
 
     def andThen[G <: Arrow](g: G)(implicit compose: Compose[G, F]): compose.Out = compose(g, f)
     def >>>    [G <: Arrow](g: G)(implicit compose: Compose[G, F]): compose.Out = compose(g, f)
+  }
 
-    def andThen[G <: Arrow](fg: F => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(f), f)
-    def >>>    [G <: Arrow](fg: F => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(f), f)
+  /** Syntax sugar for arrows composition. */
+  implicit class ComposeOpsIdArr[F <: Arrow, S, T, IdArr <: Arrow](f: F)(implicit types: Types.Aux[F, S, T], idArr: Id.Builder.Aux[F, T, IdArr]) {
+    def andThenF[G <: Arrow](fg: IdArr => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(idArr()), f)
+    def >^>     [G <: Arrow](fg: IdArr => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(idArr()), f)
   }
 
   /** Syntax sugar for unchaining composed arrows. */

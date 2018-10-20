@@ -32,6 +32,11 @@ object ScalaExpr {
       }
   }
 
+  implicit def scalaExprIdArrowBuilder[A <: ScalaExpr, T: Manifest]: Arrow.Id.Builder.Aux[A, T, Id[T]] =
+    new Arrow.Id.Builder[A, T] {
+      type Out = Id[T]
+      def apply(): Id[T] = Id[T]
+    }
 
   sealed trait Composition[F <: ScalaExpr, G <: ScalaExpr] extends ScalaExpr with Arrow.Composition[F, G]
   object Composition {
