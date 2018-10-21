@@ -6,7 +6,7 @@ import scala.reflect.macros.whitebox
 
 import shapeless._
 
-import com.abraxas.slothql.util.ShapelessUtils
+import com.abraxas.slothql.util.{ ShapelessUntag, ShapelessUtils }
 
 trait Arrow {
   type Source
@@ -225,10 +225,12 @@ object Arrow {
     object TypesCorrespond {
       type Aux[F <: Arrow, G <: Arrow, S, T] = TypesCorrespond[F, G] { type Source = S; type Target = T }
 
-      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow, FS, FT, GS, GT](
+      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow, FS0, FS, FT, GS, GT0, GT](
         implicit
-        fTypes: Types.Aux[F, FS, FT],
-        gTypes: Types.Aux[G, GS, GT],
+        fTypes: Types.Aux[F, FS0, FT],
+        gTypes: Types.Aux[G, GS, GT0],
+        fSource: ShapelessUntag.Aux[FS0, FS],
+        gTarget: ShapelessUntag.Aux[GT0, GT],
         typesCorrespond: FS <:< GT
       ): TypesCorrespond.Aux[F, G, GS, FT] = instance.asInstanceOf[TypesCorrespond.Aux[F, G, GS, FT]]
       private lazy val instance = new TypesCorrespond[Arrow, Arrow] {}
