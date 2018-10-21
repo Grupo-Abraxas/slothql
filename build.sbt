@@ -1,30 +1,44 @@
 import scala.sys.process.Process
 
-organization := "com.abraxas"
+lazy val root = (project in file(".")).
+  settings(
+    inThisBuild(List(
+      organization := "com.abraxas",
+      scalaVersion := "2.11.12",
+      version      := "0.1-SNAPSHOT"
+    )),
 
-name := "slothql-dev-mapper"
+    name := "slothql-dev-mapper",
 
-version := "0.1-SNAPSHOT"
+    scalacOptions in Compile ++= Seq("-unchecked", "-feature"),
+    scalacOptions in Compile += "-Ypartial-unification",
 
-scalaVersion := "2.11.12"
+    resolvers += Resolver.sonatypeRepo("releases"),
+    addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
 
-scalacOptions in Compile ++= Seq("-unchecked", "-feature")
-scalacOptions in Compile += "-Ypartial-unification"
+    libraryDependencies ++= Seq(
+      "org.typelevel"   %% "cats-core"          % catsVersion,
+      "org.typelevel"   %% "cats-free"          % catsVersion,
+      "org.typelevel"   %% "cats-effect"        % "0.10.1",
+      "org.neo4j.driver" % "neo4j-java-driver"  % "1.6.1"
+    )
+  ).
+  dependsOn(macros).
+  aggregate(macros)
 
-resolvers += Resolver.sonatypeRepo("releases")
 
-addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6")
+lazy val macros = (project in file("macros"))
+  .settings(
+    name := "slothql-mapper-macros-dev",
+    libraryDependencies ++= Seq(
+      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+      "com.chuusai"   %% "shapeless"     % "2.3.3"
+    )
+  )
 
+// // // Dependencies // // //
 
 lazy val catsVersion = "1.1.0"
-
-libraryDependencies ++= Seq(
-  "com.chuusai"     %% "shapeless"          % "2.3.3",
-  "org.typelevel"   %% "cats-core"          % catsVersion,
-  "org.typelevel"   %% "cats-free"          % catsVersion,
-  "org.typelevel"   %% "cats-effect"        % "0.10.1",
-  "org.neo4j.driver" % "neo4j-java-driver"  % "1.6.1"
-)
 
 // // // REPL // // //
 
