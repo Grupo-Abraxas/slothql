@@ -373,7 +373,10 @@ object CypherFragment {
       override def toString: String = s"RetList(${toList.mkString(", ")})"
     }
     object List extends ProductArgs {
-      def untyped(exprs: Known[Expr[_]]*): UntypedList = new UntypedList { val toList: scala.List[Known[Expr[_]]] = exprs.toList }
+      def untypedReturns(exprs: Known[Return.Expr[_]]*): UntypedList = new UntypedList { val toList: scala.List[Known[Expr[_]]] = exprs.toList }
+      def untyped(exprs: Iterable[Known[CypherFragment.Expr[_]]]): UntypedList = new UntypedList {
+        val toList: scala.List[Known[Expr[_]]] = exprs.toList.map(Return.Expr[Any](_, as = None).known)
+      }
 
       type Aux[L <: HList, E <: HList] = List[L] { type Expressions = E }
 
