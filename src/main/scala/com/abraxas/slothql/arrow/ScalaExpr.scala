@@ -6,7 +6,7 @@ import shapeless.tag.@@
 import shapeless.{ <:!<, Cached, HList, LUBConstraint, LabelledGeneric, ops }
 
 import com.abraxas.slothql.arrow.Arrow.Types
-import com.abraxas.slothql.util.ShowManifest
+import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
 
 
 sealed trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
@@ -30,6 +30,7 @@ object ScalaExpr {
         val src: Manifest[A] = manifest[A]
         val tgt: Manifest[A] = manifest[A]
       }
+    def unapply(arr: Arrow): Option[Manifest[_]] = PartialFunction.condOpt(arr) { case id: Id[_] => id.src }
   }
 
   implicit def scalaExprIdArrowBuilder[A <: ScalaExpr, T: Manifest]: Arrow.Id.Builder.Aux[A, T, Id[T]] =
@@ -41,6 +42,7 @@ object ScalaExpr {
   sealed trait Composition[F <: ScalaExpr, G <: ScalaExpr] extends ScalaExpr with Arrow.Composition[F, G]
   object Composition {
     type Aux[F <: ScalaExpr, G <: ScalaExpr, S, T] = Composition[F, G] { type Source = S; type Target = T }
+    def unapply(arr: Arrow): Option[(ScalaExpr, ScalaExpr)] = PartialFunction.condOpt(arr) { case c: Composition[_, _] => c.F -> c.G }
   }
 
   implicit def composeScalaExprs[F <: ScalaExpr, G <: ScalaExpr, S, T](
@@ -64,9 +66,12 @@ object ScalaExpr {
   }
 
 
-  sealed trait Split[Arrows <: HList] extends ScalaExpr with Arrow.Split[Arrows]
+  sealed trait Split[Arrows <: HList] extends ScalaExpr with Arrow.Split[Arrows] {
+    override val toList: List[ScalaExpr]
+  }
   object Split {
     type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
+    def unapply(arr: Arrow): Option[List[ScalaExpr]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
   }
 
   implicit def splitScalaExpr[Arrows <: HList, S, Ts <: HList, T](
@@ -85,6 +90,7 @@ object ScalaExpr {
           type Target = T
           val src: Manifest[S] = sourceMf
           val tgt: Manifest[T] = targetMf
+          val toList: List[ScalaExpr] = ShapelessUtils.unsafeHListToList(t)
         }
     }
 

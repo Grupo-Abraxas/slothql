@@ -6,6 +6,8 @@ import scala.reflect.macros.whitebox
 
 import shapeless._
 
+import com.abraxas.slothql.util.ShapelessUtils
+
 trait Arrow {
   type Source
   type Target
@@ -27,6 +29,8 @@ object Arrow {
     def apply[A]: Id[A] = instance.asInstanceOf[Id[A]]
     protected[Id] lazy val instance = new Id[Any] {}
 
+    def unapply(arr: Arrow): Boolean = arr.isInstanceOf[Id[_]]
+
     trait Builder[A <: Arrow, T] extends DepFn0 { type Out <: Arrow }
     object Builder {
       type Aux[A <: Arrow, T, Id <: Arrow] = Builder[A, T] { type Out = Id }
@@ -46,6 +50,7 @@ object Arrow {
 
   trait Split[Arrows <: HList] extends Arrow {
     val arrows: Arrows
+    val toList: List[Arrow]
 
     override def toString: String = s"Split($arrows)"
   }
@@ -53,6 +58,8 @@ object Arrow {
     type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
 
     def applyProduct[Arrows <: HList](arrows: Arrows)(implicit split: Splitter[Arrows]): split.Out = split(arrows)
+
+    def unapply(arr: Arrow): Option[List[Arrow]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
 
     trait Splitter[Arrows <: HList] extends DepFn1[Arrows] { type Out <: Split[Arrows] }
     object Splitter {
@@ -71,6 +78,7 @@ object Arrow {
             type Source = Any
             type Target = Any
             val arrows: HList = t
+            val toList: List[Arrow] = ShapelessUtils.unsafeHListToList(t)
           }
       }
 
@@ -133,6 +141,7 @@ object Arrow {
   object Composition {
     type Aux[F <: Arrow, G <: Arrow, S, T] = Composition[F, G] { type Source = S; type Target = T }
     def apply[F <: Arrow, G <: Arrow](f: F, g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
+    def unapply(arr: Arrow): Option[(Arrow, Arrow)] = PartialFunction.condOpt(arr) { case c: Composition[_, _] => c.F -> c.G }
   }
 
   /** Syntax sugar for arrows composition. */
