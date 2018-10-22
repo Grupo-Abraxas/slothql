@@ -2,9 +2,9 @@ package com.abraxas.slothql.arrow
 
 import scala.language.{ dynamics, higherKinds }
 
-import shapeless.labelled.FieldType
+import shapeless.labelled.{ FieldType, KeyTag }
 import shapeless.tag.@@
-import shapeless.{ <:!<, Cached, HList, LUBConstraint, LabelledGeneric, ops }
+import shapeless.{ <:!<, Cached, HList, LUBConstraint, LabelledGeneric, Lazy, LowPriority, ops }
 
 import com.abraxas.slothql.arrow.Arrow.Types
 import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
@@ -44,6 +44,16 @@ object ScalaExpr {
   object Composition {
     type Aux[F <: ScalaExpr, G <: ScalaExpr, S, T] = Composition[F, G] { type Source = S; type Target = T }
     def unapply(arr: Arrow): Option[(ScalaExpr, ScalaExpr)] = PartialFunction.condOpt(arr) { case c: Composition[_, _] => c.F -> c.G }
+
+    protected[ScalaExpr] def mkComposition(f: ScalaExpr, g: ScalaExpr) =
+      new Composition[ScalaExpr, ScalaExpr] {
+        val F: ScalaExpr = f
+        val G: ScalaExpr = g
+        type Source = G.Source
+        type Target = F.Target
+        val src: Manifest[G.Source] = G.src
+        val tgt: Manifest[F.Target] = F.tgt
+      }
   }
 
   implicit def composeScalaExprs[F <: ScalaExpr, G <: ScalaExpr, S, T](
@@ -55,15 +65,7 @@ object ScalaExpr {
 
   private lazy val composeInstance = new Arrow.Compose[ScalaExpr, ScalaExpr] {
     type Out = Composition[ScalaExpr, ScalaExpr]
-    def apply(f: ScalaExpr, g: ScalaExpr): Composition[ScalaExpr, ScalaExpr] =
-      new Composition[ScalaExpr, ScalaExpr] {
-        val F: ScalaExpr = f
-        val G: ScalaExpr = g
-        type Source = G.Source
-        type Target = F.Target
-        val src: Manifest[G.Source] = G.src
-        val tgt: Manifest[F.Target] = F.tgt
-      }
+    def apply(f: ScalaExpr, g: ScalaExpr): Composition[ScalaExpr, ScalaExpr] = Composition.mkComposition(f, g)
   }
 
 
@@ -223,10 +225,54 @@ object ScalaExpr {
 
   sealed trait Labelled extends Arrow
   object Labelled {
-    implicit def labelScalaExprFunctor[E <: ScalaExpr, Obj, K <: String, V](
+
+    implicit def labelScalaExprSelectFieldFunctor[E <: ScalaExpr, Obj, K <: String, V](
       implicit
       selectField: E <:< SelectField[Obj, K, V]
     ): Functor.Aux[E, Labelled, SelectField[Obj, K, FieldType[K, V]]] =
       Functor.define[E, Labelled](_.asInstanceOf[SelectField[Obj, K, FieldType[K, V]]])
+
+    // uses `ComposeLabelled`
+    implicit def labelScalaExprCompositionFunctor[
+      From <: ScalaExpr, FromF <: ScalaExpr, ToF <: ScalaExpr, FromG <: ScalaExpr, ToG <: ScalaExpr
+    ](
+      implicit
+      composition: From <:< Composition[FromF, FromG],
+      fF: Lazy[Functor.Aux[FromF, Labelled, ToF]],
+      fG: Lazy[Functor.Aux[FromG, Labelled, ToG]],
+      compose: ComposeLabelled[ToF, ToG]
+     ): Functor.Aux[From, Labelled, compose.Out] =
+      Functor.define[From, Labelled](t => compose(fF.value(t.F), fG.value(t.G)))
+
+    trait ComposeLabelled[F <: ScalaExpr, G <: ScalaExpr] extends Arrow.Compose[F, G] { type Out <: ScalaExpr }
+    object ComposeLabelled {
+      type Aux[F <: ScalaExpr, G <: ScalaExpr, Composition <: ScalaExpr] = ComposeLabelled[F, G] { type Out = Composition }
+
+      implicit def composeLabelledScalaExprs[F <: ScalaExpr, G <: ScalaExpr, GT, K, S, T](
+        implicit
+        gTypes: Types.Aux[G, _, GT],
+        gTargetIsLabelled: GT <:< KeyTag[K, _],
+        typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T]
+        // fNotId: F <:!< Arrow.Id[_],
+        // gNotId: G <:!< Arrow.Id[_]
+      ): ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T]]] =
+        instance.asInstanceOf[ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T]]]]
+
+      private lazy val instance = new ComposeLabelled[ScalaExpr, ScalaExpr] {
+        type Out = Composition[ScalaExpr, ScalaExpr]
+        def apply(f: ScalaExpr, g: ScalaExpr): Out = Composition.mkComposition(f, g)
+      }
+
+      implicit def composeNonLabelledScalaExprs[F <: ScalaExpr, G <: ScalaExpr, C <: ScalaExpr](
+        implicit
+        compose: Arrow.Compose.Aux[F, G, C],
+        lowPriority: LowPriority
+      ): ComposeLabelled.Aux[F, G, C] =
+        new ComposeLabelled[F, G] {
+          type Out = C
+          def apply(f: F, g: G): C = compose(f, g)
+        }
+
+    }
   }
 }
