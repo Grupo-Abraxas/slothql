@@ -214,14 +214,6 @@ object ScalaExpr {
 
   }
 
-  sealed trait Tagged extends Arrow
-  object Tagged {
-    implicit def tagScalaExprFunctor[E <: ScalaExpr, Obj, K <: String, V](
-      implicit
-      selectField: E <:< SelectField[Obj, K, V]
-    ): Functor.Aux[E, Tagged, SelectField[Obj, K, V @@ K]] =
-      Functor.define[E, Tagged](_.asInstanceOf[SelectField[Obj, K, V @@ K]])
-  }
 
   sealed trait Labelled extends Arrow
   object Labelled {
