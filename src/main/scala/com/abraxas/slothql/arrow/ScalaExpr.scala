@@ -4,7 +4,7 @@ import scala.language.{ dynamics, higherKinds }
 
 import shapeless.labelled.{ FieldType, KeyTag }
 import shapeless.tag.@@
-import shapeless.{ <:!<, Cached, HList, LUBConstraint, LabelledGeneric, Lazy, LowPriority, ops }
+import shapeless._
 
 import com.abraxas.slothql.arrow.Arrow.Types
 import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
@@ -75,27 +75,44 @@ object ScalaExpr {
   object Split {
     type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
     def unapply(arr: Arrow): Option[List[ScalaExpr]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
+
+    protected[ScalaExpr] def mkSplitter[Arrows <: HList, As, S, T](
+      implicit
+      sourceMf: Manifest[S],
+      targetMf: Manifest[T]
+    ): Arrow.Split.Splitter0.Aux[Arrows, As, Split.Aux[Arrows, S, T]] =
+      new Arrow.Split.Splitter0[Arrows, As] {
+        type Out = Split.Aux[Arrows, S, T]
+        def apply(t: Arrows): Split.Aux[Arrows, S, T] =
+          new Split[Arrows] {
+            val arrows: Arrows = t
+            type Source = S
+            type Target = T
+            val src: Manifest[S] = sourceMf
+            val tgt: Manifest[T] = targetMf
+            val toList: List[ScalaExpr] = ShapelessUtils.unsafeHListToList(t)
+          }
+      }
   }
 
-  implicit def splitScalaExpr[Arrows <: HList, S, Ts <: HList, T](
+  implicit def splitScalaExprAsHList[Arrows <: HList, S, Ts <: HList](
     implicit
     areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
-    canSplit: Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, T],
+    canSplit: Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, Ts],
+    sourceMf: Manifest[S],
+    targetMf: Manifest[Ts]
+  ): Arrow.Split.Splitter0.Aux[Arrows, HList, Split.Aux[Arrows, S, Ts]] = Split.mkSplitter
+
+
+  implicit def splitScalaExprAsProduct[Arrows <: HList, Ts <: HList, S, T](
+    implicit
+    areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
+    canSplit: Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, Ts],
+    tupler: ops.hlist.Tupler.Aux[Ts, T],
     sourceMf: Manifest[S],
     targetMf: Manifest[T]
-  ): Arrow.Split.Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]] =
-    new Arrow.Split.Splitter[Arrows] {
-      type Out = Split.Aux[Arrows, S, T]
-      def apply(t: Arrows): Split.Aux[Arrows, S, T] =
-        new Split[Arrows] {
-          val arrows: Arrows = t
-          type Source = S
-          type Target = T
-          val src: Manifest[S] = sourceMf
-          val tgt: Manifest[T] = targetMf
-          val toList: List[ScalaExpr] = ShapelessUtils.unsafeHListToList(t)
-        }
-    }
+  ): Arrow.Split.Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]] = Split.mkSplitter
+
 
 
   /** Expression representing selection of a field of an ADT (case class). */

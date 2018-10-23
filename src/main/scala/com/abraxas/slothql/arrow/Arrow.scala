@@ -61,17 +61,47 @@ object Arrow {
 
     def unapply(arr: Arrow): Option[List[Arrow]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
 
-    trait Splitter[Arrows <: HList] extends DepFn1[Arrows] { type Out <: Split[Arrows] }
+    type Splitter[Arrows <: HList] = Splitter0[Arrows, Product]
     object Splitter {
       type Aux[Arrows <: HList, Ts <: Split[_]] = Splitter[Arrows] { type Out = Ts }
 
-      implicit def arrowSplitter[Arrows <: HList, S, T](
-        implicit
-        canSplit: CanSplit.Aux[Arrows, S, T],
-        lowPriority: LowPriority
-      ): Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]] = instance.asInstanceOf[Splitter.Aux[Arrows, Split.Aux[Arrows, S, T]]]
+      trait CanSplit[Arrows <: HList] {
+        type Source
+        type Targets <: HList
+      }
+      object CanSplit{
+        type Aux[Arrows <: HList, S, Ts <: HList] = CanSplit[Arrows] { type Source = S; type Target = Ts }
 
-      private lazy val instance = new Splitter[HList] {
+        implicit def proveCanSplit[Arrows <: HList, S, Ts <: HList](
+          implicit
+          source: CommonSource.Aux[Arrows, S],
+          targets: Targets.Aux[Arrows, Ts]
+        ): CanSplit.Aux[Arrows, S, Ts] = instance.asInstanceOf[CanSplit.Aux[Arrows, S, Ts]]
+
+        private lazy val instance = new CanSplit[HList] {}
+      }
+    }
+
+    trait Splitter0[Arrows <: HList, As] extends DepFn1[Arrows] { type Out <: Split[Arrows] }
+    object Splitter0 {
+      type Aux[Arrows <: HList, As, Ts <: Split[_]] = Splitter0[Arrows, As] { type Out = Ts }
+
+      implicit def arrowAsHListSplitter[Arrows <: HList, S, Ts <: HList](
+        implicit
+        canSplit: Splitter.CanSplit.Aux[Arrows, S, Ts],
+        lowPriority: LowPriority
+      ): Splitter0.Aux[Arrows, HList, Split.Aux[Arrows, S, Ts]] =
+        instance.asInstanceOf[Splitter0.Aux[Arrows, HList, Split.Aux[Arrows, S, Ts]]]
+
+      implicit def arrowAsTupleSplitter[Arrows <: HList, S, Ts <: HList, T <: Product](
+        implicit
+        canSplit: Splitter.CanSplit.Aux[Arrows, S, Ts],
+        tupler: ops.hlist.Tupler.Aux[Ts, T],
+        lowPriority: LowPriority
+      ): Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]] =
+        instance.asInstanceOf[Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]]]
+
+      private lazy val instance = new Splitter0[HList, Any] {
         type Out = Split.Aux[HList, Any, Any]
         def apply(t: HList): Out =
           new Split[HList] {
@@ -80,23 +110,6 @@ object Arrow {
             val arrows: HList = t
             val toList: List[Arrow] = ShapelessUtils.unsafeHListToList(t)
           }
-      }
-
-      trait CanSplit[Arrows <: HList] {
-        type Source
-        type Target
-      }
-      object CanSplit{
-        type Aux[Arrows <: HList, S, T] = CanSplit[Arrows] { type Source = S; type Target = T }
-
-        implicit def proveCanSplit[Arrows <: HList, S, Ts <: HList, T](
-          implicit
-          source: CommonSource.Aux[Arrows, S],
-          targets: Targets.Aux[Arrows, Ts],
-          tupler: ops.hlist.Tupler.Aux[Ts, T]
-        ): CanSplit.Aux[Arrows, S, T] = instance.asInstanceOf[CanSplit.Aux[Arrows, S, T]]
-
-        private lazy val instance = new CanSplit[HList] {}
       }
     }
   }
