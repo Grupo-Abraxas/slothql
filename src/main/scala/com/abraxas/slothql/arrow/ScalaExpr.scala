@@ -232,26 +232,42 @@ object ScalaExpr {
   }
 
 
-  sealed trait Labelled extends Arrow
-  object Labelled {
+  /** This arrow serves only as an identifier for Functor. */
+  sealed trait TargetToRecord extends Arrow
+  object TargetToRecord {
 
-    implicit def labelScalaExprSelectFieldFunctor[E <: ScalaExpr, Obj, K <: String, V](
+    implicit def scalaExprLabelledRootTargetToRecordFunctor[E <: ScalaExpr, EL <: ScalaExpr, S, T, R <: ScalaExpr](
+      implicit
+      label: Lazy[Functor.Aux[E, TargetToRecord, EL]],
+      types: Types.Aux[EL, S, T],
+      isLabelled: T <:< KeyTag[_, _],
+      changeTargetType: Internal.UnsafeChangeTypes.Aux[EL, S, T :: HNil, R]
+    ): Functor.Aux[Functor.Root[E], TargetToRecord, R] =
+      Functor.define[Functor.Root[E], TargetToRecord](t => changeTargetType(label.value(t.arrow)))
+
+    implicit def scalaExprSelectFieldTargetToRecordFunctor[E <: ScalaExpr, Obj, K <: String, V](
       implicit
       selectField: E <:< SelectField[Obj, K, V]
-    ): Functor.Aux[E, Labelled, SelectField[Obj, K, FieldType[K, V]]] =
-      Functor.define[E, Labelled](_.asInstanceOf[SelectField[Obj, K, FieldType[K, V]]])
+    ): Functor.Aux[E, TargetToRecord, SelectField[Obj, K, FieldType[K, V]]] =
+      Functor.define[E, TargetToRecord](_.asInstanceOf[SelectField[Obj, K, FieldType[K, V]]])
+
+    implicit def scalaExprSplitTargetToRecordFunctor[From <: ScalaExpr, Exprs <: HList, Mapped <: HList](
+      implicit
+      isSplit: From <:< Split[Exprs],
+      fmap: Lazy[Functor.FMapHList.Aux[Exprs, TargetToRecord, Mapped]],
+      split: Arrow.Split.Splitter0[Mapped, HList]
+    ): Functor.Aux[From, TargetToRecord, split.Out] =
+      Functor.define[From, TargetToRecord](t => split(fmap.value(t.arrows)))
 
     // uses `ComposeLabelled`
-    implicit def labelScalaExprCompositionFunctor[
-      From <: ScalaExpr, FromF <: ScalaExpr, ToF <: ScalaExpr, FromG <: ScalaExpr, ToG <: ScalaExpr
-    ](
-      implicit
-      composition: From <:< Composition[FromF, FromG],
-      fF: Lazy[Functor.Aux[FromF, Labelled, ToF]],
-      fG: Lazy[Functor.Aux[FromG, Labelled, ToG]],
-      compose: ComposeLabelled[ToF, ToG]
-     ): Functor.Aux[From, Labelled, compose.Out] =
-      Functor.define[From, Labelled](t => compose(fF.value(t.F), fG.value(t.G)))
+    implicit def scalaExprCompositionTargetToRecordFunctor[From <: ScalaExpr, FromF <: ScalaExpr, ToF <: ScalaExpr, FromG <: ScalaExpr, ToG <: ScalaExpr](
+       implicit
+       composition: From <:< Composition[FromF, FromG],
+       fF: Lazy[Functor.Aux[FromF, TargetToRecord, ToF]],
+       fG: Lazy[Functor.Aux[FromG, TargetToRecord, ToG]],
+       compose: ComposeLabelled[ToF, ToG]
+     ): Functor.Aux[From, TargetToRecord, compose.Out] =
+      Functor.define[From, TargetToRecord](t => compose(fF.value(t.F), fG.value(t.G)))
 
     trait ComposeLabelled[F <: ScalaExpr, G <: ScalaExpr] extends Arrow.Compose[F, G] { type Out <: ScalaExpr }
     object ComposeLabelled {
@@ -261,11 +277,23 @@ object ScalaExpr {
         implicit
         gTypes: Types.Aux[G, _, GT],
         gTargetIsLabelled: GT <:< KeyTag[K, _],
-        typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T]
+        typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
+        ev: T <:< Product
         // fNotId: F <:!< Arrow.Id[_],
         // gNotId: G <:!< Arrow.Id[_]
       ): ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T]]] =
         instance.asInstanceOf[ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T]]]]
+
+      implicit def composeLabelledNonTupleScalaExprs[F <: ScalaExpr, G <: ScalaExpr, GT, K, S, T](
+        implicit
+        gTypes: Types.Aux[G, _, GT],
+        gTargetIsLabelled: GT <:< KeyTag[K, _],
+        typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
+        ev: T <:!< Product
+        // fNotId: F <:!< Arrow.Id[_],
+        // gNotId: G <:!< Arrow.Id[_]
+      ): ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T :: HNil]]] =
+        instance.asInstanceOf[ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T :: HNil]]]]
 
       private lazy val instance = new ComposeLabelled[ScalaExpr, ScalaExpr] {
         type Out = Composition[ScalaExpr, ScalaExpr]
@@ -284,4 +312,26 @@ object ScalaExpr {
 
     }
   }
+
+  protected object Internal {
+    trait UnsafeChangeTypes[E <: ScalaExpr, S, T] {
+      type Out <: ScalaExpr
+      final def apply(expr: ScalaExpr): Out = expr.asInstanceOf[Out]
+    }
+    object UnsafeChangeTypes {
+      type Aux[E <: ScalaExpr, S, T, R <: ScalaExpr] = UnsafeChangeTypes[E, S, T] { type Out = R }
+
+      implicit def changeId[E <: ScalaExpr, T](implicit isId: E <:< Id[_]): Aux[E, T, T, Id[T]] = inst
+      implicit def changeComposition[E <: ScalaExpr, F <: ScalaExpr, G <: ScalaExpr, S, T](implicit isComposition: E <:< Composition[F, G]): Aux[E, S, T, Composition.Aux[F, G, S, T]] = inst
+      implicit def changeSplit[E <: ScalaExpr, Arrows <: HList, S, T](implicit isSplit: E <:< Split[Arrows]): Aux[E, S, T, Split.Aux[Arrows, S, T]] = inst
+      implicit def changeSelectField[E <: ScalaExpr, S, T, K <: String](implicit isSelectField: E <:< SelectField[_, K, _]): Aux[E, S, T, SelectField[S, K, T]] = inst
+      // implicit def changeFMap
+      // implicit def changeMBind
+      // implicit def changeSelectIn
+
+      private def inst[E <: ScalaExpr, S, T, R <: ScalaExpr] = instance.asInstanceOf[UnsafeChangeTypes.Aux[E, S, T, R]]
+      private lazy val instance = new UnsafeChangeTypes[ScalaExpr, Any, Any] {}
+    }
+  }
+
 }

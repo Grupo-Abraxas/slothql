@@ -38,7 +38,9 @@ object FunctorsTest {
   //  Node(labels = Book; fields = title -> Property[String]; outgoing = ),
   //  Relation(type = pages; fields = index -> Property[long]; from = Node["Book"]; to = Node["Page"])
   // )
-
+  val selPagesRec = Functor.map(selPages).to[ScalaExpr.TargetToRecord]
+  //ScalaExpr.SelectField[Book, pages, (List[Page] with KeyTag[pages, List[Page]]) :: HNil]
+  //= SelectField("pages")
 
   val selText = ScalaExpr[Page].text
   // ScalaExpr.SelectField[Page, text, String]
@@ -209,6 +211,17 @@ object FunctorsTest {
   // isbnCypherArrow.Target
   // = KnownClause(KnownMatch(NonEmptyList(KnownPath(KnownNode(None,List(Book),Map()){ (:`Book`) },KnownRel(None,List(meta),Map(),None,Outgoing){ -[:`meta`]-> },KnownNode(Some(n),List(Meta),Map()){ (`n`:`Meta`) }){ (:`Book`) -[:`meta`]-> (`n`:`Meta`) }),false,None){ MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) },KnownReturn(KnownExpr(KnownKey(KnownVar[scala.collection.immutable.Map[java.lang.String, Any]](n){ `n` },isbn){ `n`.`isbn` },None){ `n`.`isbn` }){ RETURN `n`.`isbn` })
   // { MATCH (:`Book`) -[:`meta`]-> (`n`:`Meta`) RETURN `n`.`isbn` }
+  val selIsbnRec = Functor.map(selIsbn).to[ScalaExpr.TargetToRecord]
+  //ScalaExpr.Composition[
+  //  ScalaExpr.SelectField[Meta, isbn, String with KeyTag[isbn, String]],
+  //  ScalaExpr.SelectField[Book, meta, Meta with KeyTag[meta, Meta]]
+  //]{ type Source = Book
+  //   type Target = (String with KeyTag[String("isbn"),String] :: HNil)
+  //                   with KeyTag[String("meta"), String with KeyTag[String("isbn"),String] :: HNil]
+  //                 :: HNil
+  //}
+  //= SelectField[Meta, String](isbn)
+  //∘ SelectField[Book, Meta](meta)
 
   implicitly[selIsbn.type <:< ScalaExpr]
 
@@ -384,22 +397,25 @@ object FunctorsTest {
 
   implicitly[split3.type <:< ScalaExpr]
 
-  val split3L = Functor.map(split3).to[ScalaExpr.Labelled]
+  val split3Rec = Functor.map(split3).to[ScalaExpr.TargetToRecord]
   //ScalaExpr.Split[
   //  ScalaExpr.SelectField[Book, title, String with KeyTag[title, String]] ::
   //  ScalaExpr.Composition[
   //      ScalaExpr.SelectField[Meta, isbn, String with KeyTag[isbn, String]],
   //      ScalaExpr.SelectField[Book, meta, Meta with KeyTag[meta, Meta]]
   //    ]{ type Source = Book
-  //        type Target = String with KeyTag[String("isbn"),String]
-  //                             with KeyTag[String("meta"),String with KeyTag[String("isbn"),String]] } ::
+  //       type Target = (String with KeyTag[String("isbn"),String] :: HNil)
+  //                       with KeyTag[String("meta"), String with KeyTag[String("isbn"),String] :: HNil]
+  //     } ::
   //  HNil
   //]{ type Source = Book
-  //   type Target = (String with KeyTag[String("title"),String],
-  //                  String with KeyTag[String("isbn"),String]
-  //                         with KeyTag[String("meta"),String with KeyTag[String("isbn"),String]])
-  //} =
-  //Split(
+  //   type Target =
+  //    String with KeyTag[String("title"),String] ::
+  //    (String with KeyTag[String("isbn"),String] :: HNil)
+  //      with KeyTag[String("meta"),String with KeyTag[String("isbn"),String] :: HNil] ::
+  //    HNil
+  //}
+  //= Split(
   //  SelectField[Book, String](title) ::
   //  SelectField[Meta, String](isbn) ∘ SelectField[Book, Meta](meta) ::
   //  HNil
@@ -417,19 +433,19 @@ object FunctorsTest {
 
   implicitly[split4.type <:< ScalaExpr]
 
-  val split4L = Functor.map(split4).to[ScalaExpr.Labelled]
+  val split4Rec = Functor.map(split4).to[ScalaExpr.TargetToRecord]
   //ScalaExpr.Composition[
   //  ScalaExpr.Split[
   //      ScalaExpr.SelectField[Meta, isbn, String with KeyTag[isbn, String]] :: HNil
-  //    ]{ type Source = Meta; type Target = (String with KeyTag[String("isbn"),String],) },
+  //    ]{ type Source = Meta; type Target = String with KeyTag[String("isbn"),String] :: HNil },
   //  ScalaExpr.SelectField[Book, meta, Meta with KeyTag[meta, Meta]]
   //]{ type Source = Book
-  //    type Target = (String with KeyTag[String("isbn"),String],)
-  //                          with KeyTag[String("meta"),(String with KeyTag[String("isbn"),String],)]
-  //} =
-  //Split(
-  //  SelectField[Meta, String](isbn) :: HNil
-  //) ∘ SelectField[Book, Meta](meta)
+  //   type Target = (String with KeyTag[String("isbn"),String] :: HNil)
+  //                   with KeyTag[String("meta"),String with KeyTag[String("isbn"),String] :: HNil] ::
+  //                HNil
+  //}
+  //= Split(SelectField[Meta, String](isbn) :: HNil)
+  //∘ SelectField[Book, Meta](meta)
 
 //  val mapped0 = Functor.map(sel2 ∘ sel1).to[GraphPath]
 //  val mapped1 = Functor.map(sel3 ∘ (sel2 ∘ sel1)).to[GraphPath]
