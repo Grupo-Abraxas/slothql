@@ -322,7 +322,8 @@ object Arrow {
 trait Functor[From <: Arrow, To <: Arrow] extends DepFn1[From] { type Out <: Arrow }
 object Functor {
   type Aux[From <: Arrow, To <: Arrow, Out0 <: Arrow] = Functor[From, To] { type Out = Out0 }
-  def apply[From <: Arrow, To <: Arrow](implicit functor: Functor[From, To]): Functor.Aux[From, To, functor.Out] = functor
+  def apply[From <: Arrow, To <: Arrow](implicit functor: Functor[Root[From], To]): Functor.Aux[From, To, functor.Out] =
+    Functor.define(t => functor(Root(t)))
   def map[From <: Arrow](from: From): PartialApplication[From] = new PartialApplication(from)
 
   def define[From <: Arrow, To <: Arrow]: DefinitionBuilder[From, To] = DefinitionBuilder.asInstanceOf[DefinitionBuilder[From, To]]
@@ -337,7 +338,19 @@ object Functor {
   private object DefinitionBuilder extends DefinitionBuilder[Arrow, Arrow]
 
   protected class PartialApplication[From <: Arrow](from: From) {
-    def to[To <: Arrow](implicit functor: Functor[From, To]): functor.Out = functor(from)
+    def to[To <: Arrow](implicit functor: Functor[Root[From], To]): functor.Out = functor(Root(from))
+  }
+
+  final case class Root[A <: Arrow] private[Functor] (arrow: A) extends Arrow {
+    type Source = arrow.Source
+    type Target = arrow.Target
+  }
+  object Root {
+    implicit def defaultRootFunctor[A <: Arrow, To <: Arrow](
+      implicit
+      functor: Lazy[Functor[A, To]],
+      lowPriority: LowPriority
+    ): Functor.Aux[Root[A], To, functor.value.Out] = define[Root[A], To](root => functor.value(root.arrow))
   }
 
   implicit def compositionFunctor[From <: Arrow, To <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
