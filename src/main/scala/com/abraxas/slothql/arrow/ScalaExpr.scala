@@ -142,7 +142,7 @@ object ScalaExpr {
     }
     private object Builder extends Builder
   }
-  
+
   /** Expression representing monadic bind / `flatMap` operation. */
   case class MBind[F[_], E <: ScalaExpr](expr: E)(implicit val M: cats.Monad[F], mf: Manifest[F[_]]) extends ScalaExpr {
     type Source = F[expr.Source]
@@ -159,6 +159,13 @@ object ScalaExpr {
       def apply[E <: ScalaExpr](expr: E)(implicit M: cats.Monad[F], mf0: Manifest[F[_]]): MBind[F, E] = MBind[F, E](expr)
     }
     private object Builder extends Builder
+  }
+
+  case class ToList[I, A]()(implicit iterable: I <:< Iterable[_], mi: Manifest[I], ma: Manifest[A]) extends ScalaExpr {
+    type Source = I
+    type Target = List[A]
+    val src: Manifest[I] = mi
+    val tgt: Manifest[List[A]] = classType(manifest[List[_]], ma)
   }
 
   // TODO
@@ -200,6 +207,15 @@ object ScalaExpr {
 
     def flatMap[B <: ScalaExpr.Aux[_, F[_]]](b: B)(implicit compose: Arrow.Compose[MBind[F, B], A]): compose.Out = compose(new MBind[F, B](b), a)
     def flatMap[B <: ScalaExpr.Aux[_, F[_]]](fb: Id[S0] => B)(implicit compose: Arrow.Compose[MBind[F, B], A], mf: Manifest[S0]): compose.Out = compose(new MBind[F, B](fb(Id[S0])), a)
+  }
+
+  implicit class ScalaExprToListOps[A <: ScalaExpr, TA, S0](a: A)(
+    implicit
+    targetA: Types.Aux[A, _, TA],
+    iterable: TA <:< Iterable[S0],
+    mf: Manifest[TA]
+  ) {
+    def toList(implicit compose: Arrow.Compose[ToList[TA, S0], A], ma: Manifest[S0]): compose.Out = compose(new ToList[TA, S0], a)
   }
 
   protected trait FieldSelectionOps extends Dynamic {
