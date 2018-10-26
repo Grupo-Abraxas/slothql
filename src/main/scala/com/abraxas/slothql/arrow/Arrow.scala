@@ -256,6 +256,10 @@ object Arrow {
   object Unchain {
     type Aux[F <: Arrow, Arrows <: HList] = Unchain[F] { type Out = Arrows }
     def apply[F <: Arrow](implicit unchain: Unchain[F]): Aux[F, unchain.Out] = unchain
+    def apply(arr: Arrow): List[Arrow] = arr match {
+      case c: Composition[_, _] => apply(c.F) ::: apply(c.G)
+      case _ => arr :: Nil
+    }
 
     implicit def unchainComposition[C <: Composition[_, _], F <: Arrow, G <: Arrow, ChF <: HList, ChG <: HList](
       implicit
