@@ -298,6 +298,13 @@ object CypherFragment {
           s"${expr.toCypher} $opStr"
       }
     }
+
+    case class Distinct[A](expr: Known[Expr[A]]) extends Expr[A]
+    object Distinct {
+      implicit def fragment[A]: CypherFragment[Distinct[A]] = define {
+        case Distinct(expr) => s"DISTINCT ${expr.toCypher}"
+      }
+    }
   }
 
   sealed trait Query[+A]

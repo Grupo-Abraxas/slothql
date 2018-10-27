@@ -213,6 +213,7 @@ package object syntax extends LowPriorityImplicits {
   def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]]): Expr.List[A] =
     Expr.List[A](exprs.map(Expr.Lit(_).known).toList)
 
+  def distinct[A](expr: Known[Expr[A]]): Known[Expr[A]] = Expr.Distinct(expr)
   def collect[A](expr: Known[Expr[A]]): Expr.Call[List[A]] = 'collect.call[List[A]](expr)
 
   def dict(entries: MapEntry[Any]*): Expr.Map[Any] = Expr.Map(entries.map(_.toPair).toMap)
