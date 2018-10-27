@@ -180,6 +180,7 @@ object CypherFragment {
     case class AtIndex[A](list: Known[Expr[scala.List[A]]], index: Known[Expr[Long]]) extends Expr[A]
     case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends Expr[scala.List[A]]
     case class Concat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends Expr[scala.List[A]]
+    case class FilterList[A](list: Known[Expr[scala.List[A]]], elemAlias: String, filter: Known[Expr[Boolean]]) extends Expr[scala.List[A]]
 
     object List {
       implicit def fragment[A]: CypherFragment[List[A]] = instance.asInstanceOf[CypherFragment[List[A]]]
@@ -210,6 +211,12 @@ object CypherFragment {
       implicit def fragment[A]: CypherFragment[Concat[A]] = instance.asInstanceOf[CypherFragment[Concat[A]]]
       private lazy val instance = define[Concat[_]] {
         case Concat(list0, list1) => s"${list0.toCypher} + ${list1.toCypher}"
+      }
+    }
+    object FilterList {
+      implicit def fragment[A]: CypherFragment[FilterList[A]] = instance.asInstanceOf[CypherFragment[FilterList[A]]]
+      private lazy val instance = define[FilterList[_]] {
+        case FilterList(list, elemAlias, filter) => s"filter(${escapeName(elemAlias)} in ${list.toCypher} WHERE ${filter.toCypher})"
       }
     }
 
@@ -539,7 +546,11 @@ object CypherFragment {
     }
   }
 
-  private def escapeName(name: String) = "`" + name.replaceAll("`", "``") + "`"
+  private def escapeName(name: String) = name match {
+    case "_" => "_"
+    case _ => escapeName0(name)
+  }
+  private def escapeName0(name: String) = "`" + name.replaceAll("`", "``") + "`"
   private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
   private def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
   private def mapStr(map: Map[String, Known[Expr[_]]]) =

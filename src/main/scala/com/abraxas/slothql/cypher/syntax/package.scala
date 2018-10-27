@@ -1,6 +1,7 @@
 package com.abraxas.slothql.cypher
 
 import scala.language.{ higherKinds, implicitConversions }
+import scala.util.Random
 
 import cats.data.Ior
 import shapeless.{ <:!<, Generic, HList, |∨| }
@@ -164,7 +165,16 @@ package object syntax extends LowPriorityImplicits {
     def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
       at[E1[Long], E1[Long]](Ior.Right(i.asInstanceOf[E1[Long]]))
 
+    def filter(f: Expr.Var[A] => Known[Expr[Boolean]])(implicit mf: Manifest[A]): Expr.FilterList[A] = {
+      val alias = randomAlias()
+      val expr = f(Expr.Var[A](alias))
+      Expr.FilterList(expr0.known.widen, alias, expr)
+    }
+    def filter0(expr: Known[Expr[Boolean]])(implicit mf: Manifest[A]): Expr.FilterList[A] = Expr.FilterList(expr0.known.widen, "_", expr)
   }
+
+
+  private def randomAlias(): String = Random.alphanumeric.take(20).mkString
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
