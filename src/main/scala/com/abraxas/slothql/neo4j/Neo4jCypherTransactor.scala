@@ -120,7 +120,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
     implicit lazy val cell: ValueReader[Cell] = ValueReader define locally
 
-    object Default {
+    object Default extends Default
+    class Default {
       def apply(mf: Manifest[_]): ValueReader[_] = {
         lazy val firstTArgReader = apply(mf.typeArguments.head)
         lazy val secondTArgReader = apply(mf.typeArguments(1))
@@ -135,7 +136,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
       def option(mf: Manifest[_]): ValueReader[_] = ValueReader.option(apply(mf))
 
-      private val atomic = Map[Class[_], ValueReader[_]](
+      protected val atomic = atomicReaders withDefaultValue any
+      protected def atomicReaders = Map[Class[_], ValueReader[_]](
         classOf[Cell]    -> cell,
         classOf[String]  -> string,
         classOf[Boolean] -> boolean,
@@ -143,7 +145,7 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
         classOf[Long]    -> long,
         classOf[Float]   -> float,
         classOf[Double]  -> double
-      ) withDefaultValue any
+      )
 
       private val OptionClass = classOf[Option[_]]
       private val ListClass   = classOf[List[_]]
