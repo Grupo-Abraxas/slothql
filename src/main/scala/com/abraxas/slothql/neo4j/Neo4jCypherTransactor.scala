@@ -9,8 +9,9 @@ import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
 import shapeless._
 
-import com.abraxas.slothql.cypher.{ CypherTransactor, CypherTxBuilder }
+import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
 import com.abraxas.slothql.neo4j.util.JavaExt._
+import com.abraxas.slothql.util.ShowManifest
 
 
 class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
@@ -35,6 +36,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
   type Result = Record
   type Reader[A] = RecordReader[A]
 
+  type Cell = Value
+
   def apply(session: => Session): Neo4jCypherTransactor = new Neo4jCypherTransactor(() => session)
 
   trait RecordReader[A] extends CypherTransactor.Reader[Record, A]
@@ -46,6 +49,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
         type Out = R
         def apply(rec: Record): R = f(rec)
       }
+
+    implicit def resultCells: RecordReader.Aux[List[Cell], List[Cell]] = RecordReader define { _.values().asScala.toList }
 
     implicit def listValue[A](implicit vr: ValueReader[A]): RecordReader.Aux[List[A], List[A]] =
       RecordReader define { _.values().asScala.map(vr(_)).toList }
@@ -113,6 +118,41 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     implicit lazy val float: ValueReader[Float] = ValueReader define (_.asFloat())
     implicit lazy val double: ValueReader[Double] = ValueReader define (_.asDouble())
 
+    implicit lazy val cell: ValueReader[Cell] = ValueReader define locally
+
+    object Default {
+      def apply(mf: Manifest[_]): ValueReader[_] = {
+        lazy val firstTArgReader = apply(mf.typeArguments.head)
+        lazy val secondTArgReader = apply(mf.typeArguments(1))
+        mf.runtimeClass match {
+          case OptionClass => ValueReader.option(firstTArgReader)
+          case ListClass   => ValueReader.list(firstTArgReader)
+          case MapClass    if mf.typeArguments.head.runtimeClass == classOf[String] => map(secondTArgReader)
+          case c           if atomic isDefinedAt c => atomic(c)
+          case _ => sys.error(s"No default ValueReader is defined for ${ShowManifest(mf)}")
+        }
+      }
+
+      def option(mf: Manifest[_]): ValueReader[_] = ValueReader.option(apply(mf))
+
+      private val atomic = Map[Class[_], ValueReader[_]](
+        classOf[Cell]    -> cell,
+        classOf[String]  -> string,
+        classOf[Boolean] -> boolean,
+        classOf[Int]     -> int,
+        classOf[Long]    -> long,
+        classOf[Float]   -> float,
+        classOf[Double]  -> double
+      ) withDefaultValue any
+
+      private val OptionClass = classOf[Option[_]]
+      private val ListClass   = classOf[List[_]]
+      private val MapClass    = classOf[Map[_, _]]
+    }
+  }
+
+  implicit class UntypedListCellsOps(ul: CypherFragment.Return.UntypedList) {
+    def toCells: CypherFragment.Return.Return0[List[Cell]] = ul.asInstanceOf[CypherFragment.Return.Return0[List[Cell]]]
   }
 
   protected def syncInterpreter(t: Neo4jCypherTransactor, tx: Transaction): t.Read ~> Vector =
