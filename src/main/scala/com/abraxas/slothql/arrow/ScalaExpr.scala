@@ -350,4 +350,34 @@ object ScalaExpr {
     }
   }
 
+  object Unsafe {
+    def unchainRev(expr0: ScalaExpr): UnchainedRev = {
+      def inner(expr: ScalaExpr): List[ScalaExpr] = expr match {
+        case c: Composition[_, _] => inner(c.G) ::: inner(c.F)
+        case _ => expr :: Nil
+      }
+      val unchained = inner(expr0)
+      UnchainedRev(unchained, unchained.head.src.asInstanceOf[Manifest[Any]], unchained.last.tgt.asInstanceOf[Manifest[Any]])
+    }
+
+    final case class UnchainedRev protected(toList: List[ScalaExpr], src: Manifest[Any], tgt: Manifest[Any]) extends ScalaExpr {
+      type Source = Any
+      type Target = Any
+
+      def isEmpty: Boolean = toList.isEmpty
+      def nonEmpty: Boolean = !isEmpty
+
+      def headOption: Option[ScalaExpr] = toList.headOption
+      def head: ScalaExpr = headOption.get
+
+      def tail: UnchainedRev = mk(toList.tail)
+      def uncons: Option[(ScalaExpr, UnchainedRev)] = headOption.map(_ -> tail)
+
+      def filter(pred: ScalaExpr => Boolean): UnchainedRev = mk(toList.filter(pred))
+
+      private def mk(l: List[ScalaExpr]) =
+        if (l.nonEmpty) copy(l, l.head.src.asInstanceOf[Manifest[Any]], l.last.tgt.asInstanceOf[Manifest[Any]])
+        else UnchainedRev(Nil, Manifest.Nothing.asInstanceOf[Manifest[Any]], Manifest.Nothing.asInstanceOf[Manifest[Any]])
+    }
+  }
 }
