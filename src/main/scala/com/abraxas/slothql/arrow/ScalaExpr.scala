@@ -31,7 +31,7 @@ object ScalaExpr {
         val src: Manifest[A] = manifest[A]
         val tgt: Manifest[A] = manifest[A]
       }
-    def unapply(arr: Arrow): Option[Manifest[_]] = PartialFunction.condOpt(arr) { case id: Id[_] => id.src }
+    def unapply[A](arr: Id[A]): Option[Manifest[_]] = PartialFunction.condOpt(arr) { case id: Id[_] => id.src }
   }
 
   implicit def scalaExprIdArrowBuilder[A <: ScalaExpr, T: Manifest]: Arrow.Id.Builder.Aux[A, T, Id[T]] =
@@ -43,7 +43,8 @@ object ScalaExpr {
   sealed trait Composition[F <: ScalaExpr, G <: ScalaExpr] extends ScalaExpr with Arrow.Composition[F, G]
   object Composition {
     type Aux[F <: ScalaExpr, G <: ScalaExpr, S, T] = Composition[F, G] { type Source = S; type Target = T }
-    def unapply(arr: Arrow): Option[(ScalaExpr, ScalaExpr)] = PartialFunction.condOpt(arr) { case c: Composition[_, _] => c.F -> c.G }
+    def unapply[F <: ScalaExpr, G <: ScalaExpr](arr: Composition[F, G]): Option[(F, G)] =
+      PartialFunction.condOpt(arr) { case c: Composition[_, _] => c.F -> c.G }
 
     protected[ScalaExpr] def mkComposition(f: ScalaExpr, g: ScalaExpr) =
       new Composition[ScalaExpr, ScalaExpr] {
@@ -74,7 +75,7 @@ object ScalaExpr {
   }
   object Split {
     type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
-    def unapply(arr: Arrow): Option[List[ScalaExpr]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
+    def unapply[Arrows <: HList](arr: Split[Arrows]): Option[List[ScalaExpr]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
 
     protected[ScalaExpr] def mkSplitter[Arrows <: HList, As, S, T](
       implicit
