@@ -213,22 +213,33 @@ object ScalaExpr {
     private object Builder extends Builder
   }
 
-  case class ToList[I, A]()(implicit iterable: I <:< Iterable[_], mi: Manifest[I], ma: Manifest[A]) extends ScalaExpr {
+
+  case class IterableFilter[F[_], E <: ScalaExpr](expr: E)(
+      implicit
+      iterable: F[_] <:< Iterable[_],
+      mf: Manifest[F[_]],
+      filterArrow: Types.Aux[E, _, Boolean]
+  ) extends ScalaExpr {
+    type Source = F[expr.Source]
+    type Target = Source
+    val src: Manifest[Source] = classType(mf, expr.src)
+    val tgt: Manifest[Target] = src
+  }
+
+  case class IterableSlice[I](from: Int, to: Int)(implicit iterable: I <:< Iterable[_], mf: Manifest[I]) extends ScalaExpr {
+    type Source = I
+    type Target = I
+    val src: Manifest[I] = mf
+    val tgt: Manifest[I] = mf
+  }
+
+  case class IterableToList[I, A]()(implicit iterable: I <:< Iterable[_], mi: Manifest[I], ma: Manifest[A]) extends ScalaExpr {
     type Source = I
     type Target = List[A]
     val src: Manifest[I] = mi
     val tgt: Manifest[List[A]] = classType(manifest[List[_]], ma)
   }
 
-  // TODO
-  case class SelectIn[F[_], Sel, V](sel: Sel)(implicit mf: Manifest[F[_]], mv: Manifest[V]) extends ScalaExpr {
-    type Source = F[V]
-    type Target = V
-    val src: Manifest[F[V]] = classType(mf, mv)
-    val tgt: Manifest[V] = mv
-
-    override def toString: String = s"SelectIn[${ShowManifest(src)}, ${ShowManifest(tgt)}]($sel)"
-  }
 
   sealed trait Compare[A, B] extends ScalaExpr { type Source = (A, B); type Target = Boolean; val tgt = Manifest.Boolean }
   object Compare {
@@ -252,7 +263,7 @@ object ScalaExpr {
     mf0: Manifest[F[_]]
   ) {
 
-    def map[B <: ScalaExpr](b: B)(implicit compose: Arrow.Compose[FMap[F, B], A]): compose.Out = compose(new FMap[F, B](b), a)
+    def map[B <: ScalaExpr](b: B)           (implicit compose: Arrow.Compose[FMap[F, B], A]                  ): compose.Out = compose(new FMap[F, B](b), a)
     def map[B <: ScalaExpr](fb: Id[S0] => B)(implicit compose: Arrow.Compose[FMap[F, B], A], mf: Manifest[S0]): compose.Out = compose(new FMap[F, B](fb(Id[S0])), a)
   }
 
@@ -264,17 +275,25 @@ object ScalaExpr {
     mf0: Manifest[F[_]]
   ) {
 
-    def flatMap[B <: ScalaExpr.Aux[_, F[_]]](b: B)(implicit compose: Arrow.Compose[MBind[F, B], A]): compose.Out = compose(new MBind[F, B](b), a)
+    def flatMap[B <: ScalaExpr.Aux[_, F[_]]](b: B)           (implicit compose: Arrow.Compose[MBind[F, B], A]                  ): compose.Out = compose(new MBind[F, B](b), a)
     def flatMap[B <: ScalaExpr.Aux[_, F[_]]](fb: Id[S0] => B)(implicit compose: Arrow.Compose[MBind[F, B], A], mf: Manifest[S0]): compose.Out = compose(new MBind[F, B](fb(Id[S0])), a)
   }
 
-  implicit class ScalaExprToListOps[A <: ScalaExpr, TA, S0](a: A)(
+  implicit class ScalaExprIterableOps[A <: ScalaExpr, TA, S0, F[_]](a: A)(
     implicit
     targetA: Types.Aux[A, _, TA],
-    iterable: TA <:< Iterable[S0],
-    mf: Manifest[TA]
+    fType: TA <:< F[S0],
+    iterableT: TA <:< Iterable[_],    // TODO
+    iterableF: F[_] <:< Iterable[_],  // TODO
+    mta: Manifest[TA],
+    mf: Manifest[F[_]]  // TODO
   ) {
-    def toList(implicit compose: Arrow.Compose[ToList[TA, S0], A], ma: Manifest[S0]): compose.Out = compose(new ToList[TA, S0], a)
+    def toList(implicit compose: Arrow.Compose[IterableToList[TA, S0], A], ms0: Manifest[S0]): compose.Out = compose(new IterableToList[TA, S0], a)
+
+    def slice(from: Int, to: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice(from, to), a)
+
+    def filter[B <: ScalaExpr](expr: B)            (implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean]                   ): compose.Out = compose(IterableFilter[F, B](expr), a)
+    def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean], ms0: Manifest[S0]): compose.Out = compose(IterableFilter[F, B](mkExpr(Id[S0])), a)
   }
 
   implicit class CompareOps[L <: ScalaExpr, LS](left: L)(implicit typesL: Types.Aux[L, LS, _]) {
@@ -303,6 +322,7 @@ object ScalaExpr {
     @annotation.implicitNotFound(msg = "${Obj} doesn't have field ${K}")
     trait HasField[Obj, K] { type Value }
     object HasField {
+      @annotation.implicitNotFound(msg = "${Obj} doesn't have field ${K} of type ${V}")
       type Aux[Obj, K, V] = HasField[Obj, K] { type Value = V }
       implicit def evidence[Obj, K, V, Repr <: HList](
         implicit
@@ -410,7 +430,8 @@ object ScalaExpr {
       implicit def changeSelectField[E <: ScalaExpr, S, T, K <: String](implicit isSelectField: E <:< SelectField[_, K, _]): Aux[E, S, T, SelectField[S, K, T]] = inst
       // implicit def changeFMap
       // implicit def changeMBind
-      // implicit def changeSelectIn
+      // implicit def changeFilter
+      // implicit def changeSlice
 
       private def inst[E <: ScalaExpr, S, T, R <: ScalaExpr] = instance.asInstanceOf[UnsafeChangeTypes.Aux[E, S, T, R]]
       private lazy val instance = new UnsafeChangeTypes[ScalaExpr, Any, Any] {}
