@@ -7,7 +7,7 @@ import shapeless.tag.@@
 import shapeless._
 
 import com.abraxas.slothql.arrow.Arrow.Types
-import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
+import com.abraxas.slothql.util.{ Dealias, ShapelessUtils, ShowManifest }
 
 
 sealed trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
@@ -19,6 +19,50 @@ object ScalaExpr {
   type Aux[-S, +T] = ScalaExpr { type Source >: S; type Target <: T }
 
   def apply[A: Manifest]: Id[A] = Id[A]
+
+  object Binary {
+    // TODO: Left
+
+    sealed trait PartiallyAppliedRight[E <: ScalaExpr, R <: ScalaExpr] extends ScalaExpr {
+      val expr: E
+      val right: R
+
+      override def equals(any: Any): Boolean = PartialFunction.cond(any) {
+        case that: PartiallyAppliedRight[_, _] => this.expr == that.expr && this.right == that.right
+      }
+      override def hashCode(): Int = (expr, right).##
+      override def toString: String = s"PartiallyAppliedRight($expr, $right)"
+    }
+    object PartiallyAppliedRight {
+      type Aux[E <: ScalaExpr, R <: ScalaExpr, SL, T] = PartiallyAppliedRight[E, R] { type Source = SL; type Target = T }
+    }
+
+    /** Builds [[PartiallyAppliedRight]]. */
+    trait PartialApplyRight[E <: ScalaExpr, R <: ScalaExpr] extends DepFn2[E, R] { type Out <: ScalaExpr }
+    object PartialApplyRight {
+      type Aux[E <: ScalaExpr, R <: ScalaExpr, Applied <: ScalaExpr] = PartialApplyRight[E, R] { type Out = Applied }
+
+      implicit def partialApplyBinaryRight[E <: ScalaExpr, R <: ScalaExpr, S, SL, SR, T](
+        implicit
+        types: Types.Aux[E, S, T],
+        binary: S <:< (SL, SR),
+        dealias: Dealias[SL] // magic; `SL` will be `Any` otherwise
+      ): PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, T]] =
+        instance.asInstanceOf[PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, T]]]
+      private lazy val instance = new PartialApplyRight[ScalaExpr, ScalaExpr] {
+        type Out = PartiallyAppliedRight[_, _]
+        def apply(t: ScalaExpr, u: ScalaExpr): PartiallyAppliedRight[_, _] =
+          new PartiallyAppliedRight[ScalaExpr, ScalaExpr] {
+            type Source = Any
+            type Target = Any
+            val expr: ScalaExpr = t
+            val right: ScalaExpr = u
+            val src: Manifest[Any] = t.src.typeArguments.head.asInstanceOf[Manifest[Any]]
+            val tgt: Manifest[Any] = t.tgt.asInstanceOf[Manifest[Any]]
+          }
+      }
+    }
+  }
 
 
   /** Identity arrow. (self selection) */
@@ -115,6 +159,13 @@ object ScalaExpr {
   ): Arrow.Split.Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]] = Split.mkSplitter
 
 
+  case class Literal[A](lit: A)(implicit m: Manifest[A]) extends ScalaExpr {
+    type Source = Unit
+    type Target = A
+    val src: Manifest[Unit] = Manifest.Unit
+    val tgt: Manifest[A] = m
+  }
+
 
   /** Expression representing selection of a field of an ADT (case class). */
   case class SelectField[Obj: Manifest, K <: String, V: Manifest](field: K) extends ScalaExpr {
@@ -179,6 +230,13 @@ object ScalaExpr {
     override def toString: String = s"SelectIn[${ShowManifest(src)}, ${ShowManifest(tgt)}]($sel)"
   }
 
+  sealed trait Compare[A, B] extends ScalaExpr { type Source = (A, B); type Target = Boolean; val tgt = Manifest.Boolean }
+  object Compare {
+    case class Eq [A, B]()(implicit val src: Manifest[(A, B)]) extends Compare[A, B]
+    case class Neq[A, B]()(implicit val src: Manifest[(A, B)]) extends Compare[A, B]
+    // TODO: more
+  }
+
   private def classType[F[_], T](clazz: Manifest[_ <: F[_]], arg: Manifest[T]): Manifest[F[T]] =
     Manifest.classType(clazz.runtimeClass.asInstanceOf[Class[F[T]]], arg)
 
@@ -217,6 +275,14 @@ object ScalaExpr {
     mf: Manifest[TA]
   ) {
     def toList(implicit compose: Arrow.Compose[ToList[TA, S0], A], ma: Manifest[S0]): compose.Out = compose(new ToList[TA, S0], a)
+  }
+
+  implicit class CompareOps[L <: ScalaExpr, LS](left: L)(implicit typesL: Types.Aux[L, LS, _]) {
+    def ===[R <: ScalaExpr, RS](right: R)(implicit types: Types.Aux[R, RS, _], papplyR: Binary.PartialApplyRight[Compare.Eq[LS, RS], R], m: Manifest[(LS, RS)]): papplyR.Out = papplyR(Compare.Eq[LS, RS](), right)
+    def ===[R: Manifest]       (right: R)(implicit papplyR: Binary.PartialApplyRight[Compare.Eq[LS, R], Literal[R]], m: Manifest[(LS, R)]): papplyR.Out = papplyR(Compare.Eq[LS, R](), Literal(right))
+
+    def =!=[R <: ScalaExpr, RS](right: R)(implicit types: Types.Aux[R, RS, _], papplyR: Binary.PartialApplyRight[Compare.Neq[LS, RS], R], m: Manifest[(LS, RS)]): papplyR.Out = papplyR(Compare.Neq[LS, RS](), right)
+    def =!=[R: Manifest]       (right: R)(implicit papplyR: Binary.PartialApplyRight[Compare.Neq[LS, R], Literal[R]], m: Manifest[(LS, R)]): papplyR.Out = papplyR(Compare.Neq[LS, R](), Literal(right))
   }
 
   protected trait FieldSelectionOps extends Dynamic {
