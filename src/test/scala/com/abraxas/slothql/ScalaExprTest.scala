@@ -54,4 +54,20 @@ object ScalaExprTest {
   //= IterableFilter(PartiallyAppliedRight(Eq(), SelectField[Page, String](text)))
   //∘ SelectField[Book, List[Page]](pages)
 
+  val orderPagesA = selPages.orderBy(_.text)
+  //ScalaExpr.Composition[
+  //  ScalaExpr.IterableOrderBy[List, ScalaExpr.SelectField[Page, text, String], String],
+  //  ScalaExpr.SelectField[Book, pages, List[Page]]
+  //]{ type Source = Book; type Target = List[Page] }
+  //= IterableOrderBy(SelectField[Page, String](text),Ascending)
+  //∘ SelectField[Book, List[Page]](pages)
+
+  val orderPagesD = selPages.orderBy(_.text, _.Descending)
+  //ScalaExpr.Composition[
+  //  ScalaExpr.IterableOrderBy[List, ScalaExpr.SelectField[Page, text, String], String],
+  //  ScalaExpr.SelectField[Book, pages, List[Page]]
+  //]{ type Source = Book; type Target = List[Page] }
+  //= IterableOrderBy(SelectField[Page, String](text),Descending)
+  //∘ SelectField[Book, List[Page]](pages)
+
 }

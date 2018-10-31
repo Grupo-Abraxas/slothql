@@ -226,6 +226,25 @@ object ScalaExpr {
     val tgt: Manifest[Target] = src
   }
 
+  object OrderBy {
+    sealed trait Direction
+    case object Ascending  extends Direction
+    case object Descending extends Direction
+  }
+
+  case class IterableOrderBy[F[_], E <: ScalaExpr, T](expr: E, dir: OrderBy.Direction)(
+      implicit
+      iterable: F[_] <:< Iterable[_],
+      mf: Manifest[F[_]],
+      orderArrow: Types.Aux[E, _, T],
+      ordering: Ordering[T] // TODO: require it?
+  ) extends ScalaExpr {
+    type Source = F[expr.Source]
+    type Target = Source
+    val src: Manifest[Source] = classType(mf, expr.src)
+    val tgt: Manifest[Target] = src
+  }
+
   case class IterableSlice[I](from: Int, to: Int)(implicit iterable: I <:< Iterable[_], mf: Manifest[I]) extends ScalaExpr {
     type Source = I
     type Target = I
@@ -294,6 +313,10 @@ object ScalaExpr {
 
     def filter[B <: ScalaExpr](expr: B)            (implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean]                   ): compose.Out = compose(IterableFilter[F, B](expr), a)
     def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean], ms0: Manifest[S0]): compose.Out = compose(IterableFilter[F, B](mkExpr(Id[S0])), a)
+
+    def orderBy[B <: ScalaExpr, BT](mkExpr: Id[S0] => B, dir: OrderBy.type => OrderBy.Direction = null)
+                                   (implicit orderArrow: Types.Aux[B, _, BT], ordering: Ordering[BT], compose: Strict[Arrow.Compose[IterableOrderBy[F, B, BT], A]], ms0: Manifest[S0]): compose.value.Out =
+      compose.value(IterableOrderBy(mkExpr(Id[S0]), Option(dir).map(_(OrderBy)).getOrElse(OrderBy.Ascending)), a)
   }
 
   implicit class CompareOps[L <: ScalaExpr, LS](left: L)(implicit typesL: Types.Aux[L, LS, _]) {
@@ -431,6 +454,7 @@ object ScalaExpr {
       // implicit def changeFMap
       // implicit def changeMBind
       // implicit def changeFilter
+      // implicit def changeOrderBy
       // implicit def changeSlice
 
       private def inst[E <: ScalaExpr, S, T, R <: ScalaExpr] = instance.asInstanceOf[UnsafeChangeTypes.Aux[E, S, T, R]]
