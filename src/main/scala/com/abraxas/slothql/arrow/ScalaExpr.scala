@@ -1,5 +1,6 @@
 package com.abraxas.slothql.arrow
 
+import scala.annotation.implicitNotFound
 import scala.language.{ dynamics, higherKinds }
 
 import shapeless.labelled.{ FieldType, KeyTag }
@@ -7,7 +8,7 @@ import shapeless.tag.@@
 import shapeless._
 
 import com.abraxas.slothql.arrow.Arrow.Types
-import com.abraxas.slothql.util.{ Dealias, ShapelessUtils, ShowManifest }
+import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
 
 
 sealed trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
@@ -45,8 +46,7 @@ object ScalaExpr {
       implicit def partialApplyBinaryRight[E <: ScalaExpr, R <: ScalaExpr, S, SL, SR, T](
         implicit
         types: Types.Aux[E, S, T],
-        binary: S <:< (SL, SR),
-        dealias: Dealias[SL] // magic; `SL` will be `Any` otherwise
+        binary: Unpack2[S, Tuple2, SL, SR]
       ): PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, T]] =
         instance.asInstanceOf[PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, T]]]
       private lazy val instance = new PartialApplyRight[ScalaExpr, ScalaExpr] {
@@ -265,6 +265,16 @@ object ScalaExpr {
     case class Eq [A, B]()(implicit val src: Manifest[(A, B)]) extends Compare[A, B]
     case class Neq[A, B]()(implicit val src: Manifest[(A, B)]) extends Compare[A, B]
     // TODO: more
+
+    trait CreateInstance[Cmp[_, _] <: Compare[_, _]] { def apply[L, R](implicit m: Manifest[(L, R)]): Cmp[L, R] }
+    object CreateInstance {
+      implicit lazy val createEqInstance: CreateInstance[Eq] = new CreateInstance[Eq]{
+        def apply[L, R](implicit m: Manifest[(L, R)]): Eq[L, R] = Eq[L, R]()
+      }
+      implicit lazy val createNeqInstance: CreateInstance[Neq] = new CreateInstance[Neq]{
+        def apply[L, R](implicit m: Manifest[(L, R)]): Neq[L, R] = Neq[L, R]()
+      }
+    }
   }
 
   private def classType[F[_], T](clazz: Manifest[_ <: F[_]], arg: Manifest[T]): Manifest[F[T]] =
@@ -319,12 +329,36 @@ object ScalaExpr {
       compose.value(IterableOrderBy(mkExpr(Id[S0]), Option(dir).map(_(OrderBy)).getOrElse(OrderBy.Ascending)), a)
   }
 
-  implicit class CompareOps[L <: ScalaExpr, LS](left: L)(implicit typesL: Types.Aux[L, LS, _]) {
-    def ===[R <: ScalaExpr, RS](right: R)(implicit types: Types.Aux[R, RS, _], papplyR: Binary.PartialApplyRight[Compare.Eq[LS, RS], R], m: Manifest[(LS, RS)]): papplyR.Out = papplyR(Compare.Eq[LS, RS](), right)
-    def ===[R: Manifest]       (right: R)(implicit papplyR: Binary.PartialApplyRight[Compare.Eq[LS, R], Literal[R]], m: Manifest[(LS, R)]): papplyR.Out = papplyR(Compare.Eq[LS, R](), Literal(right))
+  implicit class CompareOps[L <: ScalaExpr, LT](left: L)(implicit typesL: Types.Aux[L, _, LT]) {
+    def ===[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, R]): build.Out = build(left, right)
+    def ===[R: Manifest]   (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]): build.Out = build(left, Literal(right))
 
-    def =!=[R <: ScalaExpr, RS](right: R)(implicit types: Types.Aux[R, RS, _], papplyR: Binary.PartialApplyRight[Compare.Neq[LS, RS], R], m: Manifest[(LS, RS)]): papplyR.Out = papplyR(Compare.Neq[LS, RS](), right)
-    def =!=[R: Manifest]       (right: R)(implicit papplyR: Binary.PartialApplyRight[Compare.Neq[LS, R], Literal[R]], m: Manifest[(LS, R)]): papplyR.Out = papplyR(Compare.Neq[LS, R](), Literal(right))
+    def =!=[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, R]): build.Out = build(left, right)
+    def =!=[R: Manifest]   (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]): build.Out = build(left, Literal(right))
+  }
+  object CompareOps {
+    @implicitNotFound("Cannot build compare expression: ${L} ${Cmp} ${R}")
+    trait BuildCmpRight[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr] {
+      type Out <: ScalaExpr
+      def apply(left: L, right: R): Out
+    }
+    object BuildCmpRight {
+      type Aux[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr, Out0 <: ScalaExpr] = BuildCmpRight[L, Cmp, R] { type Out = Out0 }
+
+      implicit def buildCmpRight[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr, LT, RT, PAR <: ScalaExpr, Out <: ScalaExpr](
+        implicit
+        typesL: Types.Aux[L, _, LT],
+        typesR: Types.Aux[R, _, RT],
+        papplyR: Binary.PartialApplyRight.Aux[Cmp[LT, RT], R, PAR],
+        cmpInstance: Compare.CreateInstance[Cmp],
+        compose: Arrow.Compose.Aux[PAR, L, Out],
+        m: Manifest[(LT, RT)]
+      ): BuildCmpRight.Aux[L, Cmp, R, Out] =
+        new BuildCmpRight[L, Cmp, R] {
+          type Out = compose.Out
+          def apply(left: L, right: R): compose.Out = compose(papplyR(cmpInstance[LT, RT], right), left)
+        }
+    }
   }
 
   protected trait FieldSelectionOps extends Dynamic {
