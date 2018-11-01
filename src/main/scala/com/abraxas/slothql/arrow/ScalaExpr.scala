@@ -36,6 +36,7 @@ object ScalaExpr {
     }
     object PartiallyAppliedRight {
       type Aux[E <: ScalaExpr, R <: ScalaExpr, SL, T] = PartiallyAppliedRight[E, R] { type Source = SL; type Target = T }
+      def unapply[E <: ScalaExpr, R <: ScalaExpr](arg: PartiallyAppliedRight[E, R]): Option[(E, R)] = Some(arg.expr -> arg.right)
     }
 
     /** Builds [[PartiallyAppliedRight]]. */
