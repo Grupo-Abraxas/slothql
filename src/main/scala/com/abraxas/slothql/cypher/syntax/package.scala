@@ -97,34 +97,50 @@ package object syntax extends LowPriorityImplicits {
     def call[R](args: Known[Expr[_]]*): Expr.Call[R] = Expr.Call(func.name, args.toList)
   }
 
-  implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) {
-    def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0.known)
+  implicit class BooleanKnownExprOps[E0 <: Expr[Boolean]](expr0: Known[E0]) {
+    def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0)
 
+    def and[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr          = binary(expr1, Expr.LogicExpr.And)
     def and[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.And)
+
+    def or [E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr          = binary(expr1, Expr.LogicExpr.Or)
     def or [E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Or)
+
+    def xor[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr          = binary(expr1, Expr.LogicExpr.Xor)
     def xor[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Xor)
 
+    def &&[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr = and(expr1)
     def &&[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = and(expr1)
-    def ||[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = or (expr1)
 
-    private def binary[E1 <: Expr[Boolean]: CypherFragment](expr1: E1, op: Expr.LogicExpr.BinaryOp) =
-      Expr.LogicBinaryExpr(expr0.known, expr1.known, op)
+    def ||[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr = or(expr1)
+    def ||[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = or(expr1)
+
+    private def binary[E1 <: Expr[Boolean]](expr1: Known[E1], op: Expr.LogicExpr.BinaryOp) =
+      Expr.LogicBinaryExpr(expr0, expr1, op)
   }
+  implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) extends BooleanKnownExprOps[E0](expr0)
 
-  implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) {
+  implicit class CompareAnyKnownOps[E0 <: Expr[_]](expr0: Known[E0]) {
+    def eq [E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Eq)
     def eq [E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Eq)
+
+    def neq[E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Neq)
     def neq[E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Neq)
 
+    def ===[E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = eq(expr1)
     def ===[E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = eq(expr1)
+
+    def <> [E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = neq(expr1)
     def <> [E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = neq(expr1)
 
     def isNull  : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.IsNull)
     def notNull : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.NotNull)
 
-    private def unary(op: Expr.CompareExpr.UnaryOp) = Expr.CompareUnaryExpr(expr0.known, op)
-    private def binary[E1 <: Expr[_]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryAnyOp) =
-      Expr.CompareBinaryAnyExpr(expr0.known, expr1.known, op)
+    private def unary(op: Expr.CompareExpr.UnaryOp) = Expr.CompareUnaryExpr(expr0, op)
+    private def binary[E1 <: Expr[_]](expr1: Known[E1], op: Expr.CompareExpr.BinaryAnyOp) =
+      Expr.CompareBinaryAnyExpr(expr0, expr1, op)
   }
+  implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) extends CompareAnyKnownOps[E0](expr0)
 
   implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) {
     def lt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
