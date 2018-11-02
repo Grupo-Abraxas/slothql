@@ -336,6 +336,12 @@ object ScalaExpr {
 
     def =!=[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, R]): build.Out = build(left, right)
     def =!=[R: Manifest]   (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]): build.Out = build(left, Literal(right))
+
+    def exprEq[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, R]): build.Out = build(left, right)
+    def exprEq[R: Manifest]   (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]): build.Out = build(left, Literal(right))
+
+    def exprNeq[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, R]): build.Out = build(left, right)
+    def exprNeq[R: Manifest]   (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]): build.Out = build(left, Literal(right))
   }
   object CompareOps {
     @implicitNotFound("Cannot build compare expression: ${L} ${Cmp} ${R}")
