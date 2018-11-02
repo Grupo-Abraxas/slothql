@@ -3,6 +3,7 @@ package com.abraxas.slothql.arrow
 import scala.annotation.implicitNotFound
 import scala.language.{ dynamics, higherKinds }
 
+import cats.data.Ior
 import shapeless.labelled.{ FieldType, KeyTag }
 import shapeless.tag.@@
 import shapeless._
@@ -246,11 +247,29 @@ object ScalaExpr {
     val tgt: Manifest[Target] = src
   }
 
-  case class IterableSlice[I](from: Int, to: Int)(implicit iterable: I <:< Iterable[_], mf: Manifest[I]) extends ScalaExpr {
+  case class IterableSlice[I](range: Ior[Int, Int])(implicit iterable: I <:< Iterable[_], mf: Manifest[I]) extends ScalaExpr {
     type Source = I
     type Target = I
     val src: Manifest[I] = mf
     val tgt: Manifest[I] = mf
+
+    def from: Option[Int] = range.left
+    def to: Option[Int] = range.right
+  }
+  object IterableSlice {
+    def range[I](from: Int, to: Int)(implicit iterable: I <:< Iterable[_], mf: Manifest[I]): IterableSlice[I] = {
+      require(from > 0, s"slice range 'from' cannot be negative, got $from")
+      require(to > 0, s"slice range 'to' cannot be negative, got $to")
+      IterableSlice(Ior.both(from, to))
+    }
+    def from[I](n: Int)(implicit iterable: I <:< Iterable[_], mf: Manifest[I]): IterableSlice[I] = {
+      require(n > 0, s"slice range 'from' cannot be negative, got $n")
+      IterableSlice(Ior.left(n))
+    }
+    def to[I](n: Int)(implicit iterable: I <:< Iterable[_], mf: Manifest[I]): IterableSlice[I] = {
+      require(n > 0, s"slice range 'to' cannot be negative, got $n")
+      IterableSlice(Ior.right(n))
+    }
   }
 
   case class IterableToList[I, A]()(implicit iterable: I <:< Iterable[_], mi: Manifest[I], ma: Manifest[A]) extends ScalaExpr {
@@ -320,7 +339,9 @@ object ScalaExpr {
   ) {
     def toList(implicit compose: Arrow.Compose[IterableToList[TA, S0], A], ms0: Manifest[S0]): compose.Out = compose(new IterableToList[TA, S0], a)
 
-    def slice(from: Int, to: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice(from, to), a)
+    def drop(n: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice.from(n), a)
+    def take(n: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice.to(n), a)
+    def slice(from: Int, to: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice.range(from, to), a)
 
     def filter[B <: ScalaExpr](expr: B)            (implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean]                   ): compose.Out = compose(IterableFilter[F, B](expr), a)
     def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean], ms0: Manifest[S0]): compose.Out = compose(IterableFilter[F, B](mkExpr(Id[S0])), a)
