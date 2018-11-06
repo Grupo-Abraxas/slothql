@@ -40,7 +40,7 @@ object Match { MatchObj =>
   // The definitions that should be package-private but cannot be
   object Internal {
     @inline def setAlias(e: CypherFragment.Expr.Var[_], alias: String): Unit = e.asInstanceOf[GraphElem.Impl]._alias = alias
-    @inline def graph: Graph = Graph.instance
+    @inline def graph: Graph = Graph()
   }
 
   def implApply[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = false, c)(f)
@@ -73,7 +73,7 @@ object Match { MatchObj =>
     def extractBindParams(body: Tree): (List[Tree], List[Tree]) = body match {
       case UnApplyClassTag(_, arg) => extractBindParams(arg)
       case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
-        val labels = args.collect{ case label if label.tpe =:= typeOf[String] => label }
+        val labels = args.collect{ case label if label.tpe <:< typeOf[String] => label }
         val values = args.collect{
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :=` =>
             (args2: @unchecked) match {

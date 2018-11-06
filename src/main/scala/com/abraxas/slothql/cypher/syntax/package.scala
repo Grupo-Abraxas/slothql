@@ -63,11 +63,11 @@ package object syntax extends LowPriorityImplicits {
   }
 
   private[syntax] object Graph{
+    def apply(): Graph = new GraphElem.Impl with Graph {}
+
     sealed trait Elem
     sealed trait Vertex extends Elem
     sealed trait Edge   extends Elem
-
-    val instance: Graph = new GraphElem.Impl with Graph {}
   }
 
   object Vertex {
