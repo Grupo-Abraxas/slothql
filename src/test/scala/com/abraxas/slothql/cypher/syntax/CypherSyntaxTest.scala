@@ -399,6 +399,19 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       )
     }
 
+    "union queries" in {
+      val query1 = Match { case v@Vertex("User")  => v.prop[String]("name") }
+      val query2 = Match { case v@Vertex("Group") => v.prop[String]("name") }
+      test(
+        query1 union query2,
+        "MATCH (`v`:`User`) " +
+        "RETURN `v`.`name` " +
+        "UNION " +
+        "MATCH (`v`:`Group`) " +
+        "RETURN `v`.`name`"
+      )
+    }
+
   }
 }
 

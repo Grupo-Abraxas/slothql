@@ -316,7 +316,7 @@ object CypherFragment {
 
   sealed trait Query[+A]
   object Query {
-    case class Union[+A, +B](left: Known[Query[A]], right: Known[Query[B]], all: Boolean) extends Query[(A, B)] // TODO
+    case class Union[+A](left: Known[Query[A]], right: Known[Query[A]], all: Boolean) extends Query[A]
 
     sealed trait Query0[+A] extends Query[A]
     case class Return[+A](ret: Known[CypherFragment.Return[A]]) extends Query0[A]

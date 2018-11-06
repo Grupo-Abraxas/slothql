@@ -349,6 +349,12 @@ package object syntax extends LowPriorityImplicits {
 
   def conditionOpt[T](cond: Option[T => CypherFragment.Known[CypherFragment.Expr[Boolean]]])(t: T): Known[Expr[Boolean]] =
     cond.map(_(t)).getOrElse(lit(true))
+
+
+  implicit class QueryOps[R0](q0: Query[R0]) {
+    def union   [R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = false)
+    def unionAll[R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = true)
+  }
 }
 
 trait LowPriorityImplicits {
