@@ -1,8 +1,9 @@
 package com.abraxas.slothql.cypher.syntax
 
-import org.scalatest.{ Matchers, WordSpec }
+import org.scalatest.{ Assertion, Matchers, WordSpec }
 
 import com.abraxas.slothql.cypher.CypherFragment
+import com.abraxas.slothql.neo4j.Neo4jCypherTransactor.RecordReader
 
 class CypherSyntaxTest extends WordSpec with Matchers {
 
@@ -27,7 +28,11 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     //    case a -(b)> c -(d)- e <(f)- g =>
   }
 
-  private def test(query: CypherFragment.Query[_], expected: String) = query.known.toCypher shouldEqual expected
+  private def test[T](query: CypherFragment.Query[T], expected: String)(implicit reader: RecordReader[T]): Test[T, reader.Out] =
+    new Test[T, reader.Out](query, expected, reader)
+  private class Test[T, TR](query: CypherFragment.Query[T], expected: String, reader: RecordReader.Aux[T, TR]) {
+    def returns[R](implicit correct: TR =:= R): Assertion = query.known.toCypher shouldEqual expected
+  }
 
   "Slothql cypher syntax" should {
 
@@ -37,7 +42,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (`a`) -[`b`]-> (`c`) -[`d`]-> (`e`) <-[`f`]- (`g`) " +
       "RETURN `a`.`count`"
-    )
+    ).returns[Int]
 
     "return tuples" in test(
       Match {
@@ -52,7 +57,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (`user`) <-[]- () <-[]- (`group`) " +
       "RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`"
-    )
+    ).returns[(Option[String], Option[String], Option[Int], Option[Boolean], String)]
 
     "match vertex labels and properties, allow non-literal property values" in {
       val id = "u1"
@@ -69,7 +74,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         },
         "MATCH (`u`:`User`{ `id`: \"u1\" }) <-[]- (:`Members`) <-[]- (`group`) " +
         "RETURN `u`.`email`, `u`.`name`, `u`.`age`, `u`.`confirmed`, `group`.`name`"
-      )
+      ).returns[(String, String, Int, Boolean, String)]
     }
 
     "match relation types, support variable length paths" in test(
@@ -79,7 +84,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (:`Group`) <-[:`parent`*0..]- (`g`:`Group`) " +
       "RETURN `g`.`name`"
-    )
+    ).returns[String]
 
     "build function calls" in test(
       Match {
@@ -88,7 +93,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (:`Group`) <-[:`parent`*]- (`g`:`Group`) " +
       "RETURN `g`, `properties`(`g`), `pi`()"
-    )
+    ).returns[(Map[String, Any], Map[String, Any], Double)]
 
     "provide syntax for common built-in functions" in test(
       Match {
@@ -98,7 +103,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (:`Group`) <-[`e`:`parent`]- (`g`:`Group`) " +
       "RETURN `id`(`g`), `count`(`g`), `keys`(`g`), `labels`(`g`), `id`(`e`), `count`(`e`), `keys`(`e`), `type`(`e`)"
-    )
+    ).returns[(Long, Long, List[String], List[String], Long, Long, List[String], String)]
 
     "allow to select edge lists (from variable length match)" in test(
       Match {
@@ -106,7 +111,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (:`Group`) <-[`es`:`parent`*0..]- (`g`:`Group`) " +
       "RETURN `es`"
-    )
+    ).returns[List[Map[String, Any]]]
     
     "support comparison expressions" in test(
       Match {
@@ -131,7 +136,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`id`(`v`) > 2 AND `id`(`v`) <= 4, " +
         "`id`(`v`) > 2 XOR `id`(`v`) <= 4, " +
         "`v` IS NULL"
-    )
+    ).returns[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)]
 
     "support lists" in {
       val l = list("Admin", "Share", "Create")
@@ -158,7 +163,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
           "[ \"Admin\", \"Share\", \"Create\" ][1..2], " +
           "[ \"Admin\", \"Share\", \"Create\" ][2..], " +
           "[ \"Admin\", \"Share\", \"Create\" ][..2]"
-      )
+      ).returns[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])]
     }
 
     "support `if` guards" in test(
@@ -168,7 +173,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (`v`) <-[`e`]- () " +
       "WHERE `type`(`e`) IN [ \"Admin\", \"Share\" ] " +
       "RETURN `v`"
-    )
+    ).returns[Map[String, Any]]
 
     "allow returning lists of vertices" in test(
       Match {
@@ -176,7 +181,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (`v1`) -[]-> (`v2`) <-[]- (`v3`) " +
       "RETURN [ `v1`, `v2`, `v3` ]"
-    )
+    ).returns[List[Map[String, Any]]]
 
     "~~ relation direction (1) ~~" in test(
       Match {
@@ -184,7 +189,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (`v1`) -[]-> (`v2`) -[`e`]-> (`v3`) <-[]- (`v4`) " +
       "RETURN [ `v1`, `v2`, `v3`, `v4` ], `type`(`e`)"
-    )
+    ).returns[(List[Map[String, Any]], String)]
 
     "~~ relation direction (2) ~~" in test(
       Match {
@@ -192,7 +197,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       },
       "MATCH (`v1`) -[]-> (`v2`) <-[`e`]- (`v3`) <-[]- (`v4`) " +
       "RETURN [ `v1`, `v2`, `v3`, `v4` ], `type`(`e`)"
-    )
+    ).returns[(List[Map[String, Any]], String)]
 
     "order results" in test(
       Match {
@@ -204,7 +209,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (`v`:`Group`) " +
       "RETURN `id`(`v`), `v`.`name` " +
       "ORDER BY `v`.`name`, `id`(`v`)"
-    )
+    ).returns[(Long, String)]
 
     "allow multiple ordering directives, support descending order" in test(
       Match {
@@ -217,7 +222,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (`v`:`Group`) " +
       "RETURN `id`(`v`), `v`.`name` " +
       "ORDER BY `v`.`name` DESC, `id`(`v`)"
-    )
+    ).returns[(Long, String)]
 
     "paginate results" in test(
       Match {
@@ -232,7 +237,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "RETURN `id`(`v`), `v`.`name` " +
       "ORDER BY `v`.`name` DESC " +
       "SKIP 1 LIMIT 1"
-    )
+    ).returns[(Long, String)]
 
     "distinct results" in test(
       Match {
@@ -245,7 +250,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (`v`:`Group`) " +
       "RETURN DISTINCT `id`(`v`), `v`.`name` " +
       "ORDER BY `v`.`name`"
-    )
+    ).returns[(Long, String)]
 
     "match vertex properties optionally (1)" in {
       val id = Some("g1")
@@ -255,7 +260,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         },
         "MATCH (`g`:`Group`{ `id`: \"g1\" }) " +
         "RETURN `g`"
-      )
+      ).returns[Map[String, Any]]
     }
 
     "match vertex properties optionally (2)" in {
@@ -266,7 +271,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         },
         "MATCH (`g`:`Group`) " +
         "RETURN `g`"
-      )
+      ).returns[Map[String, Any]]
     }
 
     "support nested matches" in test(
@@ -283,7 +288,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`u2`) " +
       "WHERE `u` = `u2` " +
       "RETURN `u`.`email`, `g`.`name`"
-    )
+    ).returns[(String, String)]
 
     "support optional matches" in test(
       Match {
@@ -297,7 +302,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "OPTIONAL MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`FooBar`]-> (`u2`) " +
       "WHERE `u` = `u2` " +
       "RETURN `u`.`email`, `g`.`name`"
-    )
+    ).returns[(String, String)]
 
     "support maps/dictionaries" in test(
       Match {
@@ -319,8 +324,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`personal`: { `name`: `u`.`name`, `age`: `u`.`age` }, " +
         "`account`: { `email`: `u`.`email`, `confirmed`: `u`.`confirmed` } " +
         "}"
-
-    )
+    ).returns[Map[String, Any]]
 
     "collect results to lists" in test(
       Match {
@@ -344,7 +348,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`user`: `u`.`email`, " +
         "`groups`: `collect`({ `id`: `g`.`id`, `role`: `type`(`role`) }) " +
         "}"
-    )
+    ).returns[Map[String, Any]]
 
     "slice collected lists" in test(
       Match {
@@ -371,7 +375,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`user`: `u`.`email`, " +
         "`groups`: `collect`({ `id`: `g`.`id`, `role`: `type`(`role`) })[..1] " +
         "}"
-    )
+    ).returns[Map[String, Any]]
 
     "allow to use non-literal labels in matches, support non-literal property names" in {
       val label = "User"
@@ -382,7 +386,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         },
         "MATCH (`v`:`User`) " +
         "RETURN `v`.`name`"
-      )
+      ).returns[Any]
     }
 
     "allow to use non-literal, optional conditions in `if` guard" in {
@@ -396,7 +400,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "MATCH (`v`:`User`) " +
         "WHERE `v`.`age` >= 18 " +
         "RETURN `v`.`name`"
-      )
+      ).returns[String]
     }
 
     "union queries" in {
@@ -409,7 +413,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "UNION " +
         "MATCH (`v`:`Group`) " +
         "RETURN `v`.`name`"
-      )
+      ).returns[String]
     }
 
   }
