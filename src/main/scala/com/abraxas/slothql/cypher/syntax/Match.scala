@@ -40,7 +40,7 @@ object Match { MatchObj =>
   // The definitions that should be package-private but cannot be
   object Internal {
     @inline def setAlias(e: CypherFragment.Expr.Var[_], alias: String): Unit = e.asInstanceOf[GraphElem.Impl]._alias = alias
-    @inline def graph: Graph = Graph.instance
+    @inline def graph: Graph = Graph()
   }
 
   def implApply[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = false, c)(f)
