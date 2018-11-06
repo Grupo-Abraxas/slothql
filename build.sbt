@@ -20,7 +20,8 @@ lazy val root = (project in file(".")).
       "org.typelevel"   %% "cats-core"          % catsVersion,
       "org.typelevel"   %% "cats-free"          % catsVersion,
       "org.typelevel"   %% "cats-effect"        % "0.10.1",
-      "org.neo4j.driver" % "neo4j-java-driver"  % "1.6.1"
+      "org.neo4j.driver" % "neo4j-java-driver"  % "1.6.1",
+      "org.scalatest"   %% "scalatest"          % "3.0.5"       % Test
     )
   ).
   dependsOn(macros).
