@@ -252,6 +252,11 @@ package object syntax extends LowPriorityImplicits {
       MapEntry(pair._1, Known(pair._2)(frag).asInstanceOf[Known[Expr[A]]])
   }
 
+
+  implicit class ReturnAsOps[A, E <: Expr[_]](expr: E)(implicit frag: CypherFragment[E], tpe: E <:< Expr[A]) {
+    def as(alias: String): Return.Expr[A] = Return.Expr(expr.known.widen[Expr[A]], as = Option(alias))
+  }
+
   sealed trait QueryReturn[T]{
     type Ret
     type Out <: Return[Ret]

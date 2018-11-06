@@ -8,7 +8,6 @@ import cats.syntax.bifunctor._
 import cats.syntax.functor._
 import shapeless.{ :: => #:, _ }
 
-import com.abraxas.slothql.util.ComappedCov
 
 trait CypherFragment[-A] {
   // TODO: (String, Params)
@@ -403,33 +402,34 @@ object CypherFragment {
       object Build {
         type Aux[L <: HList, R <: HList, E <: HList] = Build[L] { type Ret = R; type Expr = E }
 
-        object KnownHList extends Poly2 {
-          implicit def impl[A, E <: CypherFragment.Expr[_]](
-            implicit ev: E <:< CypherFragment.Expr[A], fragment: CypherFragment[E]
-          ): Case.Aux[A, E, Known[Return.Expr[A]]] =
-            at[A, E]((_, e) => Known(Return.Expr(Known(e).widen, None)))
+
+        object KnownHListTypes extends Poly1 {
+          implicit def expr[A, E](implicit isExpr: Unpack1[E, CypherFragment.Expr, A], fragment: CypherFragment[E]): Case.Aux[E, (Known[Return.Expr[A]], A)] =
+            at[E](e => Return.Expr(e.known.asInstanceOf[Known[CypherFragment.Expr[A]]], None).known.widen -> null.asInstanceOf[A])
+          implicit def returnExpr[A, E](implicit isReturnExpr: Unpack1[E, CypherFragment.Return.Expr, A], fragment: CypherFragment[E]): Case.Aux[E, (Known[Return.Expr[A]], A)] =
+            at[E](_.known.asInstanceOf[Known[Return.Expr[A]]] -> null.asInstanceOf[A])
+          implicit def boolean[E](implicit isBoolean: E <:< CypherFragment.Expr[Boolean], fragment: CypherFragment[E], lowPriority: LowPriority): Case.Aux[E, (Known[Return.Expr[Boolean]], Boolean)] =
+            at[E](e => Return.Expr[Boolean](e.known.widen, None).known -> false)
+          implicit def list[E, L, A](implicit isExpr: E <:< CypherFragment.Expr[L], unpack: Unpack1[L, scala.List, A], fragment: CypherFragment[E], lowPriority: LowPriority): Case.Aux[E, (Known[Return.Expr[scala.List[A]]], scala.List[A])] =
+            at[E](e => Return.Expr(e.known.asInstanceOf[Known[CypherFragment.Expr[scala.List[A]]]], None).known -> null.asInstanceOf[scala.List[A]])
         }
 
-        object NullF extends Poly0 {
-          implicit def impl[A]: Case0[A] = at[A](null.asInstanceOf[A])
-        }
-
-        implicit def listOfExpressions[L <: HList, RT <: HList, RE <: HList, RK <: HList](
+        implicit def listOfExpressions[Exprs <: HList, R0 <: HList, U, R <: HList, RT <: HList](
           implicit
-          nonEmpty: ops.hlist.IsHCons[L],
-          stripExpr: ComappedCov.Aux[L, CypherFragment.Expr, RT],
-          nulls: ops.hlist.FillWith[NullF.type, RT],
-          known: ops.hlist.ZipWith.Aux[RT, L, KnownHList.type, RK],
-          list: ops.hlist.ToTraversable.Aux[RK, scala.List, Known[Return.Expr[_]]]
-        ): Aux[L, RT, RK] =
-          new Build[L] {
+          nonEmpty: ops.hlist.IsHCons[Exprs],
+          known: ops.hlist.Mapper.Aux[KnownHListTypes.type, Exprs, R0],
+          unzip: ops.hlist.Unzip.Aux[R0, U],
+          extract: Unpack2[U, Tuple2, R, RT],
+          list: ops.hlist.ToTraversable.Aux[R, scala.List, Known[Return.Expr[_]]]
+        ): Build.Aux[Exprs, RT, R] =
+          new Build[Exprs] {
             type Ret = RT
-            type Expr = RK
-            def apply(l: L): Out =
+            type Expr = R
+            def apply(exprs: Exprs): List.Aux[RT, R] =
               new List[RT] {
-                type Expressions = RK
-                val expressions: RK = known(nulls(), l)
-                val toList: scala.List[Known[Return.Expr[_]]] = expressions.toList
+                type Expressions = R
+                val expressions: R = unzip(known(exprs)).asInstanceOf[(R, RT)]._1
+                val toList: scala.List[Known[Return.Expr[_]]] = list(expressions)
               }
           }
       }

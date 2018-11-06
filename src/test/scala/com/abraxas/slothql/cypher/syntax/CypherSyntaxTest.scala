@@ -416,6 +416,19 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[String]
     }
 
+    "set aliases for returned values" in {
+      val query1 = Match { case v@Vertex("User")  => (v.prop[String]("name") as "name", v.prop[Int]("age") as "N", lit("user") as "type") }
+      val query2 = Match { case v@Vertex("Group") => (v.prop[String]("name") as "name", v.prop[Int]("count") as "N", lit("group") as "type") }
+      test(
+        query1 union query2,
+        "MATCH (`v`:`User`) " +
+        "RETURN `v`.`name` AS `name`, `v`.`age` AS `N`, \"user\" AS `type` " +
+        "UNION " +
+        "MATCH (`v`:`Group`) " +
+        "RETURN `v`.`name` AS `name`, `v`.`count` AS `N`, \"group\" AS `type`"
+      ).returns[(String, Int, String)]
+    }
+
   }
 }
 
