@@ -232,3 +232,29 @@ object Test7 extends App {
   driver.close()
   sys.exit()
 }
+
+object Test8 extends App {
+  val driver = Connection.driver
+  val tx = Neo4jCypherTransactor(driver.session())
+
+  val q = Match { case g@Vertex("Group") => g.prop[String]("name") }
+
+  println("q = " + q.known.toCypher)
+  val query = for {
+    name <- tx.read(q)
+    _ = println(s"name = $name")
+    if name contains "Root"
+  } yield name
+
+  val io = tx.run(query)
+  val result: Seq[String] = io.unsafeRunSync()
+
+  println("result = " + result)
+
+  // q = MATCH (`g`:`Group`) RETURN `g`.`name`
+  // name = Root Group
+  // name = Sub Group
+  // result = Vector(Root Group)
+  driver.close()
+  sys.exit()
+}

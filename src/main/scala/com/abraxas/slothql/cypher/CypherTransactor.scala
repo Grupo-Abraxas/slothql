@@ -90,6 +90,7 @@ trait CypherTxBuilder {
 
     def const[A](a: A): ReadTx[A] = Free.pure(a)
     def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
+    def nothing[A]: ReadTx[A] = unwind(Vector.empty)
 
     implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
       def pure[A](x: A): ReadTx[Vector[A]] =
@@ -114,6 +115,10 @@ trait CypherTxBuilder {
       def gather: ReadTx[Vector[R]] = tx.foldMap[λ[A => ReadTx[Vector[A]]]](
         λ[Read ~> λ[A => ReadTx[Vector[A]]]](fa => liftF(newGather(fa)))
       )
+
+      def filter(pred: R => Boolean): ReadTx[R] = tx.flatMap { r =>
+        if (pred(r)) Read.const(r) else Read.nothing
+      }
     }
 
     private def newGather[R](read: Read[R]): Read[Vector[R]] = Gather(read)
