@@ -429,6 +429,36 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, Int, String)]
     }
 
+    "unwind literal expressions list" in {
+      val query = unwind(litList(1L, 2L, 3L)) { i =>
+         Match { case v@Vertex("User") if v.id === i => v.prop[String]("name") }
+      }
+      test(
+        query,
+        "UNWIND [ 1, 2, 3 ] AS `i` " +
+        "MATCH (`v`:`User`) " +
+        "WHERE `id`(`v`) = `i` " +
+        "RETURN `v`.`name`"
+      ).returns[String]
+    }
+
+    "unwind expressions list" in {
+      val query = Match {
+        case v@Vertex("User") =>
+          val collected = collect(distinct(v.prop[String]("name")))
+          unwind(collected) { name =>
+            Match { case v2 if v2.prop[String]("name") === name => (name, v2.id, v2.labels) }
+          }
+      }
+      test(
+        query,
+        "MATCH (`v`:`User`) " +
+        "UNWIND `collect`(DISTINCT `v`.`name`) AS `name` " +
+        "MATCH (`v2`) " +
+        "WHERE `v2`.`name` = `name` " +
+        "RETURN `name`, `id`(`v2`), `labels`(`v2`)"
+      ).returns[(String, Long, List[String])]
+    }
   }
 }
 

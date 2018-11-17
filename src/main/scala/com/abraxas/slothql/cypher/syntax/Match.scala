@@ -1,8 +1,9 @@
 package com.abraxas.slothql.cypher.syntax
 
 import scala.language.experimental.macros
+import scala.language.implicitConversions
 import scala.reflect.ClassTag
-import scala.reflect.macros.whitebox
+import scala.reflect.macros.{ blackbox, whitebox }
 
 import cats.data.NonEmptyList
 
@@ -16,6 +17,8 @@ object Match { MatchObj =>
 
   sealed trait Result[R] { def result: Query.Query0[R] }
   object Result{
+    implicit def resultToQuery[R](result: Result[R]): Query[R] = result.result
+
     protected[syntax] trait Ret[R] extends Result[R] {
       protected[syntax] def ret: Known[Return[R]]
       def result: Query.Query0[R] = Query.Return(ret)
@@ -28,6 +31,33 @@ object Match { MatchObj =>
       protected[syntax] def ret: Known[Return[R]]
       protected[syntax] def query: Known[Query.Query0[R]]
       def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = None), query)
+    }
+    protected[syntax] trait Unwind[A, R] extends Result[R] {
+      protected[syntax] def exprs: Known[Expr[List[A]]]
+      protected[syntax] def alias: String
+      protected[syntax] def query: Known[Query.Query0[R]]
+      def result: Query.Query0[R] = Query.Clause(Clause.Unwind(exprs, as = alias), query)
+    }
+    protected[syntax] object Unwind {
+      def instanceImpl[A: c.WeakTypeTag, R: c.WeakTypeTag]
+                      (c: blackbox.Context)
+                      (list: c.Expr[Known[Expr[List[A]]]])
+                      (f: c.Expr[Expr.Var[A] => Match.Result[R]])
+                      : c.Expr[Match.Result.Unwind[A, R]] = {
+        import c.universe._
+        val paramName = (f.tree: @unchecked) match {
+          case Function(ValDef(_, name, _, _) :: Nil, _) => name.toString
+        }
+        val rowExprTree = q"_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Var[${weakTypeOf[A]}]($paramName)"
+        val rowExpr = c.Expr[CypherFragment.Expr.Var[A]](rowExprTree)
+        reify {
+          new Unwind[A, R] {
+            protected[syntax] def exprs: Known[CypherFragment.Expr[List[A]]] = list.splice
+            protected[syntax] def alias: String = c.Expr[String](Literal(Constant(paramName))).splice
+            protected[syntax] def query: Known[Query.Query0[R]] = f.splice(rowExpr.splice).result
+          }
+        }
+      }
     }
     // TODO =========================================================
     // TODO: rename clause's aliases to avoid collision!?

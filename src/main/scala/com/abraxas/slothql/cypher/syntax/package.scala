@@ -1,5 +1,6 @@
 package com.abraxas.slothql.cypher
 
+import scala.language.experimental.macros
 import scala.language.{ higherKinds, implicitConversions }
 import scala.util.Random
 
@@ -310,6 +311,9 @@ package object syntax extends LowPriorityImplicits {
   implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e))
   implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
 
+
+  def unwind[A, R](list: Known[Expr[List[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result.Unwind[A, R] =
+    macro Match.Result.Unwind.instanceImpl[A, R]
 
   def `with`[R](ops: ReturnOps[Any] => ReturnOps[Any])(res: Match.Result[R]): Match.Result.With[R] =
     new Match.Result.With[R] {
