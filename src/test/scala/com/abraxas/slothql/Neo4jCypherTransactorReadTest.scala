@@ -145,6 +145,17 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
+    "`unwind` and `gather` empty sequence" in {
+      val q0 = tx.Read.nothing[Int]
+      val query = for {
+        x <- q0.gather
+      } yield (x, "foo")
+
+      test[(Vector[Int], String)](query, Seq(
+        Vector.empty -> "foo"
+      ))
+    }
+
     "`filter` results" in {
       val q = Match { case g@Vertex("Group") => g.prop[String]("name") }
       val query = for {
