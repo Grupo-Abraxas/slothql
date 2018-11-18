@@ -38,7 +38,14 @@ object Match { MatchObj =>
       protected[syntax] def query: Known[Query.Query0[R]]
       def result: Query.Query0[R] = Query.Clause(Clause.Unwind(exprs, as = alias), query)
     }
-    protected[syntax] object Unwind {
+    object Unwind {
+      def apply[A, R](listExpr: Known[Expr[List[A]]], unwindAlias: String, next: Known[Query.Query0[R]]): Unwind[A, R] =
+        new Unwind[A, R] {
+          protected[syntax] def exprs: Known[Expr[List[A]]] = listExpr
+          protected[syntax] def alias: String = unwindAlias
+          protected[syntax] def query: Known[Query.Query0[R]] = next
+        }
+
       def instanceImpl[A: c.WeakTypeTag, R: c.WeakTypeTag]
                       (c: blackbox.Context)
                       (list: c.Expr[Known[Expr[List[A]]]])
@@ -51,11 +58,11 @@ object Match { MatchObj =>
         val rowExprTree = q"_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Var[${weakTypeOf[A]}]($paramName)"
         val rowExpr = c.Expr[CypherFragment.Expr.Var[A]](rowExprTree)
         reify {
-          new Unwind[A, R] {
-            protected[syntax] def exprs: Known[CypherFragment.Expr[List[A]]] = list.splice
-            protected[syntax] def alias: String = c.Expr[String](Literal(Constant(paramName))).splice
-            protected[syntax] def query: Known[Query.Query0[R]] = f.splice(rowExpr.splice).result
-          }
+          Unwind[A, R](
+            list.splice,
+            c.Expr[String](Literal(Constant(paramName))).splice,
+            f.splice(rowExpr.splice).result
+          )
         }
       }
     }
