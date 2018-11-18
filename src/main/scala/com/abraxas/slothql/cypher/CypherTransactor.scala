@@ -7,6 +7,7 @@ import cats.free.Free
 import cats.free.Free.liftF
 import cats.{ Monad, ~> }
 import cats.instances.vector._
+import cats.syntax.apply._
 import cats.syntax.traverse._
 import shapeless.{ DepFn1, |∨| }
 
@@ -89,8 +90,23 @@ trait CypherTxBuilder {
       }
 
     def const[A](a: A): ReadTx[A] = Free.pure(a)
+
+    def product[A, B](txA: ReadTx[A], txB: ReadTx[B]): ReadTx[(A, B)] = (txA, txB).tupled
+
+    /** Will throw [[CannotZipException]] if lengths of the results do not correspond */
+    def zip[A, B](txA: ReadTx[A], txB: ReadTx[B]): ReadTx[(A, B)] =
+      for {
+        as <- txA.gather
+        bs <- txB.gather
+        _ = if (as.length != bs.length) throw new CannotZipException(as, bs)
+        zipped <- unwind(as zip bs)
+      } yield zipped
+
     def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
     def nothing[A]: ReadTx[A] = unwind(Vector.empty)
+
+    class CannotZipException(left: Seq[Any], right: Seq[Any]) extends Exception(
+      s"Cannot zip because of different length:\n\tleft:  $left\n\tright: $right")
 
     implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
       def pure[A](x: A): ReadTx[Vector[A]] =
@@ -111,14 +127,19 @@ trait CypherTxBuilder {
     }
 
 
-    implicit class ReadTxOps[R](tx: ReadTx[R]) {
-      def gather: ReadTx[Vector[R]] = tx.foldMap[λ[A => ReadTx[Vector[A]]]](
+    implicit class ReadTxOps[A](tx: ReadTx[A]) {
+      def gather: ReadTx[Vector[A]] = tx.foldMap[λ[A => ReadTx[Vector[A]]]](
         λ[Read ~> λ[A => ReadTx[Vector[A]]]](fa => liftF(newGather(fa)))
       )
 
-      def filter(pred: R => Boolean): ReadTx[R] = tx.flatMap { r =>
+      def filter(pred: A => Boolean): ReadTx[A] = tx.flatMap { r =>
         if (pred(r)) Read.const(r) else Read.nothing
       }
+
+      def x[B](that: ReadTx[B]): ReadTx[(A, B)] = Read.product(tx, that)
+
+      /** Will throw [[CannotZipException]] if lengths of the results do not correspond */
+      def zip[B](that: ReadTx[B]): ReadTx[(A, B)] = Read.zip(tx, that)
     }
 
     private def newGather[R](read: Read[R]): Read[Vector[R]] = Gather(read)

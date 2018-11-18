@@ -167,6 +167,34 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
         "Root Group"
       ))
     }
+
+    "build cartesian product of two queries' results" in {
+      val q1 = tx.read(Match { case g@Vertex("Group") => g.prop[String]("name") })
+      val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
+      val q = q1 x q2
+
+      test[(String, Int)](q, Seq(
+        "Root Group" -> 1,
+        "Root Group" -> 2,
+        "Sub Group" -> 1,
+        "Sub Group" -> 2
+      ))
+    }
+
+    "`zip` results of two queries" in {
+      val q1 = tx.read(Match {
+        case g@Vertex("Group") =>
+          g.prop[String]("name")
+            .orderBy(g.prop[String]("name"))
+      })
+      val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
+      val q = q1 zip q2
+
+      test[(String, Int)](q, Seq(
+        "Root Group" -> 1,
+        "Sub Group"  -> 2
+      ))
+    }
   }
 
   override protected def afterAll(): Unit = {
