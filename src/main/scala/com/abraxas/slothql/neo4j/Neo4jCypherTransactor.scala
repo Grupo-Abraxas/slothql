@@ -4,7 +4,7 @@ import scala.collection.convert.decorateAsScala._
 
 import cats.effect.IO
 import cats.instances.vector._
-import cats.~>
+import cats.{ Functor, ~> }
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
 import shapeless._
@@ -90,6 +90,11 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     def define[A](f: Value => A): ValueReader[A] =
       new ValueReader[A] {
         def apply(rec: Value): A = f(rec)
+      }
+
+    implicit lazy val ValueReaderFunctor: Functor[ValueReader] =
+      new Functor[ValueReader] {
+        def map[A, B](fa: ValueReader[A])(f: A => B): ValueReader[B] = define(v => f(fa(v)))
       }
 
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
