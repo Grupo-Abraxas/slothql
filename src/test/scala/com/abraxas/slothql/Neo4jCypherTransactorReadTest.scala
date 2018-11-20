@@ -195,6 +195,22 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
         "Sub Group"  -> 2
       ))
     }
+
+    "`zip3` results of three queries" in {
+      val q1 = tx.read(Match {
+        case g@Vertex("Group") =>
+          g.prop[String]("name")
+            .orderBy(g.prop[String]("name"))
+      })
+      val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
+      val q3 = tx.read(unwind(litList("A", "B")) { i => i }.result)
+      val q = tx.Read.zip3(q1, q2, q3)
+
+      test[(String, Int, String)](q, Seq(
+        ("Root Group", 1, "A"),
+        ("Sub Group",  2, "B")
+      ))
+    }
   }
 
   override protected def afterAll(): Unit = {

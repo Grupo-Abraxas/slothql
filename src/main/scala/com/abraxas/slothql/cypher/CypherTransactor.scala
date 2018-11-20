@@ -12,6 +12,7 @@ import cats.syntax.traverse._
 import shapeless.{ DepFn1, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Known, Query }
+import com.abraxas.slothql.util.MoreZip
 
 trait CypherTransactor {
   type TxBuilder <: CypherTxBuilder
@@ -102,11 +103,24 @@ trait CypherTxBuilder {
         zipped <- unwind(as zip bs)
       } yield zipped
 
+    /** Will throw [[CannotZip3Exception]] if lengths of the results do not correspond */
+    def zip3[A, B, C](txA: ReadTx[A], txB: ReadTx[B], txC: ReadTx[C]): ReadTx[(A, B, C)] =
+      for {
+        as <- txA.gather
+        bs <- txB.gather
+        cs <- txC.gather
+        _ = if (as.length != bs.length || bs.length != cs.length) throw new CannotZip3Exception(as, bs, cs)
+        zipped <- unwind(MoreZip.zip3(as, bs, cs))
+      } yield zipped
+
     def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
     def nothing[A]: ReadTx[A] = unwind(Vector.empty)
 
     class CannotZipException(left: Seq[Any], right: Seq[Any]) extends Exception(
       s"Cannot zip because of different length:\n\tleft:  $left\n\tright: $right")
+
+    class CannotZip3Exception(seq1: Seq[Any], seq2: Seq[Any], seq3: Seq[Any]) extends Exception(
+      s"Cannot zip because of different length:\n\t1: $seq1\n\t2: $seq2\n\t3: $seq3")
 
     implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
       def pure[A](x: A): ReadTx[Vector[A]] =
