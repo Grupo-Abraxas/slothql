@@ -12,7 +12,7 @@ import com.abraxas.slothql.arrow.Arrow.Types
 import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
 
 
-sealed trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
+trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
   val src: Manifest[Source]
   val tgt: Manifest[Target]
 }
@@ -530,9 +530,11 @@ object ScalaExpr {
         case c: Composition[_, _] => inner(c.G) ::: inner(c.F)
         case _ => expr :: Nil
       }
-      val unchained = inner(expr0)
-      UnchainedRev(unchained, unchained.head.src.asInstanceOf[Manifest[Any]], unchained.last.tgt.asInstanceOf[Manifest[Any]])
+      unchainedRev(inner(expr0): _*)
     }
+
+    def unchainedRev(unchained: ScalaExpr*): UnchainedRev =
+      UnchainedRev(unchained.toList, unchained.head.src.asInstanceOf[Manifest[Any]], unchained.last.tgt.asInstanceOf[Manifest[Any]])
 
     final case class UnchainedRev protected(toList: List[ScalaExpr], src: Manifest[Any], tgt: Manifest[Any]) extends ScalaExpr {
       type Source = Any
