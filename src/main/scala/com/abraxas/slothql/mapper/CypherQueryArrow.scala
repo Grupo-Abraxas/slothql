@@ -196,14 +196,14 @@ object CypherQueryArrow {
       head: ops.hlist.IsHCons.Aux[U, H, _],
       isProperty: H <:< GraphPath.PropSelection[_, P],
       propertyType: P <:< GraphRepr.Property.Aux[R]
-    ): ReturnBuilder.Aux[A, R, Expr.Key[R]] =
+    ): ReturnBuilder.Aux[A, R, Expr.MapKey[R]] =
       new ReturnBuilder[A] {
         type Result = R
-        type Out = Expr.Key[R]
-        def apply(a: A, theOnlyNodeAlias: String): Expr.Key[R] = {
+        type Out = Expr.MapKey[R]
+        def apply(a: A, theOnlyNodeAlias: String): Expr.MapKey[R] = {
           val propSel = unchain(a).head
           implicit val rManifest = propSel.prop.manifest.asInstanceOf[Manifest[R]]
-          Expr.Key[R](Expr.Var[Map[String, Any]](theOnlyNodeAlias), propSel.propName)
+          Expr.MapKey[R](Expr.Var[Map[String, Any]](theOnlyNodeAlias), propSel.propName)
         }
       }
   }

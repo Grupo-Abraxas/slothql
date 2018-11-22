@@ -459,6 +459,15 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `name`, `id`(`v2`), `labels`(`v2`)"
       ).returns[(String, Long, List[String])]
     }
+
+    "add keys to a map" in {
+      val query = Match{ case v => v add ("foo" -> lit("bar"), "labels" -> v.labels) }
+      test(
+        query,
+        "MATCH (`v`) " +
+        "RETURN `v`{.*, `foo`: \"bar\", `labels`: `labels`(`v`)}"
+      ).returns[Map[String, Any]]
+    }
   }
 }
 

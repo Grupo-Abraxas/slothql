@@ -28,15 +28,15 @@ package object syntax extends LowPriorityImplicits {
 
   final implicit class GraphElemOps(e: GraphElem) {
     /** Select vertex/edge property. */
-    def prop[A](k: String): Expr.Key[A] = Expr.Key[A](e, k)
+    def prop[A](k: String): Expr.MapKey[A] = Expr.MapKey[A](e, k)
     /** Select vertex/edge property as [[Option]]. */
-    def propOpt[A](k: String): Expr.Key[Option[A]] = prop[Option[A]](k)
+    def propOpt[A](k: String): Expr.MapKey[Option[A]] = prop[Option[A]](k)
 
     /** Alias for [[prop]]. */
     @deprecated("seems to break query type resolution", since = "03.06.18")
-    def apply[A](k: String): Expr.Key[A] = prop(k)
+    def apply[A](k: String): Expr.MapKey[A] = prop(k)
     /** Alias for [[propOpt]]. */
-    def opt[A](k: String): Expr.Key[Option[A]] = propOpt(k)
+    def opt[A](k: String): Expr.MapKey[Option[A]] = propOpt(k)
 
     /** Call built-in function `func` passing `this` expression as first argument. */
     def call[R](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
@@ -190,6 +190,10 @@ package object syntax extends LowPriorityImplicits {
     def filter0(expr: Known[Expr[Boolean]])(implicit mf: Manifest[A]): Expr.FilterList[A] = Expr.FilterList(expr0.known.widen, "_", expr)
   }
 
+  implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]]) {
+    def add(kv: (String, Known[Expr[A]])*): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, kv.toMap)
+    def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, map)
+  }
 
   private def randomAlias(): String = Random.alphanumeric.take(20).mkString
 

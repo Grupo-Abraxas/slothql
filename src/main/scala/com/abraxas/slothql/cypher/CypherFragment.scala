@@ -160,16 +160,26 @@ object CypherFragment {
 
     // // // Maps // // //
     case class Map[+A](get: Predef.Map[String, Known[Expr[A]]]) extends Expr[Predef.Map[String, A]]
-    case class Key[+A](map: Known[Expr[Predef.Map[String, _]]], key: String) extends Expr[A]
+    case class MapKey[+A](map: Known[Expr[Predef.Map[String, _]]], key: String) extends Expr[A]
+    case class MapAdd[+A](map: Known[Expr[Predef.Map[String, _]]], values: Predef.Map[String, Known[Expr[A]]]) extends Expr[Predef.Map[String, A]]
 
     object Map {
       implicit def fragment[A]: CypherFragment[Map[A]] = instance.asInstanceOf[CypherFragment[Map[A]]]
       lazy val instance: CypherFragment[Map[_]] = define(m => mapStr(m.get))
     }
-    object Key {
-      implicit def fragment[A]: CypherFragment[Key[A]] = instance.asInstanceOf[CypherFragment[Key[A]]]
-      lazy val instance: CypherFragment[Key[_]] = define {
-        case Key(m, k) => s"${m.toCypher}.${escapeName(k)}"
+    object MapKey {
+      implicit def fragment[A]: CypherFragment[MapKey[A]] = instance.asInstanceOf[CypherFragment[MapKey[A]]]
+      lazy val instance: CypherFragment[MapKey[_]] = define {
+        case MapKey(m, k) => s"${m.toCypher}.${escapeName(k)}"
+      }
+    }
+    object MapAdd {
+      implicit def fragment[A]: CypherFragment[MapAdd[A]] = instance.asInstanceOf[CypherFragment[MapAdd[A]]]
+      lazy val instance: CypherFragment[MapAdd[_]] = define {
+        case MapAdd(m, vs) if vs.isEmpty => m.toCypher
+        case MapAdd(m, vs) =>
+          val add = vs.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString(", ")
+          s"${m.toCypher}{.*, $add}"
       }
     }
 
