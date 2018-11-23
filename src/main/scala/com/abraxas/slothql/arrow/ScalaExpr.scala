@@ -195,6 +195,13 @@ object ScalaExpr {
       def apply[E <: ScalaExpr](expr: E)(implicit F: cats.Functor[F], mf0: Manifest[F[_]]): FMap[F, E] = FMap[F, E](expr)
     }
     private object Builder extends Builder
+
+    implicit def fmapToDot[F[_], E <: ScalaExpr, S](
+      implicit
+      types: Arrow.Types.Aux[E, S, _],
+      showSrc: util.ShowT[S],
+      toDot: util.ArrowToDot[E]
+    ): util.ArrowToDot[FMap[F, E]] = dotCluster(_.expr, "map")
   }
 
   /** Expression representing monadic bind / `flatMap` operation. */
@@ -213,7 +220,28 @@ object ScalaExpr {
       def apply[E <: ScalaExpr](expr: E)(implicit M: cats.Monad[F], mf0: Manifest[F[_]]): MBind[F, E] = MBind[F, E](expr)
     }
     private object Builder extends Builder
+
+    implicit def mbindToDot[F[_], E <: ScalaExpr, S](
+      implicit
+      types: Arrow.Types.Aux[E, S, _],
+      showSrc: util.ShowT[S],
+      toDot: util.ArrowToDot[E]
+    ): util.ArrowToDot[MBind[F, E]] = dotCluster(_.expr, "flatMap")
   }
+
+  private def dotCluster[A <: Arrow, S: util.ShowT, E <: ScalaExpr: util.ArrowToDot](getE: A => E, label: String) =
+    util.ArrowToDot.define[A]{
+      (a, srcId) =>
+        val (sourceDot, source) = util.ArrowToDot.defaultNewTypeNode[S]
+        val (dot, target) = implicitly[util.ArrowToDot[E]].apply(getE(a), source)
+        s"""subgraph cluster_${scala.util.Random.nextInt(Int.MaxValue)}{
+           |  $sourceDot
+           |  $dot
+           |}
+           |edge [label="$label"];
+           |$srcId -> $source;
+           |""".stripMargin -> target
+    }
 
 
   case class IterableFilter[F[_], E <: ScalaExpr](expr: E)(
