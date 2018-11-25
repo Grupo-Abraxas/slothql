@@ -1,10 +1,16 @@
+import com.typesafe.sbt.SbtGit.GitKeys
+
 enablePlugins(GitVersioning)
 
 lazy val root = (project in file(".")).
   settings(
     inThisBuild(List(
       organization := "com.abraxas",
-      scalaVersion := "2.11.12"
+      scalaVersion := "2.11.12",
+      git.gitHeadCommit := GitKeys.gitReader.value.withGit(
+        _.asInstanceOf[com.typesafe.sbt.git.JGit]
+          .headCommit.map(_.abbreviate(8).name)
+      )
     ) ++ versionWithGit),
 
     name := "slothql-dev-mapper",
