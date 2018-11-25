@@ -4,10 +4,8 @@ lazy val root = (project in file(".")).
   settings(
     inThisBuild(List(
       organization := "com.abraxas",
-      scalaVersion := "2.11.12",
-      // version      := "0.1-SNAPSHOT",
-      git.formattedShaVersion := git.gitHeadCommit.value map { _.take(8) }
-    )),
+      scalaVersion := "2.11.12"
+    ) ++ versionWithGit),
 
     name := "slothql-dev-mapper",
 
