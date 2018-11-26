@@ -85,45 +85,53 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
   }
 
-  trait ValueReader[A] extends CypherTransactor.Reader[Value, A] { type Out = A }
+  trait ValueReader[A] extends CypherTransactor.Reader[Value, A] {
+    type Out = A
+    def describeResult: String
+
+    def map[B](describe: String, f: A => B): ValueReader[B] = ValueReader.define(describe, f compose apply)
+    def map[B](f: A => B): ValueReader[B] = map(s"$describeResult ~> ?", f)
+
+    override def toString: String = s"ValueReader[$describeResult]"
+  }
   object ValueReader {
-    def define[A](f: Value => A): ValueReader[A] =
+    def define[A](describe: String, f: Value => A): ValueReader[A] =
       new ValueReader[A] {
         def apply(rec: Value): A = f(rec)
+        def describeResult: String = describe
       }
 
     implicit lazy val ValueReaderFunctor: Functor[ValueReader] =
       new Functor[ValueReader] {
-        def map[A, B](fa: ValueReader[A])(f: A => B): ValueReader[B] = define(v => f(fa(v)))
+        def map[A, B](fa: ValueReader[A])(f: A => B): ValueReader[B] = fa.map(f)
       }
 
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
 
-    implicit def option[A](implicit reader: ValueReader[A]): ValueReader[Option[A]] = ValueReader define { v =>
-      if (v.isNull) None else Some(reader(v))
-    }
+    implicit def option[A](implicit reader: ValueReader[A]): ValueReader[Option[A]] =
+      ValueReader define (s"Option[${reader.describeResult}]", v => if (v.isNull) None else Some(reader(v)))
 
     implicit def list[A](implicit reader: ValueReader[A]): ValueReader[List[A]] =
-      ValueReader define (_.values(reader.apply(_: Value)).asScala.toList )
+      ValueReader define (s"List[${reader.describeResult}]", _.values(reader.apply(_: Value)).asScala.toList )
 
     implicit def map[A](implicit reader: ValueReader[A]): ValueReader[Map[String, A]] =
-      ValueReader define (_.asMap(reader.apply(_: Value)).asScala.toMap)
+      ValueReader define (s"Map[String, ${reader.describeResult}]", _.asMap(reader.apply(_: Value)).asScala.toMap)
 
-    implicit lazy val any: ValueReader[Any] = ValueReader define {
+    implicit lazy val any: ValueReader[Any] = ValueReader define ("Any", {
       case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.LIST) => list[Any].apply(v)
       case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.MAP)  => map[Any].apply(v)
       case v if v.isNull => None
       case v             => v.asObject()
-    }
-    implicit lazy val boolean: ValueReader[Boolean] = ValueReader define (_.asBoolean())
-    implicit lazy val string: ValueReader[String] = ValueReader define (_.asString())
+    })
+    implicit lazy val boolean: ValueReader[Boolean] = ValueReader define ("Boolean", _.asBoolean())
+    implicit lazy val string: ValueReader[String] = ValueReader define ("String", _.asString())
 
-    implicit lazy val int: ValueReader[Int] = ValueReader define (_.asInt())
-    implicit lazy val long: ValueReader[Long] = ValueReader define (_.asLong())
-    implicit lazy val float: ValueReader[Float] = ValueReader define (_.asFloat())
-    implicit lazy val double: ValueReader[Double] = ValueReader define (_.asDouble())
+    implicit lazy val int: ValueReader[Int] = ValueReader define ("Int", _.asInt())
+    implicit lazy val long: ValueReader[Long] = ValueReader define ("Long", _.asLong())
+    implicit lazy val float: ValueReader[Float] = ValueReader define ("Float", _.asFloat())
+    implicit lazy val double: ValueReader[Double] = ValueReader define ("Double", _.asDouble())
 
-    implicit lazy val cell: ValueReader[Cell] = ValueReader define locally
+    implicit lazy val cell: ValueReader[Cell] = ValueReader define ("Cell", locally)
 
     object Default extends Default
     class Default {
