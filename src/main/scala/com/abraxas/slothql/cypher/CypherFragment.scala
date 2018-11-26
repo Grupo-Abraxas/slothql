@@ -105,6 +105,8 @@ object CypherFragment {
         val fragment: A = f
         lazy val toCypher: String = cypherFragment.toCypher(f)
       }
+    def unapply[A](arg: Known[A]): Option[A] = Some(arg.fragment)
+
     implicit def functor[F[_]: Functor, A: CypherFragment](fa: F[A]): F[Known[A]] = fa.map(apply[A])
     implicit def bifunctor[F[_, _]: Bifunctor, A: CypherFragment, B: CypherFragment](fab: F[A, B]): F[Known[A], Known[B]] =
       fab.bimap(apply[A], apply[B])
