@@ -325,7 +325,7 @@ package object syntax extends LowPriorityImplicits {
       protected[syntax] def query: Known[Query.Query0[R]] = res.result
     }
 
-  protected final case class ReturnOps[A](
+  final case class ReturnOps[A] protected (
       private val _ret: Known[Return.Return0[A]],
       private val _distinct: Boolean    = false,
       private val _order: Return.Order  = Map(),
