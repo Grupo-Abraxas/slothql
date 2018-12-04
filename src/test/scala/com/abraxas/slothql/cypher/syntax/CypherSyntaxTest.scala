@@ -389,6 +389,18 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[Any]
     }
 
+    "allow to use non-literal label/type iterables in matches" in {
+      val labels = "User" :: Nil
+      val types  = Set("Admin", "Share")
+      test(
+        Match {
+          case (v@Vertex(`labels`)) - Edge(`types`) > x => v -> x
+        },
+        "MATCH (`v`:`User`) -[:`Admin`|`Share`]-> (`x`) " +
+        "RETURN `v`, `x`"
+      ).returns[(Map[String, Any], Map[String, Any])]
+    }
+
     "allow to use non-literal, optional conditions in `if` guard" in {
       val cond0: Option[Vertex => CypherFragment.Known[CypherFragment.Expr[Boolean]]] = Some(_.prop[Int]("age") >= lit(18))
       test(

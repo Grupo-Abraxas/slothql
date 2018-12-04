@@ -107,10 +107,15 @@ object Match { MatchObj =>
     }
 
 
-    def extractBindParams(body: Tree): (List[Tree], List[Tree]) = body match {
+    def extractBindParams(body: Tree): (Tree, List[Tree]) = body match {
       case UnApplyClassTag(_, arg) => extractBindParams(arg)
       case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
-        val labels = args.collect{ case label if label.tpe <:< typeOf[String] => label }
+        val labels = args.collect{
+          case one if one.tpe <:< typeOf[String] => q"_root_.scala.List($one)"
+          case many if many.tpe <:< typeOf[Iterable[String]] => many
+        }.reduceLeftOption((acc, next) => q"$acc ++ $next")
+         .map(acc => q"$acc.toList")
+         .getOrElse(q"_root_.scala.Nil")
         val values = args.collect{
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :=` =>
             (args2: @unchecked) match {
@@ -124,7 +129,7 @@ object Match { MatchObj =>
             }
         }
         (labels, values)
-      case _ => (Nil, Nil)
+      case _ => (q"_root_.scala.Nil", Nil)
     }
 
 
@@ -139,7 +144,7 @@ object Match { MatchObj =>
         _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(
             alias = ${aliasTree(name)},
-            labels = _root_.scala.List(..$labels),
+            labels = $labels,
             map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
                                              (..$values).flatten.toMap
           )
@@ -154,7 +159,7 @@ object Match { MatchObj =>
         _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
           _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel(
             alias = ${name.map(aliasTree(_)).getOrElse(q"_root_.scala.None")},
-            types = _root_.scala.List(..$labels),
+            types = $labels,
             map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
                                              (..$values).flatten.toMap,
             length = ${length.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None")},
