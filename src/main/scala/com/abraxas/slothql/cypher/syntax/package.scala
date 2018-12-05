@@ -268,13 +268,14 @@ package object syntax extends LowPriorityImplicits {
     def apply(t: T): Out
   }
   object QueryReturn {
-    type Aux[T, R, O <: Return[R]] = QueryReturn[T] { type Ret = R; type Out = O }
+    type Aux   [T, R]                 = QueryReturn[T] { type Ret = R; type Out <: Return.Return0[R] }
+    type AuxOut[T, R, O <: Return[R]] = QueryReturn[T] { type Ret = R; type Out = O }
 
     implicit def returnExpr[A, E <: Expr[_]](
       implicit
       ev: E <:< Expr.Inv[A],
       fragment: CypherFragment[E]
-    ): Aux[E, A, Return.Expr[A]] =
+    ): AuxOut[E, A, Return.Expr[A]] =
       new QueryReturn[E] {
         type Ret = A
         type Out = Return.Expr[A]
@@ -286,22 +287,22 @@ package object syntax extends LowPriorityImplicits {
       ev: P <:!< Expr[_],
       gen: Generic.Aux[P, L],
       build: Return.List.Build.Aux[L, R, E]
-    ): Aux[P, R, Return.List.Aux[R, E]] =
+    ): AuxOut[P, R, Return.List.Aux[R, E]] =
       new QueryReturn[P] {
         type Ret = R
         type Out = Return.List.Aux[R, E]
         def apply(p: P): Return.List.Aux[R, E] = build(gen.to(p))
       }
 
-    implicit lazy val returnUntypedList: Aux[Return.UntypedList, List[Any], Return.UntypedList] =
+    implicit lazy val returnUntypedList: AuxOut[Return.UntypedList, List[Any], Return.UntypedList] =
       new QueryReturn[Return.UntypedList] {
         type Ret = List[Any]
         type Out = Return.UntypedList
         @inline def apply(t: Return.UntypedList): Return.UntypedList = t
       }
 
-    implicit def returnOptions[A, E <: Return.Options[_]](implicit ev: E <:< Return.Options.Inv[A]): Aux[E, A, Return.Options[A]] =
-      _retOptions.asInstanceOf[Aux[E, A, Return.Options[A]]]
+    implicit def returnOptions[A, E <: Return.Options[_]](implicit ev: E <:< Return.Options.Inv[A]): AuxOut[E, A, Return.Options[A]] =
+      _retOptions.asInstanceOf[AuxOut[E, A, Return.Options[A]]]
     private lazy val _retOptions = new QueryReturn[Return.Options[_]] {
       type Ret = Any
       type Out = Return.Options[_]
@@ -312,7 +313,7 @@ package object syntax extends LowPriorityImplicits {
 
   def returnTuple(exprs: Iterable[Known[Expr[_]]]): Return.UntypedList = CypherFragment.Return.List.untyped(exprs)
 
-  implicit def toReturnOps[E, A, R <: Return.Return0[A]](e: E)(implicit rq: QueryReturn.Aux[E, A, R]): ReturnOps[A] = ReturnOps(rq(e))
+  implicit def toReturnOps[E, A](e: E)(implicit rq: QueryReturn.Aux[E, A]): ReturnOps[A] = ReturnOps(rq(e))
   implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
 
 
