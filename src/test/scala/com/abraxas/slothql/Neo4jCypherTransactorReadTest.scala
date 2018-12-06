@@ -72,6 +72,11 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
+    "execute single query (4)" in {
+      val query = Match{ case x < Edge("foo") - Vertex("User", "id" := "u1") => collect(x.prop[String]("name")) }
+      test[List[String]](tx.read(query), Seq(Nil))
+    }
+
     "chain dependent queries in transaction (1)" in {
       val q1 = Match { case u@Vertex("User") => u.id }
       def q2(id: Long) = Match {

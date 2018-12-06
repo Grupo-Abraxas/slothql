@@ -52,9 +52,6 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
     implicit def resultCells: RecordReader.Aux[List[Cell], List[Cell]] = RecordReader define { _.values().asScala.toList }
 
-    implicit def listValue[A](implicit vr: ValueReader[A]): RecordReader.Aux[List[A], List[A]] =
-      RecordReader define { _.values().asScala.map(vr(_)).toList }
-
     implicit def singleValue[A](implicit vr: ValueReader[A], lowPriority: LowPriority): RecordReader.Aux[A, A] =
       RecordReader define { rec =>
         vr(rec.ensuring(_.size() == 1).values().get(0))
