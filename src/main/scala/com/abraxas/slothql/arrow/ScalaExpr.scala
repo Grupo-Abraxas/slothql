@@ -5,11 +5,10 @@ import scala.language.{ dynamics, higherKinds }
 
 import cats.data.Ior
 import shapeless.labelled.{ FieldType, KeyTag }
-import shapeless.tag.@@
 import shapeless._
 
 import com.abraxas.slothql.arrow.Arrow.Types
-import com.abraxas.slothql.util.{ ShapelessUtils, ShowManifest }
+import com.abraxas.slothql.util.{ HasField, ShapelessUtils, ShowManifest }
 
 
 trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
@@ -422,29 +421,12 @@ object ScalaExpr {
 
     def selectDynamic[V, A <: Arrow](k: String)(
       implicit
-      ev0: Syntax.HasField.Aux[Target, Symbol @@ k.type, V],
+      ev0: HasField.Aux[Target, k.type, V],
       ev1: expr.type <:< A, // using `expr.type` directly in `compose` would require _existential types_
       compose: Arrow.Compose[SelectField[Target, k.type, V], A],
       sourceMf: Manifest[Target],
       targetMf: Manifest[V]
     ): compose.Out = compose(SelectField(k), expr)
-  }
-
-  object Syntax {
-    /** Evidence that `Obj` has a field of type `V` with name `K` */
-    @annotation.implicitNotFound(msg = "${Obj} doesn't have field ${K}")
-    trait HasField[Obj, K] { type Value }
-    object HasField {
-      @annotation.implicitNotFound(msg = "${Obj} doesn't have field ${K} of type ${V}")
-      type Aux[Obj, K, V] = HasField[Obj, K] { type Value = V }
-      implicit def evidence[Obj, K, V, Repr <: HList](
-        implicit
-        generic: Cached[LabelledGeneric.Aux[Obj, Repr]],
-        select:  Cached[ops.record.Selector.Aux[Repr, K, V]]
-      ): HasField.Aux[Obj, K, V] = instance.asInstanceOf[HasField.Aux[Obj, K, V]]
-      private lazy val instance = new HasField[Any, Any]{}
-    }
-
   }
 
 
