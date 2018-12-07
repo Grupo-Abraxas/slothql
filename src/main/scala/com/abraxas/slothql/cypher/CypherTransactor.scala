@@ -59,6 +59,8 @@ trait CypherTxBuilder {
   type Reader[A] <: CypherTransactor.Reader[Result, A]
   type ReaderAux[A, R] = Reader[A] { type Out = R }
 
+  type CypherQuery[+A] = CypherFragment.Query[A]
+
   sealed trait Operation[R]
   sealed trait Read[R] extends Operation[Seq[R]] {
     type A
