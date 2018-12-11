@@ -138,6 +138,68 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`v` IS NULL"
     ).returns[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)]
 
+    "support string comparison expressions" in test(
+      Match {
+        case v =>
+          val name = v.prop[String]("name")
+          (
+            name contains lit("foo"),
+            name startsWith lit("bar"),
+            name endsWith lit("baz"),
+            name matches lit("foo.*bar")
+          )
+      },
+      "MATCH (`v`) " +
+      "RETURN " +
+        "`v`.`name` CONTAINS \"foo\", " +
+        "`v`.`name` STARTS WITH \"bar\", " +
+        "`v`.`name` ENDS WITH \"baz\", " +
+        "`v`.`name` =~ \"foo.*bar\""
+    ).returns[(Boolean, Boolean, Boolean, Boolean)]
+
+    "support built-in functions for strings" in test(
+      Match {
+        case v =>
+          val name = v.prop[String]("name")
+          (
+            name.toLower,
+            name.toUpper,
+            name.length,
+            name.toBoolean,
+            name.toDouble,
+            name.toLong,
+            name takeLeft lit(4L),
+            name takeRight lit(5L),
+            name.replace(lit("foo"), lit("bar")),
+            name.reverse,
+            name split lit("."),
+            name substring lit(2L),
+            name.substring(lit(2L), lit(10L)),
+            name.trim,
+            name.trimRight,
+            name.trimLeft
+          )
+      },
+      "MATCH (`v`) " +
+      "RETURN " +
+        "`toLower`(`v`.`name`), " +
+        "`toUpper`(`v`.`name`), " +
+        "`length`(`v`.`name`), " +
+        "`toBoolean`(`v`.`name`), " +
+        "`toFloat`(`v`.`name`), " +
+        "`toInteger`(`v`.`name`), " +
+        "`left`(`v`.`name`, 4), " +
+        "`right`(`v`.`name`, 5), " +
+        "`replace`(`v`.`name`, \"foo\", \"bar\"), " +
+        "`reverse`(`v`.`name`), " +
+        "`split`(`v`.`name`, \".\"), " +
+        "`substring`(`v`.`name`, 2), " +
+        "`substring`(`v`.`name`, 2, 10), " +
+        "`trim`(`v`.`name`), " +
+        "`rTrim`(`v`.`name`), " +
+        "`lTrim`(`v`.`name`)"
+    ).returns[(String, String, Long, Boolean, Double, Long, String, String, String, String, List[String], String, String, String, String, String)]
+
     "support lists" in {
       val l = list("Admin", "Share", "Create")
       test(

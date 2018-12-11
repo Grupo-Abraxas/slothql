@@ -160,6 +160,68 @@ package object syntax extends LowPriorityImplicits {
       Expr.CompareBinaryExpr(expr0.known, expr1.known, op)
   }
 
+  implicit class StringKnownExprOps[E0 <: Expr[String]](expr0: Known[E0]) {
+    def contains[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.Contains)
+    def contains[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.Contains)
+
+    def startsWith[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.StartsWith)
+    def startsWith[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.StartsWith)
+
+    def endsWith[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.EndsWith)
+    def endsWith[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.EndsWith)
+
+    /** Regular expression match */
+    def matches[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.Regex)
+    /** Regular expression match */
+    def matches[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.Regex)
+
+
+    def toLower: Expr.Call[String] = 'toLower.call(expr0)
+    def toUpper: Expr.Call[String] = 'toUpper.call(expr0)
+    def length:  Expr.Call[Long]   = 'length.call(expr0)
+
+    def toBoolean: Expr.Call[Boolean] = 'toBoolean.call(expr0)
+    def toDouble:  Expr.Call[Double]  = 'toFloat.call(expr0)
+    def toLong:    Expr.Call[Long]    = 'toInteger.call(expr0)
+
+    /** Returns a string containing the specified number of leftmost characters of the original string. */
+    def takeLeft[E1 <: Expr[Long]](n: Known[E1]): Expr.Call[String]          = 'left.call(expr0, n)
+    def takeLeft[E1 <: Expr[Long]: CypherFragment](n: E1): Expr.Call[String] = 'left.call(expr0, n)
+
+    /** Returns a string containing the specified number of rightmost characters of the original string. */
+    def takeRight[E1 <: Expr[Long]](n: Known[E1]): Expr.Call[String]          = 'right.call(expr0, n)
+    def takeRight[E1 <: Expr[Long]: CypherFragment](n: E1): Expr.Call[String] = 'right.call(expr0, n)
+
+    /** Returns a string in which all occurrences of a specified string in the original string have been replaced by another (specified) string. */
+    def replace[E1 <: Expr[String], E2 <: Expr[String]](search: Known[E1], replace: Known[E2]): Expr.Call[String]                   = 'replace.call(expr0, search, replace)
+    def replace[E1 <: Expr[String]: CypherFragment, E2 <: Expr[String]: CypherFragment](search: E1, replace: E2): Expr.Call[String] = 'replace.call(expr0, search, replace)
+
+    def reverse: Expr.Call[String] = 'reverse.call(expr0)
+
+    /** Returns a list of strings resulting from the splitting of the original string around matches of the given delimiter. */
+    def split[E1 <: Expr[String]](delimiter: Known[E1]): Expr.Call[List[String]]          = 'split.call(expr0, delimiter)
+    def split[E1 <: Expr[String]: CypherFragment](delimiter: E1): Expr.Call[List[String]] = 'split.call(expr0, delimiter)
+
+    /** Returns a substring of the original string, beginning with a 0-based index start. */
+    def substring[E1 <: Expr[Long]](start: Known[E1]): Expr.Call[String]          = 'substring.call(expr0, start)
+    def substring[E1 <: Expr[Long]: CypherFragment](start: E1): Expr.Call[String] = 'substring.call(expr0, start)
+
+    /** Returns a substring of the original string, beginning with a 0-based index start and length. */
+    def substring[E1 <: Expr[Long], E2 <: Expr[Long]](start: Known[E1], length: Known[E2]): Expr.Call[String]                   = 'substring.call(expr0, start, length)
+    def substring[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](start: E1, length: E2): Expr.Call[String] = 'substring.call(expr0, start, length)
+
+    /** Returns the original string with leading and trailing whitespace removed. */
+    def trim: Expr.Call[String] = 'trim.call(expr0)
+    /** Returns the original string with leading whitespace removed. */
+    def trimLeft: Expr.Call[String] = 'lTrim.call(expr0)
+    /** Returns the original string with trailing whitespace removed. */
+    def trimRight: Expr.Call[String] = 'rTrim.call(expr0)
+
+    private def binary(expr1: Known[Expr[String]], op: Expr.StringExpr.Op) = Expr.StringExpr(expr0, expr1, op)
+  }
+
+  implicit class StringExprOps[E0 <: Expr[String]: CypherFragment](expr0: E0) extends StringKnownExprOps[E0](expr0)
+
   implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]]) {
     def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =
       Expr.Concat(expr0.known.widen, expr1.known)
