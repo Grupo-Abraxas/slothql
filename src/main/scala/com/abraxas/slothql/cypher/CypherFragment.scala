@@ -238,6 +238,7 @@ object CypherFragment {
       case object StartsWith extends Op
       case object EndsWith   extends Op
       case object Contains   extends Op
+      case object Regex      extends Op
 
       implicit lazy val fragment: CypherFragment[StringExpr] = define {
         case StringExpr(left, right, op) =>
@@ -245,6 +246,7 @@ object CypherFragment {
             case StartsWith => "STARTS WITH"
             case EndsWith   => "ENDS WITH"
             case Contains   => "CONTAINS"
+            case Regex      => "=~"
           }
           s"${left.toCypher} $opStr ${right.toCypher}"
       }
