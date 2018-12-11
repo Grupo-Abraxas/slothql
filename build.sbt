@@ -46,6 +46,11 @@ lazy val macros = (project in file("macros"))
 
 lazy val catsVersion = "1.1.0"
 
+// // // Repository // // //
+
+publishTo in ThisBuild := Some("Artifactory Realm" at "http://artifactory.arkondata.com/artifactory/sbt-dev")
+credentials += Credentials(Path.userHome / ".sbt" / ".arkondata-credentials")
+
 // // // REPL // // //
 
 initialCommands in console :=
