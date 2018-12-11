@@ -49,7 +49,7 @@ lazy val catsVersion = "1.1.0"
 // // // Repository // // //
 
 publishTo in ThisBuild := Some("Artifactory Realm" at "http://artifactory.arkondata.com/artifactory/sbt-dev")
-credentials += Credentials(Path.userHome / ".sbt" / ".arkondata-credentials")
+credentials += Credentials("Artifactory Realm", "artifactory.arkondata.com", sys.env("ARTIFACTORY_USER"), sys.env("ARTIFACTORY_PASSWORD"))
 
 // // // REPL // // //
 
