@@ -5,7 +5,7 @@ import scala.language.higherKinds
 import cats.effect.IO
 import cats.free.Free
 import cats.free.Free.liftF
-import cats.{ Monad, ~> }
+import cats.{ Functor, FunctorFilter, Monad, ~> }
 import cats.instances.vector._
 import cats.syntax.apply._
 import cats.syntax.traverse._
@@ -115,6 +115,9 @@ trait CypherTxBuilder {
         zipped <- unwind(MoreZip.zip3(as, bs, cs))
       } yield zipped
 
+    def filterOpt[A, B](tx: ReadTx[A])(f: A => Option[B]): ReadTx[B]  = tx.flatMap { r => f(r).map(const).getOrElse(nothing) }
+    def filter   [A]   (tx: ReadTx[A])(pred: A => Boolean): ReadTx[A] = tx.flatMap { r => if (pred(r)) const(r) else nothing }
+
     def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
     def nothing[A]: ReadTx[A] = unwind(Vector.empty)
 
@@ -123,6 +126,7 @@ trait CypherTxBuilder {
 
     class CannotZip3Exception(seq1: Seq[Any], seq2: Seq[Any], seq3: Seq[Any]) extends Exception(
       s"Cannot zip because of different length:\n\t1: $seq1\n\t2: $seq2\n\t3: $seq3")
+
 
     implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
       def pure[A](x: A): ReadTx[Vector[A]] =
@@ -142,15 +146,19 @@ trait CypherTxBuilder {
         }
     }
 
+    implicit object ReadTxIsFunctorFilter extends FunctorFilter[ReadTx] {
+      val functor: Functor[ReadTx] = Functor[ReadTx]
+      def mapFilter[A, B](fa: ReadTx[A])(f: A => Option[B]): ReadTx[B] = filterOpt(fa)(f)
+    }
+
 
     implicit class ReadTxOps[A](tx: ReadTx[A]) {
       def gather: ReadTx[Vector[A]] = tx.foldMap[λ[A => ReadTx[Vector[A]]]](
         λ[Read ~> λ[A => ReadTx[Vector[A]]]](fa => liftF(newGather(fa)))
       )
 
-      def filter(pred: A => Boolean): ReadTx[A] = tx.flatMap { r =>
-        if (pred(r)) Read.const(r) else Read.nothing
-      }
+      def filter      (pred: A => Boolean): ReadTx[A] = Read.filter(tx)(pred)
+      def filterOpt[B](f: A => Option[B]): ReadTx[B]  = Read.filterOpt(tx)(f)
 
       def x[B](that: ReadTx[B]): ReadTx[(A, B)] = Read.product(tx, that)
 

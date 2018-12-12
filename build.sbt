@@ -44,7 +44,7 @@ lazy val macros = (project in file("macros"))
 
 // // // Dependencies // // //
 
-lazy val catsVersion = "1.1.0"
+lazy val catsVersion = "1.5.0"
 
 // // // Repository // // //
 

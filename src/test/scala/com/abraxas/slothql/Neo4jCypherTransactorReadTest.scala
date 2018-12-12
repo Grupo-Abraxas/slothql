@@ -173,6 +173,18 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
+    "`filterOpt` results" in {
+      val q = Match { case g@Vertex("Group") => g.prop[String]("name") }
+      val query = tx.read(q).filterOpt {
+        case name if name contains "Root" => Some(name)
+        case _ => None
+      }
+
+      test[String](query, Seq(
+        "Root Group"
+      ))
+    }
+
     "build cartesian product of two queries' results" in {
       val q1 = tx.read(Match { case g@Vertex("Group") => g.prop[String]("name") })
       val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
