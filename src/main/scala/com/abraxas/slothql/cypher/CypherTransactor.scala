@@ -117,6 +117,12 @@ trait CypherTxBuilder {
 
     def filterOpt[A, B](tx: ReadTx[A])(f: A => Option[B]): ReadTx[B]  = tx.flatMap { r => f(r).map(const).getOrElse(nothing) }
     def filter   [A]   (tx: ReadTx[A])(pred: A => Boolean): ReadTx[A] = tx.flatMap { r => if (pred(r)) const(r) else nothing }
+    def filtering[A]   (tx: ReadTx[A])(predTx: A => ReadTx[Boolean]): ReadTx[A] =
+      for {
+        a <- tx
+        b <- predTx(a)
+        if b
+      } yield a
 
     def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
     def nothing[A]: ReadTx[A] = unwind(Vector.empty)
@@ -157,8 +163,9 @@ trait CypherTxBuilder {
         λ[Read ~> λ[A => ReadTx[Vector[A]]]](fa => liftF(newGather(fa)))
       )
 
-      def filter      (pred: A => Boolean): ReadTx[A] = Read.filter(tx)(pred)
-      def filterOpt[B](f: A => Option[B]): ReadTx[B]  = Read.filterOpt(tx)(f)
+      def filtering(predTx: A => ReadTx[Boolean]): ReadTx[A] = Read.filtering(tx)(predTx)
+      def filter(pred: A => Boolean): ReadTx[A] = Read.filter(tx)(pred)
+      def filterOpt[B](f: A => Option[B]): ReadTx[B] = Read.filterOpt(tx)(f)
 
       def x[B](that: ReadTx[B]): ReadTx[(A, B)] = Read.product(tx, that)
 

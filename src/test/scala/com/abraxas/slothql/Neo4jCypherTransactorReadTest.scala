@@ -185,6 +185,16 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
+    "filter results with another read transaction" in {
+      val idsTx              = tx read Match { case g@Vertex("Group")      => g.prop[String]("id")                        }
+      def predTx(id: String) = tx read Match { case g@Vertex("id" := `id`) => g.prop[String]("name") contains lit("Root") }
+      val query = idsTx.filtering(predTx)
+
+      test[String](query, Seq(
+        "g1"
+      ))
+    }
+
     "build cartesian product of two queries' results" in {
       val q1 = tx.read(Match { case g@Vertex("Group") => g.prop[String]("name") })
       val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
