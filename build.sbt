@@ -10,56 +10,72 @@ lazy val root = (project in file(".")).
       git.gitHeadCommit := GitKeys.gitReader.value.withGit(
         _.asInstanceOf[com.typesafe.sbt.git.JGit]
           .headCommit.map(_.abbreviate(8).name)
-      )
+      ),
+
+      scalacOptions in Compile ++= Seq("-unchecked", "-feature"),
+      scalacOptions in Compile += "-Ypartial-unification",
+
+      resolvers += Resolver.sonatypeRepo("releases"),
+      addCompilerPlugin(Dependencies.`kind-projector`)
     ) ++ versionWithGit),
 
-    name := "slothql-dev-mapper",
-
-    scalacOptions in Compile ++= Seq("-unchecked", "-feature"),
-    scalacOptions in Compile += "-Ypartial-unification",
-
-    resolvers += Resolver.sonatypeRepo("releases"),
-    addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.6"),
-
-    libraryDependencies ++= Seq(
-      "org.typelevel"   %% "cats-core"          % catsVersion,
-      "org.typelevel"   %% "cats-free"          % catsVersion,
-      "org.typelevel"   %% "cats-effect"        % "0.10.1",
-      "org.neo4j.driver" % "neo4j-java-driver"  % "1.6.1",
-      "org.scalatest"   %% "scalatest"          % "3.0.5"       % Test
-    )
-  ).
-  dependsOn(macros).
-  aggregate(macros)
+    name := "slothql"
+  )
+  .aggregate(cypher, arrows, mapper)
 
 
-lazy val macros = (project in file("macros"))
+lazy val cypher = (project in file("cypher"))
   .settings(
-    name := "slothql-mapper-macros-dev",
+    name := "slothql-cypher",
+    libraryDependencies ++= Seq(
+      Dependencies.shapeless,
+      Dependencies.`cats-core`,
+      Dependencies.`cats-free`,
+      Dependencies.`cats-effect`,
+      Dependencies.`neo4j-driver`,
+      Dependencies.Test.scalatest
+    ),
+    initialCommands in console :=
+      """
+        |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
+        |import com.abraxas.slothql.cypher.syntax._
+        |import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
+      """.stripMargin
+
+  )
+
+
+lazy val `arrows-macros` = (project in file("arrows-macros"))
+  .settings(
+    name := "slothql-arrows-macros",
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "com.chuusai"   %% "shapeless"     % "2.3.3"
+      Dependencies.shapeless
     )
   )
 
-// // // Dependencies // // //
+lazy val arrows = (project in file("arrows"))
+  .settings(
+    name := "slothql-arrows",
+    libraryDependencies ++= Seq(
+      Dependencies.`cats-core`
+    )
+  )
+  .dependsOn(`arrows-macros`)
 
-lazy val catsVersion = "1.5.0"
+
+lazy val mapper = (project in file("mapper"))
+  .settings(
+    name := "slothql-mapper"
+  )
+  .dependsOn(cypher, arrows)
+
 
 // // // Repository // // //
 
 publishTo in ThisBuild := Some("Artifactory Realm" at "http://artifactory.arkondata.com/artifactory/sbt-dev")
 credentials += Credentials("Artifactory Realm", "artifactory.arkondata.com", sys.env("ARTIFACTORY_USER"), sys.env("ARTIFACTORY_PASSWORD"))
 
-// // // REPL // // //
-
-initialCommands in console :=
-  """
-    |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
-    |import com.abraxas.slothql.cypher.syntax._
-    |import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
-  """.stripMargin
-
 
 // Ammonite
-ammHome := Some((baseDirectory.value / ".amm").getAbsolutePath)
+ammHome in ThisBuild := Some((baseDirectory.value / ".amm").getAbsolutePath)

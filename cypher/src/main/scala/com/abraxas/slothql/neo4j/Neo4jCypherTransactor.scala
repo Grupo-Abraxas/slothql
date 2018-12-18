@@ -11,7 +11,6 @@ import shapeless._
 
 import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
 import com.abraxas.slothql.neo4j.util.JavaExt._
-import com.abraxas.slothql.util.ShowManifest
 
 
 class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
@@ -140,7 +139,7 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
           case ListClass   => ValueReader.list(firstTArgReader)
           case MapClass    if mf.typeArguments.head.runtimeClass == classOf[String] => map(secondTArgReader)
           case c           if atomic isDefinedAt c => atomic(c)
-          case _ => sys.error(s"No default ValueReader is defined for ${ShowManifest(mf)}")
+          case _ => sys.error(s"No default ValueReader is defined for $mf")
         }
       }
 
