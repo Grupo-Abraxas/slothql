@@ -98,7 +98,12 @@ object Match { MatchObj =>
     val `syntax *:` = typeOf[*:.type]
     val GraphVertexType = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Vertex]]
     val GraphEdgeType   = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Edge]]
+    val ExprType        = weakTypeOf[CypherFragment.Expr[_]]
+    val KnownExprType   = weakTypeOf[Known[CypherFragment.Expr[_]]]
 
+    object SomeCypherExpr {
+      def unapply(tree: Tree): Option[Tree] = if (tree.tpe <:< ExprType || tree.tpe <:< KnownExprType) Some(tree) else None
+    }
 
     object UnApplyClassTag {
       def unapply(tree :Tree): Option[(Type, Tree)] = PartialFunction.condOpt(tree) {
@@ -119,6 +124,8 @@ object Match { MatchObj =>
         val values = args.collect{
           case UnApply(Apply(Select(sel2, TermName("unapply")), _), args2) if sel2.tpe =:= `syntax :=` =>
             (args2: @unchecked) match {
+              case List(Literal(Constant(k: String)), SomeCypherExpr(v)) =>
+                q"Some($k -> $v)"
               case List(Literal(Constant(k: String)), v) =>
                 q"Some($k -> _root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit($v))"
             }

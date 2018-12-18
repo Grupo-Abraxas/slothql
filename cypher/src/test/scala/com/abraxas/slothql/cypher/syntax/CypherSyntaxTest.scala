@@ -534,6 +534,31 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, Long, List[String])]
     }
 
+    "allow to use cypher expression variables in property matches" in {
+      val query = unwind(litList(1L, 2L, 3L)) { i =>
+         Match { case v@Vertex("User", "id" := `i`) => v.prop[String]("name") }
+      }
+      test(
+        query,
+        "UNWIND [ 1, 2, 3 ] AS `i` " +
+        "MATCH (`v`:`User`{ `id`: `i` }) " +
+        "RETURN `v`.`name`"
+      ).returns[String]
+    }
+
+    "allow to match multiple properties" in {
+      val admin = "System"
+      val query = unwind(litList(1L, 2L, 3L)) { i =>
+         Match { case v@Vertex("User", "id" := `i`, "isAdmin" := `admin`) => v.prop[String]("name") }
+      }
+      test(
+        query,
+        "UNWIND [ 1, 2, 3 ] AS `i` " +
+        "MATCH (`v`:`User`{ `id`: `i`, `isAdmin`: \"System\" }) " +
+        "RETURN `v`.`name`"
+      ).returns[String]
+    }
+
     "add keys to a map" in {
       val query = Match{ case v => v add ("foo" -> lit("bar"), "labels" -> v.labels) }
       test(
