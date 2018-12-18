@@ -6,3 +6,4 @@ target/
 !.amm/predef.sc
 
 .idea/
+.bloop/
