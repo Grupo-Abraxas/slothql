@@ -21,7 +21,7 @@ lazy val root = (project in file(".")).
 
     name := "slothql"
   )
-  .aggregate(cypher, arrows, mapper)
+  .aggregate(cypher, arrows)
 
 
 lazy val cypher = (project in file("cypher"))
@@ -62,13 +62,6 @@ lazy val arrows = (project in file("arrows"))
     )
   )
   .dependsOn(`arrows-macros`)
-
-
-lazy val mapper = (project in file("mapper"))
-  .settings(
-    name := "slothql-mapper"
-  )
-  .dependsOn(cypher, arrows)
 
 
 // // // Repository // // //
