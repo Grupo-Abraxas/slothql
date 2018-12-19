@@ -112,7 +112,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (:`Group`) <-[`es`:`parent`*0..]- (`g`:`Group`) " +
       "RETURN `es`"
     ).returns[List[Map[String, Any]]]
-    
+
     "support comparison expressions" in test(
       Match {
         case v < _ - _ => (
@@ -463,18 +463,32 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(Map[String, Any], Map[String, Any])]
     }
 
-    "allow to use non-literal, optional conditions in `if` guard" in {
-      val cond0: Option[Vertex => CypherFragment.Known[CypherFragment.Expr[Boolean]]] = Some(_.prop[Int]("age") >= lit(18))
+    "allow to use non-literal, known optional conditions in `if` guard [defined]" in {
+      def cond(v: Vertex): Option[CypherFragment.Known[CypherFragment.Expr[Boolean]]] = Some(v.prop[Int]("age") >= lit(18))
       test(
-        Match {
-          case v@Vertex("User") if conditionOpt(cond0)(v) => v.prop[String]("name")
-          // TODO: syntax ==================================================================================================
-          // case v@Vertex("User") if cond0.map(_(v)).getOrElse(lit(true)) => v.prop[String]("name")
-        },
+        Match { case v@Vertex("User") if cond(v) => v.prop[String]("name") },
         "MATCH (`v`:`User`) " +
         "WHERE `v`.`age` >= 18 " +
         "RETURN `v`.`name`"
       ).returns[String]
+    }
+    "allow to use non-literal, known optional conditions in `if` guard [undefined]" in {
+      def cond(v: Vertex): Option[CypherFragment.Known[CypherFragment.Expr[Boolean]]] = None
+      test(
+        Match { case v@Vertex("User") if cond(v) => v.prop[String]("name") },
+        "MATCH (`v`:`User`) " +
+        "RETURN `v`.`name`"
+      ).returns[String]
+    }
+
+    "raise compilation error when unknown optional conditions are used in `if` guard" in {
+      shapeless.test.illTyped(
+        """
+          def cond(v: Vertex): Option[CypherFragment.Expr[Boolean]] = ???
+          Match { case v if cond(v) => v.prop[String]("name") }
+        """,
+        """Cannot use unknown optional expressions in `if` guard, make it Option\[Known\[Expr\[Boolean\]\]\]"""
+      )
     }
 
     "union queries" in {
