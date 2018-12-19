@@ -62,6 +62,7 @@ lazy val arrows = (project in file("arrows"))
     )
   )
   .dependsOn(`arrows-macros`)
+  .aggregate(`arrows-macros`)
 
 
 // // // Repository // // //
