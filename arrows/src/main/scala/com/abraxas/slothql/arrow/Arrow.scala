@@ -144,9 +144,9 @@ object Arrow {
     type Source >: G.Source
     type Target <: F.Target
 
-    override def hashCode(): Int = (F.##, G.##).##
+    override def hashCode(): Int = Unchain(this).##
     override def equals(o: scala.Any): Boolean = PartialFunction.cond(o) {
-      case that: Composition[_, _] => this.F == that.F && this.G == that.G
+      case that: Composition[_, _] => Unchain(this) == Unchain(that)
     }
 
     override def toString: String = s"$F ∘ $G"
@@ -200,7 +200,8 @@ object Arrow {
     implicit def composeIdLeft[F <: Arrow, G <: Arrow, T](
       implicit
       types: Types.Aux[G, _, T],
-      idF: F <:< Arrow.Id[T]
+      idF: F <:< Arrow.Id[T],
+      notIdG: G <:!< Arrow.Id[_]
     ): Compose.Aux[F, G, G] =
       composeIdL.asInstanceOf[Compose.Aux[F, G, G]]
     private lazy val composeIdL = new Compose[Arrow.Id[Any], Arrow] {
@@ -211,7 +212,8 @@ object Arrow {
     implicit def composeIdRight[F <: Arrow, G <: Arrow, S](
       implicit
       types: Types.Aux[F, S, _],
-      idG: G <:< Arrow.Id[S]
+      idG: G <:< Arrow.Id[S],
+      notIdF: F <:!< Arrow.Id[_]
     ): Compose.Aux[F, G, F] =
       composeIdR.asInstanceOf[Compose.Aux[F, G, F]]
     private lazy val composeIdR = new Compose[Arrow, Arrow.Id[Any]] {
@@ -219,6 +221,8 @@ object Arrow {
       def apply(f: Arrow, g: Arrow.Id[Any]): Arrow = f
     }
 
+    implicit def composeIdBoth[F <: Arrow, G <: Arrow, S](implicit idF: F <:< Arrow.Id[S], idEq: F =:= G): Compose.Aux[F, G, F] =
+      composeIdR.asInstanceOf[Compose.Aux[F, G, F]]
 
     implicit def canCompose[F <: Arrow, G <: Arrow, S, T](
       implicit
