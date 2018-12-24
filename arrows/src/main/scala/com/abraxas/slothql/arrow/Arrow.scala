@@ -52,6 +52,10 @@ object Arrow {
     val arrows: Arrows
     val toList: List[Arrow]
 
+    override def equals(obj: Any): Boolean = PartialFunction.cond(obj) {
+      case that: Split[_] => this.arrows == that.arrows
+    }
+    override def hashCode(): Int = arrows.##
     override def toString: String = s"Split($arrows)"
   }
   object Split extends ProductArgs {
