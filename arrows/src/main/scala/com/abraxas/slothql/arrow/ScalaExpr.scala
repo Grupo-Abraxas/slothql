@@ -43,6 +43,7 @@ object ScalaExpr {
     trait PartialApplyRight[E <: ScalaExpr, R <: ScalaExpr] extends DepFn2[E, R] { type Out <: ScalaExpr }
     object PartialApplyRight {
       type Aux[E <: ScalaExpr, R <: ScalaExpr, Applied <: ScalaExpr] = PartialApplyRight[E, R] { type Out = Applied }
+      def apply[E <: ScalaExpr, R <: ScalaExpr](expr: E, right: R)(implicit papply: PartialApplyRight[E, R]): papply.Out = papply(expr, right)
 
       implicit def partialApplyBinaryRight[E <: ScalaExpr, R <: ScalaExpr, S, SL, SR, T](
         implicit
