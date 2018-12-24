@@ -40,6 +40,10 @@ object GraphRepr {
     type Type
     val manifest: Manifest[Type]
 
+    override def equals(obj: Any): Boolean = PartialFunction.cond(obj) {
+      case that: Property => this.manifest.runtimeClass == that.manifest.runtimeClass
+    }
+    override def hashCode(): Int = manifest.runtimeClass.##
     override def toString: String = s"Property[${ShowManifest(manifest)}]"
   }
 
@@ -143,6 +147,8 @@ object GraphRepr {
       val labels: List[String] = node.labels
       val fields: Map[String, Property] = node.fields
       val outgoing: Map[String, Relation] = node.outgoing
+
+      override protected def toStringName: String = "OptionalNode"
     }
   }
 
