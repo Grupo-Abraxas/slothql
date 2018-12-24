@@ -10,6 +10,7 @@ import cats.data.NonEmptyList
 import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
 import com.abraxas.slothql.cypher.CypherFragment._
+import com.abraxas.slothql.util.raiseCompilationError
 
 object Match { MatchObj =>
   def apply[R]   (f: Graph => Match.Result[R]): Query[R] = macro implApply[R]
@@ -352,6 +353,10 @@ object Match { MatchObj =>
             q"_root_.scala.Some(_root_.com.abraxas.slothql.cypher.CypherFragment.Known($cond))"
           case Apply(Select(pkg, TermName("unwrapKnownBooleanExprInIfGuard")), List(cond)) if pkg.tpe =:= `syntax pkg` =>
             q"_root_.scala.Some($cond)"
+          case tree@Apply(Select(pkg, TermName("unwrapBooleanOptionExprInIfGuard")), _) if pkg.tpe =:= `syntax pkg` =>
+            raiseCompilationError(c)(tree)
+          case Apply(Select(pkg, TermName("unwrapKnownBooleanOptionExprInIfGuard")), List(cond)) if pkg.tpe =:= `syntax pkg` =>
+            cond
           case EmptyTree => q"_root_.scala.None"
           case _ => c.abort(guard0.pos, "`if` contents cannot be transformed to WHERE clause:\n" + showRaw(guard0))
         }

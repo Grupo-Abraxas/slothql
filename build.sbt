@@ -58,10 +58,12 @@ lazy val arrows = (project in file("arrows"))
   .settings(
     name := "slothql-arrows",
     libraryDependencies ++= Seq(
-      Dependencies.`cats-core`
+      Dependencies.`cats-core`,
+      Dependencies.Test.scalatest
     )
   )
   .dependsOn(`arrows-macros`)
+  .aggregate(`arrows-macros`)
 
 
 lazy val mapper = (project in file("mapper"))

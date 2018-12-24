@@ -1,5 +1,6 @@
 package com.abraxas.slothql.cypher
 
+import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 import scala.language.{ higherKinds, implicitConversions }
 import scala.util.Random
@@ -8,6 +9,7 @@ import cats.data.Ior
 import shapeless.{ <:!<, Generic, HList, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Query, Return }
+import com.abraxas.slothql.util.raiseCompilationError
 
 package object syntax extends LowPriorityImplicits {
 
@@ -423,9 +425,6 @@ package object syntax extends LowPriorityImplicits {
     def desc: ReturnOps.Descending = ReturnOps.Descending(e)
   }
 
-  def conditionOpt[T](cond: Option[T => CypherFragment.Known[CypherFragment.Expr[Boolean]]])(t: T): Known[Expr[Boolean]] =
-    cond.map(_(t)).getOrElse(lit(true))
-
 
   implicit class QueryOps[R0](q0: Query[R0]) {
     def union   [R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = false)
@@ -434,6 +433,16 @@ package object syntax extends LowPriorityImplicits {
 }
 
 trait LowPriorityImplicits {
-  implicit def unwrapBooleanExprInIfGuard(e: Expr[Boolean]): Boolean = ???
-  implicit def unwrapKnownBooleanExprInIfGuard(e: Known[Expr[Boolean]]): Boolean = ???
+  @compileTimeOnly("`unwrapBooleanExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
+  implicit def unwrapBooleanExprInIfGuard(e: Expr[Boolean]): Boolean = unexpected
+  @compileTimeOnly("`unwrapKnownBooleanExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
+  implicit def unwrapKnownBooleanExprInIfGuard(e: Known[Expr[Boolean]]): Boolean = unexpected
+
+  @compileTimeOnly("`unwrapBooleanOptionExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
+  @raiseCompilationError("Cannot use unknown optional expressions in `if` guard, make it Option[Known[Expr[Boolean]]]")
+  implicit def unwrapBooleanOptionExprInIfGuard(e: Option[Expr[Boolean]]): Boolean = unexpected
+  @compileTimeOnly("`unwrapKnownBooleanOptionExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
+  implicit def unwrapKnownBooleanOptionExprInIfGuard(e: Option[Known[Expr[Boolean]]]): Boolean = unexpected
+
+  private def unexpected: Nothing = sys.error("This call should have been replaced by macro")
 }
