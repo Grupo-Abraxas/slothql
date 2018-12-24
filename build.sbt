@@ -68,7 +68,10 @@ lazy val arrows = (project in file("arrows"))
 
 lazy val mapper = (project in file("mapper"))
   .settings(
-    name := "slothql-mapper"
+    name := "slothql-mapper",
+    libraryDependencies ++= Seq(
+      Dependencies.Test.scalatest
+    )
   )
   .dependsOn(cypher, arrows)
 
