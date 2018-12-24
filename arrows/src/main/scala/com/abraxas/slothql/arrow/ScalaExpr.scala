@@ -7,7 +7,6 @@ import cats.data.Ior
 import shapeless.labelled.{ FieldType, KeyTag }
 import shapeless._
 
-import com.abraxas.slothql.arrow.Arrow.Types
 import com.abraxas.slothql.util.{ HasField, ShapelessUtils, ShowManifest }
 
 
@@ -45,12 +44,11 @@ object ScalaExpr {
       type Aux[E <: ScalaExpr, R <: ScalaExpr, Applied <: ScalaExpr] = PartialApplyRight[E, R] { type Out = Applied }
       def apply[E <: ScalaExpr, R <: ScalaExpr](expr: E, right: R)(implicit papply: PartialApplyRight[E, R]): papply.Out = papply(expr, right)
 
-      implicit def partialApplyBinaryRight[E <: ScalaExpr, R <: ScalaExpr, S, SL, SR, T](
+      implicit def partialApplyBinaryRight[E <: ScalaExpr, R <: ScalaExpr, SL, SR](
         implicit
-        types: Types.Aux[E, S, T],
-        binary: Unpack2[S, Tuple2, SL, SR]
-      ): PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, T]] =
-        instance.asInstanceOf[PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, T]]]
+        binary: Unpack2[E#Source, Tuple2, SL, SR]
+      ): PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, E#Target]] =
+        instance.asInstanceOf[PartialApplyRight.Aux[E, R, PartiallyAppliedRight.Aux[E, R, SL, E#Target]]]
       private lazy val instance = new PartialApplyRight[ScalaExpr, ScalaExpr] {
         type Out = PartiallyAppliedRight[_, _]
         def apply(t: ScalaExpr, u: ScalaExpr): PartiallyAppliedRight[_, _] =
@@ -196,10 +194,9 @@ object ScalaExpr {
     }
     private object Builder extends Builder
 
-    implicit def fmapToDot[F[_], E <: ScalaExpr, S](
+    implicit def fmapToDot[F[_], E <: ScalaExpr](
       implicit
-      types: Arrow.Types.Aux[E, S, _],
-      showSrc: util.ShowT[S],
+      showSrc: util.ShowT[E#Source],
       toDot: util.ArrowToDot[E]
     ): util.ArrowToDot[FMap[F, E]] = dotCluster(_.expr, "map")
   }
@@ -221,10 +218,9 @@ object ScalaExpr {
     }
     private object Builder extends Builder
 
-    implicit def mbindToDot[F[_], E <: ScalaExpr, S](
+    implicit def mbindToDot[F[_], E <: ScalaExpr](
       implicit
-      types: Arrow.Types.Aux[E, S, _],
-      showSrc: util.ShowT[S],
+      showSrc: util.ShowT[E#Source],
       toDot: util.ArrowToDot[E]
     ): util.ArrowToDot[MBind[F, E]] = dotCluster(_.expr, "flatMap")
   }
@@ -248,7 +244,7 @@ object ScalaExpr {
       implicit
       iterable: F[_] <:< Iterable[_],
       mf: Manifest[F[_]],
-      filterArrow: Types.Aux[E, _, Boolean]
+      filterArrow: E#Target =:= Boolean
   ) extends ScalaExpr {
     type Source = F[expr.Source]
     type Target = Source
@@ -262,12 +258,11 @@ object ScalaExpr {
     case object Descending extends Direction
   }
 
-  case class IterableOrderBy[F[_], E <: ScalaExpr, T](expr: E, dir: OrderBy.Direction)(
+  case class IterableOrderBy[F[_], E <: ScalaExpr](expr: E, dir: OrderBy.Direction)(
       implicit
       iterable: F[_] <:< Iterable[_],
       mf: Manifest[F[_]],
-      orderArrow: Types.Aux[E, _, T],
-      ordering: Ordering[T] // TODO: require it?
+      targetOrdering: Ordering[E#Target] // TODO: require it?
   ) extends ScalaExpr {
     type Source = F[expr.Source]
     type Target = Source
@@ -327,15 +322,16 @@ object ScalaExpr {
 
   private def classType[F[_], T](clazz: Manifest[_ <: F[_]], arg: Manifest[T]): Manifest[F[T]] =
     Manifest.classType(clazz.runtimeClass.asInstanceOf[Class[F[T]]], arg)
+  private def classType[F[_, _], T1, T2](clazz: Manifest[_ <: F[_, _]], arg1: Manifest[T1], arg2: Manifest[T2]): Manifest[F[T1, T2]] =
+    Manifest.classType(clazz.runtimeClass.asInstanceOf[Class[F[T1, T2]]], arg1, arg2)
 
 
   // // // // // // Syntax Ops // // // // // //
 
 
-  implicit class ScalaExprFMapOps[A <: ScalaExpr, F[_], TA, S0](a: A)(
+  implicit class ScalaExprFMapOps[A <: ScalaExpr, F[_], S0](a: A)(
     implicit
-    targetA: Types.Aux[A, _, TA],
-    source0: TA <:< F[S0],
+    source0: A#Target <:< F[S0],
     functor: cats.Functor[F],
     mf0: Manifest[F[_]]
   ) {
@@ -344,10 +340,9 @@ object ScalaExpr {
     def map[B <: ScalaExpr](fb: Id[S0] => B)(implicit compose: Arrow.Compose[FMap[F, B], A], mf: Manifest[S0]): compose.Out = compose(new FMap[F, B](fb(Id[S0])), a)
   }
 
-  implicit class ScalaExprMBindOps[A <: ScalaExpr, F[_], TA, S0](a: A)(
+  implicit class ScalaExprMBindOps[A <: ScalaExpr, F[_], S0](a: A)(
     implicit
-    targetA: Types.Aux[A, _, TA],
-    source0: TA <:< F[S0],
+    source0: A#Target <:< F[S0],
     monad: cats.Monad[F],
     mf0: Manifest[F[_]]
   ) {
@@ -356,30 +351,30 @@ object ScalaExpr {
     def flatMap[B <: ScalaExpr.Aux[_, F[_]]](fb: Id[S0] => B)(implicit compose: Arrow.Compose[MBind[F, B], A], mf: Manifest[S0]): compose.Out = compose(new MBind[F, B](fb(Id[S0])), a)
   }
 
-  implicit class ScalaExprIterableOps[A <: ScalaExpr, TA, S0, F[_]](a: A)(
+  implicit class ScalaExprIterableOps[A <: ScalaExpr, S0, F[_]](a: A)(
     implicit
-    targetA: Types.Aux[A, _, TA],
-    fType: TA <:< F[S0],
-    iterableT: TA <:< Iterable[_],    // TODO
+    fType: A#Target <:< F[S0],
+    iterableT: A#Target <:< Iterable[_],    // TODO
     iterableF: F[_] <:< Iterable[_],  // TODO
-    mta: Manifest[TA],
     mf: Manifest[F[_]]  // TODO
   ) {
-    def toList(implicit compose: Arrow.Compose[IterableToList[TA, S0], A], ms0: Manifest[S0]): compose.Out = compose(new IterableToList[TA, S0], a)
+    private implicit def aTargetManifest = a.tgt.asInstanceOf[Manifest[A#Target]]
 
-    def drop(n: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice.from(n), a)
-    def take(n: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice.to(n), a)
-    def slice(from: Int, to: Int)(implicit compose: Arrow.Compose[IterableSlice[TA], A]): compose.Out = compose(IterableSlice.range(from, to), a)
+    def toList(implicit compose: Arrow.Compose[IterableToList[A#Target, S0], A], ms0: Manifest[S0]): compose.Out = compose(new IterableToList[A#Target, S0], a)
 
-    def filter[B <: ScalaExpr](expr: B)            (implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean]                   ): compose.Out = compose(IterableFilter[F, B](expr), a)
-    def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: Types.Aux[B, _, Boolean], ms0: Manifest[S0]): compose.Out = compose(IterableFilter[F, B](mkExpr(Id[S0])), a)
+    def drop(n: Int)(implicit compose: Arrow.Compose[IterableSlice[A#Target], A]): compose.Out = compose(IterableSlice.from(n), a)
+    def take(n: Int)(implicit compose: Arrow.Compose[IterableSlice[A#Target], A]): compose.Out = compose(IterableSlice.to(n), a)
+    def slice(from: Int, to: Int)(implicit compose: Arrow.Compose[IterableSlice[A#Target], A]): compose.Out = compose(IterableSlice.range(from, to), a)
 
-    def orderBy[B <: ScalaExpr, BT](mkExpr: Id[S0] => B, dir: OrderBy.type => OrderBy.Direction = null)
-                                   (implicit orderArrow: Types.Aux[B, _, BT], ordering: Ordering[BT], compose: Strict[Arrow.Compose[IterableOrderBy[F, B, BT], A]], ms0: Manifest[S0]): compose.value.Out =
+    def filter[B <: ScalaExpr](expr: B)            (implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: B#Target =:= Boolean                   ): compose.Out = compose(IterableFilter[F, B](expr), a)
+    def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: B#Target =:= Boolean, ms0: Manifest[S0]): compose.Out = compose(IterableFilter[F, B](mkExpr(Id[S0])), a)
+
+    def orderBy[B <: ScalaExpr](mkExpr: Id[S0] => B, dir: OrderBy.type => OrderBy.Direction = null)
+                               (implicit targetOrdering: Ordering[B#Target], compose: Strict[Arrow.Compose[IterableOrderBy[F, B], A]], ms0: Manifest[S0]): compose.value.Out =
       compose.value(IterableOrderBy(mkExpr(Id[S0]), Option(dir).map(_(OrderBy)).getOrElse(OrderBy.Ascending)), a)
   }
 
-  implicit class CompareOps[L <: ScalaExpr, LT](left: L)(implicit typesL: Types.Aux[L, _, LT]) {
+  implicit class CompareOps[L <: ScalaExpr](left: L) {
     def ===[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, R]): build.Out = build(left, right)
     def ===[R: Manifest]   (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]): build.Out = build(left, Literal(right))
 
@@ -401,19 +396,24 @@ object ScalaExpr {
     object BuildCmpRight {
       type Aux[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr, Out0 <: ScalaExpr] = BuildCmpRight[L, Cmp, R] { type Out = Out0 }
 
-      implicit def buildCmpRight[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr, LT, RT, PAR <: ScalaExpr, Out <: ScalaExpr](
+      implicit def buildCmpRight[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr, PAR <: ScalaExpr, Out <: ScalaExpr](
         implicit
-        typesL: Types.Aux[L, _, LT],
-        typesR: Types.Aux[R, _, RT],
-        papplyR: Binary.PartialApplyRight.Aux[Cmp[LT, RT], R, PAR],
+        papplyR: Binary.PartialApplyRight.Aux[Cmp[L#Target, R#Target], R, PAR],
         cmpInstance: Compare.CreateInstance[Cmp],
-        compose: Arrow.Compose.Aux[PAR, L, Out],
-        m: Manifest[(LT, RT)]
+        compose: Arrow.Compose.Aux[PAR, L, Out]
       ): BuildCmpRight.Aux[L, Cmp, R, Out] =
         new BuildCmpRight[L, Cmp, R] {
           type Out = compose.Out
-          def apply(left: L, right: R): compose.Out = compose(papplyR(cmpInstance[LT, RT], right), left)
+          def apply(left: L, right: R): compose.Out = {
+            val cmp = cmpInstance(classType(
+              Tuple2Manifest,
+              left.tgt.asInstanceOf[Manifest[L#Target]],
+              right.tgt.asInstanceOf[Manifest[R#Target]]
+            ))
+            compose(papplyR(cmp, right), left)
+          }
         }
+      private lazy val Tuple2Manifest = manifest[(_, _)]
     }
   }
 
@@ -435,12 +435,11 @@ object ScalaExpr {
   sealed trait TargetToRecord extends Arrow
   object TargetToRecord {
 
-    implicit def scalaExprLabelledRootTargetToRecordFunctor[E <: ScalaExpr, EL <: ScalaExpr, S, T, R <: ScalaExpr](
+    implicit def scalaExprLabelledRootTargetToRecordFunctor[E <: ScalaExpr, EL <: ScalaExpr, R <: ScalaExpr](
       implicit
       label: Lazy[Functor.Aux[E, TargetToRecord, EL]],
-      types: Types.Aux[EL, S, T],
-      isLabelled: T <:< KeyTag[_, _],
-      changeTargetType: Internal.UnsafeChangeTypes.Aux[EL, S, T :: HNil, R]
+      isLabelled: EL#Target <:< KeyTag[_, _],
+      changeTargetType: Internal.UnsafeChangeTypes.Aux[EL, EL#Source, EL#Target :: HNil, R]
     ): Functor.Aux[Functor.Root[E], TargetToRecord, R] =
       Functor.define[Functor.Root[E], TargetToRecord](t => changeTargetType(label.value(t.arrow)))
 
@@ -472,10 +471,9 @@ object ScalaExpr {
     object ComposeLabelled {
       type Aux[F <: ScalaExpr, G <: ScalaExpr, Composition <: ScalaExpr] = ComposeLabelled[F, G] { type Out = Composition }
 
-      implicit def composeLabelledScalaExprs[F <: ScalaExpr, G <: ScalaExpr, GT, K, S, T](
+      implicit def composeLabelledScalaExprs[F <: ScalaExpr, G <: ScalaExpr, K, S, T](
         implicit
-        gTypes: Types.Aux[G, _, GT],
-        gTargetIsLabelled: GT <:< KeyTag[K, _],
+        gTargetIsLabelled: G#Target <:< KeyTag[K, _],
         typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
         ev: T <:< Product
         // fNotId: F <:!< Arrow.Id[_],
@@ -483,10 +481,9 @@ object ScalaExpr {
       ): ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T]]] =
         instance.asInstanceOf[ComposeLabelled.Aux[F, G, Composition.Aux[F, G, S, FieldType[K, T]]]]
 
-      implicit def composeLabelledNonTupleScalaExprs[F <: ScalaExpr, G <: ScalaExpr, GT, K, S, T](
+      implicit def composeLabelledNonTupleScalaExprs[F <: ScalaExpr, G <: ScalaExpr, K, S, T](
         implicit
-        gTypes: Types.Aux[G, _, GT],
-        gTargetIsLabelled: GT <:< KeyTag[K, _],
+        gTargetIsLabelled: G#Target <:< KeyTag[K, _],
         typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
         ev: T <:!< Product
         // fNotId: F <:!< Arrow.Id[_],

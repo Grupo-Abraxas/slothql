@@ -31,13 +31,12 @@ object ToDot {
   def apply[A <: Arrow](a: A)(implicit toDot: ToDot[A]): String = toDot(a)
   def define[A <: Arrow](toDot: A => String): ToDot[A] = new ToDot[A] { def apply(a: A): String = toDot(a) }
 
-  implicit def defaultToDot[A <: Arrow, S](
+  implicit def defaultToDot[A <: Arrow](
     implicit
-    arrowSource: Arrow.Types.Aux[A, S, _],
-    showSource: ShowT[S],
+    showSource: ShowT[A#Source],
     toDot: ArrowToDot[A]
   ): ToDot[A] = define { a =>
-    val (sourceDot, source) = ArrowToDot.defaultNewTypeNode[S]
+    val (sourceDot, source) = ArrowToDot.defaultNewTypeNode[A#Source]
     s"""
        |digraph {
        |${sourceDot + toDot(a, source)._1}
@@ -76,14 +75,13 @@ object ArrowToDot {
       at{ case (a, source) => toDot(a, source) }
   }
 
-  implicit def splitArrowToDot[A <: Arrow, Arrs <: HList, ArrsZ <: HList, ArrsDot <: HList, Tgt](
+  implicit def splitArrowToDot[A <: Arrow, Arrs <: HList, ArrsZ <: HList, ArrsDot <: HList](
     implicit
     split: A <:< Arrow.Split[Arrs],
     zipWithSource: ops.hlist.ZipConst.Aux[SourceNodeId, Arrs, ArrsZ],
     mapToDot: ops.hlist.Mapper.Aux[ArrowToDotPoly.type, ArrsZ, ArrsDot],
     dotToList: ops.hlist.ToTraversable.Aux[ArrsDot, List, (String, TargetNodeId)],
-    target: Arrow.Types.Aux[A, _, Tgt],
-    showTarget: ShowT[Tgt]
+    showTarget: ShowT[A#Target]
   ): ArrowToDot[A] = define {
     (a, source) =>
       val (dots, targets) = dotToList(mapToDot(zipWithSource(source, a.arrows))).unzip
@@ -107,15 +105,14 @@ object ArrowToDot {
     toDot: ChainToDot[Arrs]
   ): ArrowToDot[A] = define{ (a, source) => toDot(reverse(unchain(a)), source) }
 
-  implicit def defaultSingleArrowToDot[A <: Arrow, T](
+  implicit def defaultSingleArrowToDot[A <: Arrow](
     implicit
     low: LowPriority,
-    target: Arrow.Types.Aux[A, _, T],
-    showTarget: ShowT[T],
+    showTarget: ShowT[A#Target],
     showArrow: ShowT[A] = null
   ): ArrowToDot[A] = define {
     (a, source) =>
-      val (targetDot, target) = defaultNewTypeNode[T]
+      val (targetDot, target) = defaultNewTypeNode[A#Target]
       val arrLabel = Option(showArrow).map(_.simple).getOrElse(ShowManifest(a.getClass))
       val edgeDot = defaultEdge(source, target, arrLabel)
       val dot = s"""

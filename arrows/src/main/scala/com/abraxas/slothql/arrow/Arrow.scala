@@ -118,7 +118,7 @@ object Arrow {
     }
   }
 
-  implicit class SplitOps[F <: Arrow, S, T, IdArr <: Arrow](f: F)(implicit types: Types.Aux[F, S, T], idArr: Id.Builder.Aux[F, T, IdArr]) {
+  implicit class SplitOps[F <: Arrow, IdArr <: Arrow](f: F)(implicit idArr: Id.Builder.Aux[F, F#Target, IdArr]) {
     /**
      *  Warning: any macro application error in the arguments (like incorrect field name) will be swallowed by this macro,
      *  showing just `exception during macro expansion` error. Looks like [[https://github.com/scala/bug/issues/9889]].
@@ -130,8 +130,8 @@ object Arrow {
       import c.universe._
 
       val (f, idBuilder) = c.prefix.tree match {
-        case q"new $clazz($param)($_, $id)" if clazz.tpe <:< typeOf[SplitOps[_, _, _, _]] => param -> id
-        case q"arrow.this.Arrow.SplitOps[..$_]($param)($_, $id)" => param -> id
+        case q"new $clazz($param)($id)" if clazz.tpe <:< typeOf[SplitOps[_,  _]] => param -> id
+        case q"arrow.this.Arrow.SplitOps[..$_]($param)($id)" => param -> id
         case other => c.abort(c.prefix.tree.pos, s"Unexpected: $other")
       }
       q"""
@@ -172,7 +172,7 @@ object Arrow {
   }
 
   /** Syntax sugar for arrows composition. */
-  implicit class ComposeOpsIdArr[F <: Arrow, S, T, IdArr <: Arrow](f: F)(implicit types: Types.Aux[F, S, T], idArr: Id.Builder.Aux[F, T, IdArr]) {
+  implicit class ComposeOpsIdArr[F <: Arrow, IdArr <: Arrow](f: F)(implicit idArr: Id.Builder.Aux[F, F#Target, IdArr]) {
     def andThenF[G <: Arrow](fg: IdArr => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(idArr()), f)
     def >^>     [G <: Arrow](fg: IdArr => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(idArr()), f)
   }
@@ -184,17 +184,6 @@ object Arrow {
   }
 
 
-
-  /** Typeclass witnessing `Source` and `Target` of an [[Arrow]]. */
-  trait Types[F <: Arrow]  { type Source; type Target }
-  object Types {
-    type Aux[F <: Arrow, S, T] = Types[F] { type Source = S; type Target = T }
-    def apply[F <: Arrow](implicit t: Types[F]): Aux[F, t.Source, t.Target] = t
-
-    implicit def arrowTypes[F <: Arrow, S, T](implicit ev: F <:< Arrow.Inv[S, T]): Aux[F, S, T] = instance.asInstanceOf[Aux[F, S, T]]
-    private lazy val instance = new Types[Arrow] {}
-  }
-
   /** Typeclass witnessing that arrows `F` and `G` can be composed. */
   trait Compose[F <: Arrow, G <: Arrow] extends DepFn2[F, G] { type Out <: Arrow }
   object Compose {
@@ -203,8 +192,7 @@ object Arrow {
 
     implicit def composeIdLeft[F <: Arrow, G <: Arrow, T](
       implicit
-      types: Types.Aux[G, _, T],
-      idF: F <:< Arrow.Id[T],
+      idF: F <:< Arrow.Id[G#Target],
       notIdG: G <:!< Arrow.Id[_]
     ): Compose.Aux[F, G, G] =
       composeIdL.asInstanceOf[Compose.Aux[F, G, G]]
@@ -215,8 +203,7 @@ object Arrow {
 
     implicit def composeIdRight[F <: Arrow, G <: Arrow, S](
       implicit
-      types: Types.Aux[F, S, _],
-      idG: G <:< Arrow.Id[S],
+      idG: G <:< Arrow.Id[F#Source],
       notIdF: F <:!< Arrow.Id[_]
     ): Compose.Aux[F, G, F] =
       composeIdR.asInstanceOf[Compose.Aux[F, G, F]]
@@ -246,14 +233,12 @@ object Arrow {
     object TypesCorrespond {
       type Aux[F <: Arrow, G <: Arrow, S, T] = TypesCorrespond[F, G] { type Source = S; type Target = T }
 
-      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow, FS0, FS, FT, GS, GT0, GT](
+      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow, FS, GT](
         implicit
-        fTypes: Types.Aux[F, FS0, FT],
-        gTypes: Types.Aux[G, GS, GT0],
-        fSource: ShapelessUntag.Aux[FS0, FS],
-        gTarget: ShapelessUntag.Aux[GT0, GT],
+        fSource: ShapelessUntag.Aux[F#Source, FS],
+        gTarget: ShapelessUntag.Aux[G#Target, GT],
         typesCorrespond: FS <:< GT
-      ): TypesCorrespond.Aux[F, G, GS, FT] = instance.asInstanceOf[TypesCorrespond.Aux[F, G, GS, FT]]
+      ): TypesCorrespond.Aux[F, G, G#Source, F#Target] = instance.asInstanceOf[TypesCorrespond.Aux[F, G, G#Source, F#Target]]
       private lazy val instance = new TypesCorrespond[Arrow, Arrow] {}
     }
   }
@@ -296,15 +281,14 @@ object Arrow {
     type Aux[Arrows <: HList, S] = CommonSource[Arrows] { type Source = S }
     def apply[Arrows <: HList](implicit cs: CommonSource[Arrows]): Aux[Arrows, cs.Source] = cs
 
-    implicit def singleCommonSource[H <: Arrow, S](implicit hSource: Types.Aux[H, S, _]): CommonSource.Aux[H :: HNil, S] =
-      instance.asInstanceOf[CommonSource.Aux[H :: HNil, S]]
+    implicit def singleCommonSource[H <: Arrow]: CommonSource.Aux[H :: HNil, H#Source] =
+      instance.asInstanceOf[CommonSource.Aux[H :: HNil, H#Source]]
 
-    implicit def multipleCommonSource[H <: Arrow, T <: HList, HS, TS, S](
+    implicit def multipleCommonSource[H <: Arrow, T <: HList, TS, S](
       implicit
       notSingle: T <:!< HNil,
-      hSource: Types.Aux[H, HS, _],
       tSource: CommonSource.Aux[T, TS],
-      lub: Lub[HS, TS, S]
+      lub: Lub[H#Source, TS, S]
     ): CommonSource.Aux[H :: T, S] = instance.asInstanceOf[CommonSource.Aux[H :: T, S]]
 
     private lazy val instance = new CommonSource[HList]{}

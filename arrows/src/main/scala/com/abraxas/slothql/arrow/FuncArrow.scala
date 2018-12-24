@@ -64,21 +64,19 @@ object FuncArrow {
   ): Functor.Aux[ScalaExpr.SelectField[Obj, K, V], FuncArrow, FuncArrow.Inv[Obj, V]] =
     Functor.define[ScalaExpr.SelectField[Obj, K, V], FuncArrow](_ => FuncArrow(select.apply _ compose generic.to))
 
-  implicit def mapScalaExprFMapToFunc1Arrow[F[_], E <: ScalaExpr, S, T](
+  implicit def mapScalaExprFMapToFunc1Arrow[F[_], E <: ScalaExpr](
     implicit
     functor: cats.Functor[F],
-    types0: Arrow.Types.Aux[E, S, T],
-    mapE: Functor.Aux[E, FuncArrow, FuncArrow.Inv[S, T]]
-  ): Functor.Aux[ScalaExpr.FMap[F, E], FuncArrow, FuncArrow.Inv[F[S], F[T]]] =
+    mapE: Functor.Aux[E, FuncArrow, FuncArrow.Inv[E#Source, E#Target]]
+  ): Functor.Aux[ScalaExpr.FMap[F, E], FuncArrow, FuncArrow.Inv[F[E#Source], F[E#Target]]] =
     Functor.define[ScalaExpr.FMap[F, E], FuncArrow](t => FuncArrow(_.map(mapE(t.expr).apply)))
 
-  implicit def mapScalaExprMBindToFunc1Arrow[F[_], E <: ScalaExpr, S, T, T0](
+  implicit def mapScalaExprMBindToFunc1Arrow[F[_], E <: ScalaExpr, T0](
     implicit
     monad: cats.Monad[F],
-    types0: Arrow.Types.Aux[E, S, T],
-    mapE: Functor.Aux[E, FuncArrow, FuncArrow.Inv[S, T]],
-    targetIsF: T <:< F[T0]
-  ): Functor.Aux[ScalaExpr.MBind[F, E], FuncArrow, FuncArrow.Inv[F[S], F[T0]]] =
+    mapE: Functor.Aux[E, FuncArrow, FuncArrow.Inv[E#Source, E#Target]],
+    targetIsF: E#Target <:< F[T0]
+  ): Functor.Aux[ScalaExpr.MBind[F, E], FuncArrow, FuncArrow.Inv[F[E#Source], F[T0]]] =
     Functor.define[ScalaExpr.MBind[F, E], FuncArrow](t =>
       FuncArrow(_ flatMap (mapE(t.expr).apply _  andThen targetIsF))
     )

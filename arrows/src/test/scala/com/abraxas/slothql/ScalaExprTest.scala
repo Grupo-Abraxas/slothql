@@ -118,13 +118,13 @@ object ScalaExprTest {
 
   type OrderByPageExpr =
     ScalaExpr.Composition[
-      ScalaExpr.IterableOrderBy[List, ScalaExpr.SelectField[Page, text, String], String],
+      ScalaExpr.IterableOrderBy[List, ScalaExpr.SelectField[Page, text, String]],
       ScalaExpr.SelectField[Book, pages, List[Page]]
     ]{ type Source = Book; type Target = List[Page] }
   def OrderByPageExpr(dir: ScalaExpr.OrderBy.Direction) = { // TODO: existential warning
     val orderBy = ScalaExpr.SelectField[Page, text, String]("text")
 
-    (   ScalaExpr.IterableOrderBy[List, orderBy.type, String](orderBy, dir)
+    (   ScalaExpr.IterableOrderBy[List, orderBy.type](orderBy, dir)
       ∘ ScalaExpr.SelectField[Book, pages, List[Page]]("pages")
     )
   }
