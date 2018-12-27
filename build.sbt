@@ -44,26 +44,15 @@ lazy val cypher = (project in file("cypher"))
 
   )
 
-
-lazy val `arrows-macros` = (project in file("arrows-macros"))
-  .settings(
-    name := "slothql-arrows-macros",
-    libraryDependencies ++= Seq(
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      Dependencies.shapeless
-    )
-  )
-
 lazy val arrows = (project in file("arrows"))
   .settings(
     name := "slothql-arrows",
     libraryDependencies ++= Seq(
+      Dependencies.shapeless,
       Dependencies.`cats-core`,
       Dependencies.Test.scalatest
     )
   )
-  .dependsOn(`arrows-macros`)
-  .aggregate(`arrows-macros`)
 
 
 // // // Repository // // //

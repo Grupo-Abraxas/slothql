@@ -6,7 +6,7 @@ import scala.reflect.macros.whitebox
 
 import shapeless._
 
-import com.abraxas.slothql.util.{ ShapelessUntag, ShapelessUtils }
+import com.abraxas.slothql.util.ShapelessUtils
 
 trait Arrow {
   type Source
@@ -233,11 +233,9 @@ object Arrow {
     object TypesCorrespond {
       type Aux[F <: Arrow, G <: Arrow, S, T] = TypesCorrespond[F, G] { type Source = S; type Target = T }
 
-      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow, FS, GT](
+      implicit def proveTypesCorrespond[F <: Arrow, G <: Arrow](
         implicit
-        fSource: ShapelessUntag.Aux[F#Source, FS],
-        gTarget: ShapelessUntag.Aux[G#Target, GT],
-        typesCorrespond: FS <:< GT
+        typesCorrespond: F#Source <:< G#Target
       ): TypesCorrespond.Aux[F, G, G#Source, F#Target] = instance.asInstanceOf[TypesCorrespond.Aux[F, G, G#Source, F#Target]]
       private lazy val instance = new TypesCorrespond[Arrow, Arrow] {}
     }
@@ -309,83 +307,5 @@ object Arrow {
     ): Targets.Aux[H :: T, HT :: t.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, HT :: t.Targets]]
 
     private lazy val instance = new Targets[HList] {}
-  }
-}
-
-
-// TODO: is it a functor? should I rename it?
-/** A typeclass supporting ???. */
-trait Functor[From <: Arrow, To <: Arrow] extends DepFn1[From] { type Out <: Arrow }
-object Functor {
-  type Aux[From <: Arrow, To <: Arrow, Out0 <: Arrow] = Functor[From, To] { type Out = Out0 }
-  def apply[From <: Arrow, To <: Arrow](implicit functor: Functor[Root[From], To]): Functor.Aux[From, To, functor.Out] =
-    Functor.define(t => functor(Root(t)))
-  def map[From <: Arrow](from: From): PartialApplication[From] = new PartialApplication(from)
-
-  def define[From <: Arrow, To <: Arrow]: DefinitionBuilder[From, To] = DefinitionBuilder.asInstanceOf[DefinitionBuilder[From, To]]
-
-  protected class DefinitionBuilder[From <: Arrow, To <: Arrow] {
-    def apply[R <: Arrow](map: From => R): Functor.Aux[From, To, R] =
-      new Functor[From, To] {
-        type Out = R
-        def apply(t: From): R = map(t)
-      }
-  }
-  private object DefinitionBuilder extends DefinitionBuilder[Arrow, Arrow]
-
-  protected class PartialApplication[From <: Arrow](from: From) {
-    def to[To <: Arrow](implicit functor: Functor[Root[From], To]): functor.Out = functor(Root(from))
-  }
-
-  final case class Root[A <: Arrow] private[Functor] (arrow: A) extends Arrow {
-    type Source = arrow.Source
-    type Target = arrow.Target
-  }
-  object Root {
-    implicit def defaultRootFunctor[A <: Arrow, To <: Arrow](
-      implicit
-      functor: Lazy[Functor[A, To]],
-      lowPriority: LowPriority
-    ): Functor.Aux[Root[A], To, functor.value.Out] = define[Root[A], To](root => functor.value(root.arrow))
-  }
-
-  implicit def compositionFunctor[From <: Arrow, To <: Arrow, FromF <: Arrow, ToF <: Arrow, FromG <: Arrow, ToG <: Arrow](
-    implicit
-    composition: From <:< Arrow.Composition[FromF, FromG],
-    fF: Lazy[Functor.Aux[FromF, To, ToF]],
-    fG: Lazy[Functor.Aux[FromG, To, ToG]],
-    compose: Arrow.Compose[ToF, ToG],
-    lowPriority: LowPriority
-   ): Functor.Aux[From, To, compose.Out] = define[From, To](t => compose(fF.value(t.F), fG.value(t.G)))
-
-  implicit def splitFunctor[From <: Arrow, To <: Arrow, Arrows <: HList, Mapped <: HList](
-    implicit
-    isSplit: From <:< Arrow.Split[Arrows],
-    fmap: Lazy[FMapHList.Aux[Arrows, To, Mapped]],
-    split: Arrow.Split.Splitter[Mapped],
-    lowPriority: LowPriority
-  ): Functor.Aux[From, To, split.Out] = define[From, To](t => split(fmap.value(t.arrows)))
-
-
-  trait FMapHList[Arrows <: HList, To <: Arrow] extends DepFn1[Arrows] { type Out <: HList }
-  object FMapHList {
-    type Aux[Arrows <: HList, To <: Arrow, Mapped <: HList] = FMapHList[Arrows, To] { type Out = Mapped }
-    def apply[Arrows <: HList, To <: Arrow](implicit fmap: FMapHList[Arrows, To]): Aux[Arrows, To, fmap.Out] = fmap
-
-    implicit def fmapHnil[To <: Arrow]: FMapHList.Aux[HNil, To, HNil] = fmapHnilInstance.asInstanceOf[FMapHList.Aux[HNil, To, HNil]]
-    private lazy val fmapHnilInstance = new FMapHList[HNil, Arrow] {
-      type Out = HNil
-      def apply(t: HNil): HNil = HNil
-    }
-
-    implicit def fmapHcons[H <: Arrow, T <: HList, To <: Arrow, H1 <: Arrow, T1 <: HList](
-      implicit
-      mapH: Lazy[Functor.Aux[H, To, H1]],
-      mapT: Lazy[FMapHList.Aux[T, To, T1]]
-    ): FMapHList.Aux[H :: T, To, H1 :: T1] =
-      new FMapHList[H :: T, To] {
-        type Out = H1 :: T1
-        def apply(t: H :: T): H1 :: T1 = mapH.value(t.head) :: mapT.value(t.tail)
-      }
   }
 }
