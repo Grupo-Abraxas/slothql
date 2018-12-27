@@ -15,8 +15,6 @@ trait Arrow {
 
 object Arrow {
   type Aux[-S, +T] = Arrow { type Source >: S; type Target <: T }
-  type Inv[ S,  T] = Arrow { type Source  = S; type Target  = T }
-
 
   // TODO: `Arrow.Id[Int] == Arrow.Id[String]` complies
   trait Id[A] extends Arrow {
@@ -297,14 +295,13 @@ object Arrow {
     type Aux[Arrows <: HList, Ts <: HList] = Targets[Arrows] { type Targets = Ts }
     def apply[Arrows <: HList](implicit t: Targets[Arrows]): Aux[Arrows, t.Targets] = t
 
-    implicit def singleTarget[H <: Arrow, HT](implicit h: H <:< Arrow.Inv[_, HT]): Targets.Aux[H :: HNil, HT :: HNil] =
-      instance.asInstanceOf[Targets.Aux[H :: HNil, HT :: HNil]]
-    implicit def multipleTargets[H <: Arrow, T <: HList, HT](
+    implicit def singleTarget[H <: Arrow]: Targets.Aux[H :: HNil, H#Target :: HNil] =
+      instance.asInstanceOf[Targets.Aux[H :: HNil, H#Target :: HNil]]
+    implicit def multipleTargets[H <: Arrow, T <: HList](
       implicit
-      notSingle: T <:!< HNil,
-      h: H <:< Arrow.Inv[_, HT],
+      notSingle: T =:!= HNil,
       t: Targets[T]
-    ): Targets.Aux[H :: T, HT :: t.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, HT :: t.Targets]]
+    ): Targets.Aux[H :: T, H#Target :: t.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, H#Target :: t.Targets]]
 
     private lazy val instance = new Targets[HList] {}
   }
