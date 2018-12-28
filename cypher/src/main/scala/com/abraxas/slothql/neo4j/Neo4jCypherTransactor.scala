@@ -1,6 +1,7 @@
 package com.abraxas.slothql.neo4j
 
 import scala.collection.convert.decorateAsScala._
+import scala.reflect.runtime.{ universe => ru }
 
 import cats.effect.IO
 import cats.instances.vector._
@@ -131,34 +132,38 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
     object Default extends Default
     class Default {
-      def apply(mf: Manifest[_]): ValueReader[_] = {
-        lazy val firstTArgReader = apply(mf.typeArguments.head)
-        lazy val secondTArgReader = apply(mf.typeArguments(1))
-        mf.runtimeClass match {
-          case OptionClass => ValueReader.option(firstTArgReader)
-          case ListClass   => ValueReader.list(firstTArgReader)
-          case MapClass    if mf.typeArguments.head.runtimeClass == classOf[String] => map(secondTArgReader)
-          case c           if atomic isDefinedAt c => atomic(c)
-          case _ => sys.error(s"No default ValueReader is defined for $mf")
+      def apply[A: ru.TypeTag]: ValueReader[_] = apply(ru.typeOf[A])
+      def apply(tpe: ru.Type): ValueReader[_] = {
+        lazy val firstTArgReader = apply(tpe.typeArgs.head)
+        lazy val secondTArgReader = apply(tpe.typeArgs(1))
+        tpe match {
+          case _ if tpe <:< OptionType    => ValueReader.option(firstTArgReader)
+          case _ if tpe <:< ListType      => ValueReader.list(firstTArgReader)
+          case _ if tpe <:< StringMapType => ValueReader.map(secondTArgReader)
+          case _ =>
+            val readers = atomicReaders.withFilter(_._1 <:< tpe).map(_._2)
+            readers.size match {
+              case 0 => sys.error(s"No default ValueReader is defined for $tpe")
+              case 1 => readers.head
+              case _ => sys.error(s"Multiple ValueReaders are defined for $tpe: ${readers.mkString(", ")}")
+            }
         }
       }
 
-      def option(mf: Manifest[_]): ValueReader[_] = ValueReader.option(apply(mf))
-
-      protected val atomic = atomicReaders withDefaultValue any
-      protected def atomicReaders = Map[Class[_], ValueReader[_]](
-        classOf[Cell]    -> cell,
-        classOf[String]  -> string,
-        classOf[Boolean] -> boolean,
-        classOf[Int]     -> int,
-        classOf[Long]    -> long,
-        classOf[Float]   -> float,
-        classOf[Double]  -> double
+      protected def atomicReaders = Map[ru.Type, ValueReader[_]](
+        ru.typeOf[Any]     -> any,
+        ru.typeOf[Cell]    -> cell,
+        ru.typeOf[String]  -> string,
+        ru.typeOf[Boolean] -> boolean,
+        ru.typeOf[Int]     -> int,
+        ru.typeOf[Long]    -> long,
+        ru.typeOf[Float]   -> float,
+        ru.typeOf[Double]  -> double
       )
 
-      private val OptionClass = classOf[Option[_]]
-      private val ListClass   = classOf[List[_]]
-      private val MapClass    = classOf[Map[_, _]]
+      private val OptionType    = ru.typeOf[Option[_]]
+      private val ListType      = ru.typeOf[List[_]]
+      private val StringMapType = ru.typeOf[Map[String, _]]
     }
   }
 
