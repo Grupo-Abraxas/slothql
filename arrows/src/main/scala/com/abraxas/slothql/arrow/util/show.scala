@@ -1,11 +1,12 @@
 package com.abraxas.slothql.arrow.util
 
+import scala.reflect.runtime.{ universe => ru }
 import scala.util.Random
 
 import shapeless._
 
 import com.abraxas.slothql.arrow.Arrow
-import com.abraxas.slothql.util.ShowManifest
+import com.abraxas.slothql.util.{ ClassUtils, TypeUtils }
 
 
 trait ShowT[T] {
@@ -20,8 +21,8 @@ object ShowT {
       def simple: String = Option(showSimple).getOrElse(apply())
     }
 
-  implicit def defaultShowT[T: Manifest](implicit low: LowPriority): ShowT[T] =
-    define(ShowManifest(manifest[T]), ShowManifest.noTypeParams(manifest[T]))
+  implicit def defaultShowT[T: ru.TypeTag](implicit low: LowPriority): ShowT[T] =
+    define(TypeUtils.Show(ru.typeOf[T]), TypeUtils.Show.noTypeParams(ru.typeOf[T]))
 }
 
 
@@ -113,7 +114,7 @@ object ArrowToDot {
   ): ArrowToDot[A] = define {
     (a, source) =>
       val (targetDot, target) = defaultNewTypeNode[A#Target]
-      val arrLabel = Option(showArrow).map(_.simple).getOrElse(ShowManifest(a.getClass))
+      val arrLabel = Option(showArrow).map(_.simple).getOrElse(ClassUtils.Show(a.getClass))
       val edgeDot = defaultEdge(source, target, arrLabel)
       val dot = s"""
          |$targetDot

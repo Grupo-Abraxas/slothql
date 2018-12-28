@@ -16,7 +16,7 @@ object ArrowCompositionAssociativityTest extends App {
   val metaIdArr  = ScalaExpr[Meta]
   val metaIsbn   = ScalaExpr[Meta].isbn
   val authorName = ScalaExpr[Author].name
-  val mapAuthorName = ScalaExpr.FMap.mk[Option](authorName)
+  val mapAuthorName = ScalaExpr.FMap.tpe[Option].expr(authorName)
 
 
   case class SomeA()
