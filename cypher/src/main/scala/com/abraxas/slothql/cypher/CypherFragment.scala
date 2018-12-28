@@ -125,9 +125,8 @@ object CypherFragment {
     case class Lit[+A](value: A) extends Expr[A]
     trait Var[A] extends Expr[A] {
       val name: String
-      val m: Manifest[A]
 
-      override def toString: String = s"Var[$m]($name)"
+      override def toString: String = s"Var($name)"
     }
     case class Call[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
@@ -144,10 +143,7 @@ object CypherFragment {
       private lazy val literalToString = define[Lit[_]](_.value.toString)
     }
     object Var {
-      def apply[A: Manifest](nme: String): Var[A] = new Var[A] {
-        val name: String = nme
-        val m: Manifest[A] = manifest[A]
-      }
+      def apply[A](nme: String): Var[A] = new Var[A] { val name: String = nme }
       def unapply(expr: Expr[_]): Option[String] = PartialFunction.condOpt(expr) { case v: Var[_] => v.name }
 
       implicit def fragment[A]: CypherFragment[Var[A]] = instance.asInstanceOf[CypherFragment[Var[A]]]
