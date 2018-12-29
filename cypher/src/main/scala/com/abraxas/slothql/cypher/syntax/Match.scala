@@ -306,6 +306,7 @@ object Match { MatchObj =>
               case List(l,                   VOrDashVE(revHead))  if arrow.tpe =:= `syntax >`  => revHead  ::: extractPatternRev(l)
               case List(V(v),                VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: v
               case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: extractPatternRev(l)
+              case List(V(v)) if arrow.tpe <:< GraphVertexType => v
               case _ => failedToParse(ua)
             }
           case V(v) => v

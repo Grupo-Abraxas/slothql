@@ -59,7 +59,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`"
     ).returns[(Option[String], Option[String], Option[Int], Option[Boolean], String)]
 
-    "match vertex labels and properties, allow non-literal property values" in {
+    "match vertex labels and properties, allow non-literal property values (1)" in {
       val id = "u1"
       test(
         Match {
@@ -77,12 +77,33 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, String, Int, Boolean, String)]
     }
 
-    "match relation types, support variable length paths" in test(
+    "match vertex labels and properties, allow non-literal property values (2)" in  {
+      val email = "user@example.com"
+      test(
+        Match {
+          case Vertex("User", "email" := `email`) -(e)> (g@Vertex("Group")) =>
+            e -> g.prop[String]("id")
+        },
+        "MATCH (:`User`{ `email`: \"user@example.com\" }) -[`e`]-> (`g`:`Group`) " +
+        "RETURN `e`, `g`.`id`"
+      ).returns[(Map[String, Any], String)]
+    }
+
+    "match relation types, support variable length paths (left direction)" in test(
       Match {
         case Vertex("Group") < _ *:(0 - _, Edge("parent")) - (g@Vertex("Group")) =>
           g.prop[String]("name")
       },
       "MATCH (:`Group`) <-[:`parent`*0..]- (`g`:`Group`) " +
+      "RETURN `g`.`name`"
+    ).returns[String]
+
+    "match relation types, support variable length paths (right direction)" in test(
+      Match {
+        case Vertex("Group") - _ *:(_, Edge("parent")) > (g@Vertex("Group")) =>
+          g.prop[String]("name")
+      },
+      "MATCH (:`Group`) -[:`parent`*]-> (`g`:`Group`) " +
       "RETURN `g`.`name`"
     ).returns[String]
 
