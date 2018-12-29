@@ -205,7 +205,10 @@ object Match { MatchObj =>
         case UnApply(Apply(Select(sel, TermName("unapply")), _), List(bind, limits, edgeT)) if sel.tpe =:= `syntax *:` =>
           val name = DeepRel.name(bind)
           val length = DeepRel.length(limits)
-          val edge = (edgeT: @unchecked) match { case UnApplyClassTag(tpe, arg) if tpe <:< GraphEdgeType => arg }
+          val edge = (edgeT: @unchecked) match {
+            case UnApplyClassTag(tpe, arg) if tpe <:< GraphEdgeType => arg
+            case Ident(termNames.WILDCARD)                          => EmptyTree
+          }
           Some { dir: c.Expr[Rel.Direction] => ((bind.symbol, name), knownRelExpr(name, edge, Some(length), dir)) }
         case _ => None
       }

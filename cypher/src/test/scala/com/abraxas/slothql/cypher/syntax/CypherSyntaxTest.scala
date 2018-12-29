@@ -100,12 +100,12 @@ class CypherSyntaxTest extends WordSpec with Matchers {
 
     "match relation types, support variable length paths (right direction)" in test(
       Match {
-        case Vertex("Group") - _ *:(_, Edge("parent")) > (g@Vertex("Group")) =>
-          g.prop[String]("name")
+        case Vertex("Group") - es *:(_, _) > (g@Vertex("Group")) =>
+          es -> g.prop[String]("name")
       },
-      "MATCH (:`Group`) -[:`parent`*]-> (`g`:`Group`) " +
-      "RETURN `g`.`name`"
-    ).returns[String]
+      "MATCH (:`Group`) -[`es`*]-> (`g`:`Group`) " +
+      "RETURN `es`, `g`.`name`"
+    ).returns[(List[Map[String, Any]], String)]
 
     "build function calls" in test(
       Match {
