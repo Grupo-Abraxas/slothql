@@ -357,19 +357,30 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[Map[String, Any]]
     }
 
-    "support nested matches" in test(
+    "support nested matches (1)" in test(
       Match {
         case u@Vertex("User") =>
           Match {
             case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> u2 if u === u2 =>
               u.prop[String]("email") -> g.prop[String]("name")
-            // TODO: syntax ============================================================================================
-            // case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> `u` => u.prop[String]("email") -> g.prop[String]("name")
           }
       },
       "MATCH (`u`:`User`) " +
       "MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`u2`) " +
       "WHERE `u` = `u2` " +
+      "RETURN `u`.`email`, `g`.`name`"
+    ).returns[(String, String)]
+
+    "support nested matches (2)" in test(
+      Match {
+        case u@Vertex("User") =>
+          Match {
+            case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> `u` =>
+              u.prop[String]("email") -> g.prop[String]("name")
+          }
+      },
+      "MATCH (`u`:`User`) " +
+      "MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`u`) " +
       "RETURN `u`.`email`, `g`.`name`"
     ).returns[(String, String)]
 
@@ -538,7 +549,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, Int, String)]
     }
 
-    "unwind literal expressions list" in {
+    "unwind literal expressions list (1)" in {
       val query = unwind(litList(1L, 2L, 3L)) { i =>
          Match { case v@Vertex("User") if v.id === i => v.prop[String]("name") }
       }
@@ -547,6 +558,18 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "UNWIND [ 1, 2, 3 ] AS `i` " +
         "MATCH (`v`:`User`) " +
         "WHERE `id`(`v`) = `i` " +
+        "RETURN `v`.`name`"
+      ).returns[String]
+    }
+
+    "unwind literal expressions list (2)" in {
+      val query = unwind(litList(1L, 2L, 3L)) { i =>
+         Match { case v@Vertex("User", "id" := `i`) => v.prop[String]("name") }
+      }
+      test(
+        query,
+        "UNWIND [ 1, 2, 3 ] AS `i` " +
+        "MATCH (`v`:`User`{ `id`: `i` }) " +
         "RETURN `v`.`name`"
       ).returns[String]
     }

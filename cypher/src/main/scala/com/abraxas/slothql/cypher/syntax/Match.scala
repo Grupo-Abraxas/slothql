@@ -148,18 +148,22 @@ object Match { MatchObj =>
 
     def knownNodeExpr(name: Name, body: Tree): c.Expr[Known[Pattern.Node]] = {
       val (labels, values) = extractBindParams(body)
-      val tree = q"""
-        _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
-          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(
-            alias = ${aliasTree(name)},
-            labels = $labels,
-            map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
-                                             (..$values).flatten.toMap
-          )
-        )
-      """
-      c.Expr[Known[Pattern.Node]](tree)
+      val valuesTree =
+        q"""
+          _root_.scala.collection.Seq[
+            _root_.scala.Option[(_root_.java.lang.String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]
+          ](..$values).flatten.toMap
+        """
+      knownNodeExpr0(aliasTree(name), labels, valuesTree)
     }
+    def knownNodeExpr1(name: Name): c.Expr[Known[Pattern.Node]] =
+      knownNodeExpr0(aliasTree(name), q"_root_.scala.Nil", q"_root_.scala.collection.immutable.Map.empty")
+    def knownNodeExpr0(alias: Tree, labels: Tree, values: Tree): c.Expr[Known[Pattern.Node]] = c.Expr[Known[Pattern.Node]](
+      q"""
+        _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
+          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Node(alias = $alias, labels = $labels, map = $values)
+        )
+      """)
 
     def knownRelExpr(name: Option[Name], body: Tree, length: Option[Tree], dir: c.Expr[Rel.Direction]): c.Expr[Known[Pattern.Rel]] = {
       val (labels, values) = extractBindParams(body)
@@ -182,7 +186,9 @@ object Match { MatchObj =>
       def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = tree match {
         case UnApplyClassTag(tpe, arg) if tpe <:< GraphVertexType => unapply(arg)
         case Ident(termNames.WILDCARD) =>
-          Some{ (tree.symbol, None) -> reify { Known{ Pattern.Node(alias = None, labels = Nil, map = Map()) } } }
+          Some{ (tree.symbol, None) -> knownNodeExpr1(termNames.WILDCARD) }
+        case Ident(name) =>
+          Some{ (tree.symbol, None) -> knownNodeExpr1(name) }
         case Bind(name, body) =>
           Some{ (tree.symbol, Some(name)) -> knownNodeExpr(name, body) }
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
@@ -343,10 +349,15 @@ object Match { MatchObj =>
         }.toList
 
 
-        val whereVarExpr0 = reify {
-          var where: Option[Known[CypherFragment.Expr[Boolean]]] = null
-        }
-        val whereVarDefTree = c.typecheck{ whereVarExpr0.tree.asInstanceOf[Block].stats.head }
+        val whereVarName = c.internal.reificationSupport.freshTermName("where")
+        val whereVarExpr0 = c.Expr[Unit](
+          q"""
+            var $whereVarName: _root_.scala.Option[
+              _root_.com.abraxas.slothql.cypher.CypherFragment.Known[
+                _root_.com.abraxas.slothql.cypher.CypherFragment.Expr[
+                  _root_.scala.Boolean]]] = null
+           """)
+        val whereVarDefTree = c.typecheck{ whereVarExpr0.tree }
         val whereVarSymbol  = whereVarDefTree.symbol
         val whereIdent      = Ident(whereVarSymbol)
         val whereIdentExpr  = c.Expr[Option[Known[CypherFragment.Expr[Boolean]]]](whereIdent)
@@ -369,8 +380,9 @@ object Match { MatchObj =>
 
 
         object fTransormer extends Transformer {
-          override def transform(tree: c.universe.Tree): c.universe.Tree = tree match {
-            case b@Bind(name, _) =>
+          override def transform(tree: Tree): Tree = tree match {
+            case b@Bind(name, _) if name != typeNames.WILDCARD =>
+              if (!name.toString.contains("$")) bound += name
               val newBind = Bind(name, Ident(termNames.WILDCARD))
               c.internal.setSymbol(newBind, b.symbol)
             case UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
@@ -381,29 +393,43 @@ object Match { MatchObj =>
               super.transform(other)
           }
 
-          override def transformCaseDefs(trees: List[c.universe.CaseDef]): List[c.universe.CaseDef] =
+          override def transformCaseDefs(trees: List[CaseDef]): List[CaseDef] =
             super.transformCaseDefs(trees).map {
               case CaseDef(pat, _, b0) =>
                 val b = b0 match {
                   case Block(stats, expr) => Block(setAliases ::: setWhereVar :: stats, expr)
                   case expr               => Block(setAliases ::: setWhereVar :: Nil,   expr)
                 }
-                CaseDef(pat, EmptyTree, b)
+                CaseDef(patTransformer.transform(pat), EmptyTree, b)
             }
+
+          private var bound = Set.empty[Name]
+          private object patTransformer extends Transformer {
+            override def transform(tree: Tree): Tree = tree match {
+              case Ident(name) if bound contains name =>
+                Bind(termNames.WILDCARD, Ident(typeNames.WILDCARD))
+              case _ => super.transform(tree)
+            }
+          }
         }
 
-        val f2 = c.Expr[Graph => MatchObj.Result[R]](fTransormer.transform(f.tree))
+        val retName = c.internal.reificationSupport.freshTermName("return")
+        val retValExpr = c.Expr[Unit](
+          q"""
+             val $retName = ${fTransormer.transform(f.tree)}(_root_.com.abraxas.slothql.cypher.syntax.Match.Internal.graph)
+           """)
+        val retExpr = c.Expr[MatchObj.Result[R]](q"$retName")
 
         val res = reify {
           whereVarExpr.splice
-          val ret = f2.splice.apply(Internal.graph)
+          retValExpr.splice
           Query.Clause(
             Clause.Match(
               NonEmptyList(pattern.splice, Nil),
               optional = c.Expr[Boolean](Literal(Constant(optional))).splice,
               where = whereIdentExpr.splice
             ),
-            ret.result.known
+            retExpr.splice.result.known
           )
         }
 
