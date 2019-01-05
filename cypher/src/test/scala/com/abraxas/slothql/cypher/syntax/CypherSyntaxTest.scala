@@ -221,33 +221,35 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`lTrim`(`v`.`name`)"
     ).returns[(String, String, Long, Boolean, Double, Long, String, String, String, String, List[String], String, String, String, String, String)]
 
-    "support lists" in {
-      val l = list("Admin", "Share", "Create")
-      test(
-        Match {
-          case v < e - _ => (
-            list(v.id, e.id),
-            l,
-            v.labels ++ list(e.tpe),
-            e.tpe in l,
-            v.labels at lit(0),
-            l at (lit(1), lit(2L)),
-            l from lit(2),
-            l to lit(2L)
-          )
-        },
-        "MATCH (`v`) <-[`e`]- () " +
-        "RETURN " +
-          "[ `id`(`v`), `id`(`e`) ], " +
-          "[ \"Admin\", \"Share\", \"Create\" ], " +
-          "`labels`(`v`) + [ `type`(`e`) ], " +
-          "`type`(`e`) IN [ \"Admin\", \"Share\", \"Create\" ], " +
-          "`labels`(`v`)[0], " +
-          "[ \"Admin\", \"Share\", \"Create\" ][1..2], " +
-          "[ \"Admin\", \"Share\", \"Create\" ][2..], " +
-          "[ \"Admin\", \"Share\", \"Create\" ][..2]"
-      ).returns[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])]
-    }
+    def supportLists[E <: CypherFragment.Expr[List[String]]: CypherFragment](l: E) = test(
+      Match {
+        case v < e - _ => (
+          list(v.id, e.id),
+          l,
+          v.labels ++ list(e.tpe),
+          e.tpe in l,
+          v.labels at lit(0),
+          l at (lit(1), lit(2L)),
+          l from lit(2),
+          l to lit(2L)
+        )
+      },
+      "MATCH (`v`) <-[`e`]- () " +
+      "RETURN " +
+        "[ `id`(`v`), `id`(`e`) ], " +
+        "[ \"Admin\", \"Share\", \"Create\" ], " +
+        "`labels`(`v`) + [ `type`(`e`) ], " +
+        "`type`(`e`) IN [ \"Admin\", \"Share\", \"Create\" ], " +
+        "`labels`(`v`)[0], " +
+        "[ \"Admin\", \"Share\", \"Create\" ][1..2], " +
+        "[ \"Admin\", \"Share\", \"Create\" ][2..], " +
+        "[ \"Admin\", \"Share\", \"Create\" ][..2]"
+    ).returns[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])]
+
+
+    "support lists of literals" in supportLists(list("Admin", "Share", "Create"))
+
+    "support literal lists" in supportLists(lit(List("Admin", "Share", "Create")))
 
     "support `if` guards" in test(
       Match {
@@ -549,8 +551,8 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, Int, String)]
     }
 
-    "unwind literal expressions list (1)" in {
-      val query = unwind(litList(1L, 2L, 3L)) { i =>
+    "unwind literal expressions iterable (1)" in {
+      val query = unwind(lit(List(1L, 2L, 3L))) { i =>
          Match { case v@Vertex("User") if v.id === i => v.prop[String]("name") }
       }
       test(
@@ -562,8 +564,8 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[String]
     }
 
-    "unwind literal expressions list (2)" in {
-      val query = unwind(litList(1L, 2L, 3L)) { i =>
+    "unwind literal expressions iterable (2)" in {
+      val query = unwind(lit(Vector(1L, 2L, 3L))) { i =>
          Match { case v@Vertex("User", "id" := `i`) => v.prop[String]("name") }
       }
       test(
@@ -592,8 +594,14 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, Long, List[String])]
     }
 
+    "support lists of literals of mixed type" in test(
+      unwind(list(1, "a", true)){ i => i },
+      "UNWIND [ 1, \"a\", true ] AS `i` " +
+      "RETURN `i`"
+    ).returns[Any]
+
     "allow to use cypher expression variables in property matches" in {
-      val query = unwind(litList(1L, 2L, 3L)) { i =>
+      val query = unwind(lit(List(1L, 2L, 3L))) { i =>
          Match { case v@Vertex("User", "id" := `i`) => v.prop[String]("name") }
       }
       test(
@@ -606,7 +614,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
 
     "allow to match multiple properties" in {
       val admin = "System"
-      val query = unwind(litList(1L, 2L, 3L)) { i =>
+      val query = unwind(lit(List(1L, 2L, 3L))) { i =>
          Match { case v@Vertex("User", "id" := `i`, "isAdmin" := `admin`) => v.prop[String]("name") }
       }
       test(

@@ -34,22 +34,22 @@ object Match { MatchObj =>
       def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = None), query)
     }
     protected[syntax] trait Unwind[A, R] extends Result[R] {
-      protected[syntax] def exprs: Known[Expr[List[A]]]
+      protected[syntax] def exprs: Known[Expr[Iterable[A]]]
       protected[syntax] def alias: String
       protected[syntax] def query: Known[Query.Query0[R]]
       def result: Query.Query0[R] = Query.Clause(Clause.Unwind(exprs, as = alias), query)
     }
     object Unwind {
-      def apply[A, R](listExpr: Known[Expr[List[A]]], unwindAlias: String, next: Known[Query.Query0[R]]): Unwind[A, R] =
+      def apply[A, R](expr: Known[Expr[Iterable[A]]], unwindAlias: String, next: Known[Query.Query0[R]]): Unwind[A, R] =
         new Unwind[A, R] {
-          protected[syntax] def exprs: Known[Expr[List[A]]] = listExpr
+          protected[syntax] def exprs: Known[Expr[Iterable[A]]] = expr
           protected[syntax] def alias: String = unwindAlias
           protected[syntax] def query: Known[Query.Query0[R]] = next
         }
 
       def instanceImpl[A: c.WeakTypeTag, R: c.WeakTypeTag]
                       (c: blackbox.Context)
-                      (list: c.Expr[Known[Expr[List[A]]]])
+                      (expr: c.Expr[Known[Expr[Iterable[A]]]])
                       (f: c.Expr[Expr.Var[A] => Match.Result[R]])
                       : c.Expr[Match.Result.Unwind[A, R]] = {
         import c.universe._
@@ -60,7 +60,7 @@ object Match { MatchObj =>
         val rowExpr = c.Expr[CypherFragment.Expr.Var[A]](rowExprTree)
         reify {
           Unwind[A, R](
-            list.splice,
+            expr.splice,
             c.Expr[String](Literal(Constant(paramName))).splice,
             f.splice(rowExpr.splice).result
           )

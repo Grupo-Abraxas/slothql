@@ -139,6 +139,9 @@ object CypherFragment {
         literalToString.asInstanceOf[CypherFragment[Lit[N]]]
       implicit lazy val literalBooleanFragment: CypherFragment[Lit[Boolean]] =
         literalToString.asInstanceOf[CypherFragment[Lit[Boolean]]]
+      implicit def literalIterableFragment[A](implicit frag: CypherFragment[Lit[A]]): CypherFragment[Lit[Iterable[A]]] = define {
+        case Lit(xs) => xs.map(frag.toCypher _ compose Lit.apply).mkString("[ ", ", ", " ]")
+      }
 
       private lazy val literalToString = define[Lit[_]](_.value.toString)
     }
@@ -480,7 +483,7 @@ object CypherFragment {
   object Clause {
     case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Clause
     case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Clause
-    case class Unwind(expr: Known[Expr[List[_]]], as: String) extends Clause
+    case class Unwind(expr: Known[Expr[Iterable[_]]], as: String) extends Clause
 
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>

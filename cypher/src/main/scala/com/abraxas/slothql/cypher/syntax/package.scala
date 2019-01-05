@@ -303,8 +303,6 @@ package object syntax extends LowPriorityImplicits {
   implicit def knownLit[A](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
 
   def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
-  def litList[A](exprs: A*)(implicit frag: CypherFragment[Expr.Lit[A]]): Expr.List[A] =
-    Expr.List[A](exprs.map(Expr.Lit(_).known).toList)
 
   def distinct[A](expr: Known[Expr[A]]): Known[Expr[A]] = Expr.Distinct(expr)
   def collect[A](expr: Known[Expr[A]]): Expr.Call[List[A]] = 'collect.call[List[A]](expr)
@@ -379,7 +377,7 @@ package object syntax extends LowPriorityImplicits {
   implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
 
 
-  def unwind[A, R](list: Known[Expr[List[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result.Unwind[A, R] =
+  def unwind[A, R](expr: Known[Expr[Iterable[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result.Unwind[A, R] =
     macro Match.Result.Unwind.instanceImpl[A, R]
 
   def `with`[R](ops: ReturnOps[Any] => ReturnOps[Any])(res: Match.Result[R]): Match.Result.With[R] =

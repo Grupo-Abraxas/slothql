@@ -197,7 +197,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
 
     "build cartesian product of two queries' results" in {
       val q1 = tx.read(Match { case g@Vertex("Group") => g.prop[String]("name") })
-      val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
+      val q2 = tx.read(unwind(lit(List(1, 2))) { i => i }.result)
       val q = q1 x q2
 
       test[(String, Int)](q, Seq(
@@ -214,7 +214,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
           g.prop[String]("name")
             .orderBy(g.prop[String]("name"))
       })
-      val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
+      val q2 = tx.read(unwind(lit(List(1, 2))) { i => i }.result)
       val q = q1 zip q2
 
       test[(String, Int)](q, Seq(
@@ -229,8 +229,8 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
           g.prop[String]("name")
             .orderBy(g.prop[String]("name"))
       })
-      val q2 = tx.read(unwind(litList(1, 2)) { i => i }.result)
-      val q3 = tx.read(unwind(litList("A", "B")) { i => i }.result)
+      val q2 = tx.read(unwind(lit(List(1, 2))) { i => i }.result)
+      val q3 = tx.read(unwind(lit(Vector("A", "B"))) { i => i }.result)
       val q = tx.Read.zip3(q1, q2, q3)
 
       test[(String, Int, String)](q, Seq(
