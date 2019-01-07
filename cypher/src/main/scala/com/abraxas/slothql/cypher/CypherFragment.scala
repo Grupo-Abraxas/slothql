@@ -483,7 +483,7 @@ object CypherFragment {
   object Clause {
     case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Clause
     case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Clause
-    case class Unwind(expr: Known[Expr[Iterable[_]]], as: String) extends Clause
+    case class Unwind(expr: Known[Expr[Seq[_]]], as: String) extends Clause
 
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
