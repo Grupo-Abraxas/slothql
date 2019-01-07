@@ -62,35 +62,16 @@ trait CypherTxBuilder {
   type CypherQuery[+A] = CypherFragment.Query[A]
 
   sealed trait Operation[R]
-  sealed trait Read[R] extends Operation[Seq[R]] {
-    type A
-    val query: Known[Query[A]]
-    val reader: CypherTransactor.Reader.Aux[Result, A, R]
-  }
-  sealed trait ReadWrite[R] extends Read[R] {
-    override val query: Known[Query[A]] // TODO: `Query[A]`
-  }
+  sealed trait Read[R] extends Operation[Seq[R]]
+  sealed trait ReadWrite[R] extends Read[R]
 
-  protected[cypher] case class Gather[R](read: Read[R]) extends Read[Vector[R]] {
-    type A = read.A
-    lazy val query: Known[Query[read.A]] = ???
-    lazy val reader: CypherTransactor.Reader.Aux[Result, read.A, Vector[R]] = ???
-  }
-  protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R] {
-    type A = R
-    lazy val query: Known[Query[R]] = ???
-    lazy val reader: CypherTransactor.Reader.Aux[Result, R, R] = ???
-  }
+  protected[cypher] case class ReadQuery[A, R](query: Known[Query[A]], reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
+
+  protected[cypher] case class Gather[R](read: Read[R]) extends Read[Vector[R]]
+  protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R]
 
   object Read {
-    type Aux[R, A0] = Read[R] { type A = A0 }
-    def apply[A0](q: Known[Query[A0]])(implicit r: Reader[A0]): Aux[r.Out, A0] =
-      new Read[r.Out] {
-        type A = A0
-        val query: Known[Query[A]] = q
-        val reader: CypherTransactor.Reader.Aux[Result, A, r.Out] =
-          r.asInstanceOf[CypherTransactor.Reader.Aux[Result, A, r.Out]]
-      }
+    def apply[A](q: Known[Query[A]])(implicit r: Reader[A]): ReadQuery[A, r.Out] = ReadQuery(q, r)
 
     def const[A](a: A): ReadTx[A] = Free.pure(a)
 
