@@ -25,9 +25,10 @@ trait CypherTransactor {
 
   final lazy val Read   = txBuilder.Read
 
-  final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
+  final def read[A](query: Known[Query[A]])(implicit read: Reader[A], pc: CypherFragment.ParamCollector): ReadTx[read.Out] =
+    txBuilder.read(query)
 
-  def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]] =
+  def readIO[A](query: Known[Query[A]])(implicit r: Reader[A], pc: CypherFragment.ParamCollector): IO[Seq[r.Out]] =
     runRead(read(query))
 
   // Run transactions
@@ -65,13 +66,19 @@ trait CypherTxBuilder {
   sealed trait Read[R] extends Operation[Seq[R]]
   sealed trait ReadWrite[R] extends Read[R]
 
-  protected[cypher] case class ReadQuery[A, R](query: Known[Query[A]], reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
+  protected[cypher] case class ReadQuery[A, R](
+      query: Known[Query[A]],
+      reader: CypherTransactor.Reader.Aux[Result, A, R],
+      paramCollector: CypherFragment.ParamCollector
+  ) extends Read[R] {
+      def toCypher: CypherFragment.Statement = query.mkCypher.result(paramCollector)
+  }
 
   protected[cypher] case class Gather[R](read: Read[R]) extends Read[Vector[R]]
   protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R]
 
   object Read {
-    def apply[A](q: Known[Query[A]])(implicit r: Reader[A]): ReadQuery[A, r.Out] = ReadQuery(q, r)
+    def apply[A](q: Known[Query[A]])(implicit r: Reader[A], pc: CypherFragment.ParamCollector): ReadQuery[A, r.Out] = ReadQuery(q, r, pc)
 
     def const[A](a: A): ReadTx[A] = Free.pure(a)
 
@@ -162,6 +169,6 @@ trait CypherTxBuilder {
   type WriteTx[R] = Free[ReadWrite, R]
 
 
-  def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] =
+  def read[A](query: Known[Query[A]])(implicit read: Reader[A], pc: CypherFragment.ParamCollector): ReadTx[read.Out] =
     liftF[Read, read.Out](Read[A](query))
 }

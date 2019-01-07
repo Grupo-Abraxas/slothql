@@ -1,5 +1,6 @@
 package com.abraxas.slothql.neo4j
 
+import scala.collection.convert.decorateAsJava.mapAsJavaMapConverter
 import scala.collection.convert.decorateAsScala._
 import scala.reflect.runtime.{ universe => ru }
 
@@ -173,12 +174,15 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
   protected def syncInterpreter(t: Neo4jCypherTransactor, tx: Transaction): t.Read ~> Vector =
     λ[t.Read ~> Vector]{
-      case t.txBuilder.Unwind(i)          => i.toVector
-      case t.txBuilder.Gather(r)          => Vector(syncInterpreter(t, tx)(r))
-      case rq@t.txBuilder.ReadQuery(_, _) => runReadQueryTxSync(tx, rq)
+      case t.txBuilder.Unwind(i)           => i.toVector
+      case t.txBuilder.Gather(r)           => Vector(syncInterpreter(t, tx)(r))
+      case rq: t.txBuilder.ReadQuery[_, _] => runReadQueryTxSync(tx, rq)
     }
 
-  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Vector[R] =
-    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala.toVector // TODO: issue #8
+  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Vector[R] = {
+    val CypherFragment.Statement(template, params) = r.toCypher
+    tx.run(new Statement(template, params.asInstanceOf[Map[String, AnyRef]].asJava))
+      .list(r.reader(_: Record)).asScala.toVector
+  }
 
 }

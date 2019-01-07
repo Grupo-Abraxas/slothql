@@ -1,6 +1,11 @@
 package com.abraxas.slothql.cypher
 
+import java.util.UUID
+
+import scala.collection.convert.decorateAsJava.seqAsJavaListConverter
+import scala.collection.mutable
 import scala.language.{ higherKinds, implicitConversions }
+import scala.util.hashing.MurmurHash3
 
 import cats.{ Bifunctor, Contravariant, Functor }
 import cats.data.{ Ior, NonEmptyList }
@@ -10,8 +15,7 @@ import shapeless.{ :: => #:, _ }
 
 
 trait CypherFragment[-A] {
-  // TODO: (String, Params)
-  def toCypher(f: A): String
+  def mkCypher(f: A): CypherFragment.MkStatement
 }
 
 /** Cypher Query Language Fragments.
@@ -72,44 +76,121 @@ trait CypherFragment[-A] {
  *}}}
  */
 object CypherFragment {
-  @inline def apply[A](f: A)(implicit fragment: CypherFragment[A]): String = fragment.toCypher(f)
-  def define[A](toCypher0: A => String): CypherFragment[A] =
-    new CypherFragment[A]{
-      def toCypher(f: A): String = toCypher0(f)
+  case class Statement(template: Statement.Template, params: Map[Statement.Param, Any])
+  object Statement {
+    type Template = String
+    type Param = String
+  }
+
+  trait ParamCollector {
+    def apply(id: Any): Statement.Param
+  }
+  object ParamCollector {
+    implicit def defaultThreadUnsafeParamCollector: ParamCollector =
+      new ParamCollector {
+        private var count = -1
+        private val values = mutable.HashMap.empty[Any, String]
+        private def nextParam() = {
+          count += 1
+          count.toString
+        }
+        def apply(id: Any): Statement.Param = values.getOrElseUpdate(id, nextParam())
+      }
+  }
+
+  class MkStatement(mk: ParamCollector => Statement) {
+    def result(implicit pc: ParamCollector): Statement = mk(pc)
+    def mapT(f: Statement.Template => Statement.Template): MkStatement =
+      new MkStatement(pc => {
+        val statement = mk(pc)
+        Statement(f(statement.template), statement.params)
+      })
+    def flatMapT(f: Statement.Template => MkStatement): MkStatement =
+      new MkStatement(pc => {
+        val statement0 = mk(pc)
+        val statement = f(statement0.template).result(pc)
+        statement.copy(params = statement.params ++ statement0.params)
+      })
+  }
+  object MkStatement {
+    def apply(template: Statement.Template): MkStatement = new MkStatement(_ => Statement(template, Map()))
+    def apply(statement: Statement): MkStatement = new MkStatement(_ => statement)
+    def apply(id: Any, template: Statement.Param => Statement.Template, value: Any): MkStatement = new MkStatement(pc => {
+      val p = pc(id)
+      Statement(template(p), Map(p -> value))
+    })
+
+    implicit class MkStatementsOps(mks: Iterable[MkStatement]) {
+      def mergeStatements(mergeTemplates: Iterable[Statement.Template] => Statement.Template): MkStatement = new MkStatement(pc => {
+        val (templates, params0) = mks.map(_.result(pc) match { case Statement(template, params) => (template, params) }).unzip
+        Statement(mergeTemplates(templates), params0.flatten.toMap)
+      })
     }
+
+    implicit class MkStatementPairOps(p: (MkStatement, MkStatement)) {
+      def map2Statements(f: (Statement.Template, Statement.Template) => Statement.Template): MkStatement =
+        p._1.flatMapT(t1 => p._2.mapT(t2 => f(t1, t2)))
+    }
+  }
+
+  @inline def apply[A](f: A)(implicit fragment: CypherFragment[A]): MkStatement = fragment.mkCypher(f)
+  def define[A](toCypher0: A => MkStatement): CypherFragment[A] =
+    new CypherFragment[A]{
+      def mkCypher(f: A): MkStatement = toCypher0(f)
+    }
+  def define0[A](toCypher: A => Statement.Template): CypherFragment[A] = define(toCypher andThen MkStatement.apply)
 
   implicit lazy val CypherFragmentIsContravariant: Contravariant[CypherFragment] =
     new Contravariant[CypherFragment] {
       def contramap[A, B](fa: CypherFragment[A])(f: B => A): CypherFragment[B] =
-        define(fa.toCypher _ compose f)
+        define(fa.mkCypher _ compose f)
     }
 
   sealed trait Known[+A] {
     self =>
 
     val fragment: A
-    def toCypher: String
+    def mkCypher: MkStatement
+    def toCypher(implicit pc: ParamCollector): Statement = mkCypher.result
 
     def map[B](f: A => B): Known[B] = new Known[B] {
       val fragment: B = f(self.fragment)
-      def toCypher: String = self.toCypher
+      def mkCypher: MkStatement = self.mkCypher
     }
 
     def widen[B](implicit ev: A <:< B): Known[B] = this.asInstanceOf[Known[B]]
 
-    override def toString: String = s"Known$fragment{ $toCypher }"
+    override def toString: String = {
+      val Statement(template, params) = toCypher(ParamCollector.defaultThreadUnsafeParamCollector)
+      val paramsStr = if (params.nonEmpty) params.map{ case (k, v) => s"$k: $v" }.mkString("; ", ", ", "") else ""
+      s"Known$fragment{ $template$paramsStr }"
+    }
   }
   object Known {
     implicit def apply[A](f: A)(implicit cypherFragment: CypherFragment[A]): Known[A] =
       new Known[A] {
         val fragment: A = f
-        lazy val toCypher: String = cypherFragment.toCypher(f)
+        lazy val mkCypher: MkStatement = cypherFragment.mkCypher(f)
       }
     def unapply[A](arg: Known[A]): Option[A] = Some(arg.fragment)
 
     implicit def functor[F[_]: Functor, A: CypherFragment](fa: F[A]): F[Known[A]] = fa.map(apply[A])
     implicit def bifunctor[F[_, _]: Bifunctor, A: CypherFragment, B: CypherFragment](fab: F[A, B]): F[Known[A], Known[B]] =
       fab.bimap(apply[A], apply[B])
+
+    implicit class KnownIterableOps(mks: Iterable[Known[_]]) {
+      def mergeStatements(mergeTemplates: Iterable[Statement.Template] => Statement.Template): MkStatement = new MkStatement(pc => {
+        val (templates, params0) = mks.map(_.mkCypher.result(pc) match { case Statement(t, ps) => (t, ps) }).unzip
+        Statement(mergeTemplates(templates), params0.flatten.toMap)
+      })
+    }
+
+    implicit class KnownPairOps(p: (Known[_], Known[_])) {
+      def map2Statements(f: (Statement.Template, Statement.Template) => Statement.Template): MkStatement =
+        p._1.mkCypher.flatMapT(t1 => p._2.mkCypher.mapT(t2 => f(t1, t2)))
+
+      def join2Statements(op: String): MkStatement = map2Statements(_ + s" $op " + _)
+    }
   }
   // Explicit analog of implicit `Known.apply`
   implicit class KnownOps[A: CypherFragment](f: A) {
@@ -122,7 +203,7 @@ object CypherFragment {
     type Inv[T] = Expr[T]
 
     // // // Values and Variables // // //
-    case class Lit[+A](value: A) extends Expr[A]
+    case class Lit[+A](value: A, id: UUID = UUID.randomUUID()) extends Expr[A]
     trait Var[A] extends Expr[A] {
       val name: String
 
@@ -131,31 +212,33 @@ object CypherFragment {
     case class Call[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
     object Lit {
-      implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
-        case Lit(str) => "\"" + str.replaceAll("\"", "\\\"") + "\""
-      }
+      implicit lazy val literalStringFragment: CypherFragment[Lit[String]] =
+        defineLiteral()
       /** Warning: it does nothing to check whether the number can be represented in cypher (~Long~ equivalent). */
       implicit def literalNumericFragment[N: Numeric]: CypherFragment[Lit[N]] =
-        literalToString.asInstanceOf[CypherFragment[Lit[N]]]
+        defineLiteral()
       implicit lazy val literalBooleanFragment: CypherFragment[Lit[Boolean]] =
-        literalToString.asInstanceOf[CypherFragment[Lit[Boolean]]]
-      implicit def literalIterableFragment[A](implicit frag: CypherFragment[Lit[A]]): CypherFragment[Lit[Iterable[A]]] = define {
-        case Lit(xs) => xs.map(frag.toCypher _ compose Lit.apply).mkString("[ ", ", ", " ]")
-      }
+        defineLiteral()
+      implicit def literalSeqFragment[A](implicit frag: CypherFragment[Lit[A]]): CypherFragment[Lit[Seq[A]]] =
+        defineLiteral(_.asJava)
 
-      private lazy val literalToString = define[Lit[_]](_.value.toString)
+      private def defineLiteral[A](mapV: A => Any = locally[A] _) =
+        define[Lit[A]](lit => MkStatement(lit.id, paramTemplate, mapV(lit.value)))
     }
+
+    private def paramTemplate: Statement.Param => Statement.Template = p => s"$$$p"
+
     object Var {
       def apply[A](nme: String): Var[A] = new Var[A] { val name: String = nme }
       def unapply(expr: Expr[_]): Option[String] = PartialFunction.condOpt(expr) { case v: Var[_] => v.name }
 
       implicit def fragment[A]: CypherFragment[Var[A]] = instance.asInstanceOf[CypherFragment[Var[A]]]
-      private lazy val instance = define[Var[_]](v => escapeName(v.name))
+      private lazy val instance = define0[Var[_]](v => escapeName(v.name))
     }
     object Call {
       implicit def fragment[A]: CypherFragment[Call[A]] = instance.asInstanceOf[CypherFragment[Call[A]]]
       private lazy val instance = define[Call[_]] {
-        case Call(func, params) => s"${escapeName(func)}(${params.map(_.toCypher).mkString(", ")})"
+        case Call(func, params) => params.mergeStatements(_.mkString(", ")).mapT(t => s"${escapeName(func)}($t)")
       }
     }
 
@@ -166,21 +249,21 @@ object CypherFragment {
 
     object Map {
       implicit def fragment[A]: CypherFragment[Map[A]] = instance.asInstanceOf[CypherFragment[Map[A]]]
-      lazy val instance: CypherFragment[Map[_]] = define(m => mapStr(m.get))
+      lazy val instance: CypherFragment[Map[_]] = define(m => mapMkS(m.get))
     }
     object MapKey {
       implicit def fragment[A]: CypherFragment[MapKey[A]] = instance.asInstanceOf[CypherFragment[MapKey[A]]]
       lazy val instance: CypherFragment[MapKey[_]] = define {
-        case MapKey(m, k) => s"${m.toCypher}.${escapeName(k)}"
+        case MapKey(m, k) => m.mkCypher.mapT(t => s"$t.${escapeName(k)}")
       }
     }
     object MapAdd {
       implicit def fragment[A]: CypherFragment[MapAdd[A]] = instance.asInstanceOf[CypherFragment[MapAdd[A]]]
       lazy val instance: CypherFragment[MapAdd[_]] = define {
-        case MapAdd(m, vs) if vs.isEmpty => m.toCypher
+        case MapAdd(m, vs) if vs.isEmpty => m.mkCypher
         case MapAdd(m, vs) =>
-          val add = vs.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString(", ")
-          s"${m.toCypher}{.*, $add}"
+          val add = vs.map{ case (k, v) => v.mkCypher.mapT(t => s"${escapeName(k)}: $t") }.mergeStatements(_.mkString(", "))
+          (add, m.mkCypher).map2Statements((addT, mt) => s"$mt{.*, $addT}")
       }
     }
 
@@ -195,38 +278,49 @@ object CypherFragment {
     object List {
       implicit def fragment[A]: CypherFragment[List[A]] = instance.asInstanceOf[CypherFragment[List[A]]]
       private lazy val instance: CypherFragment[List[_]] = define {
-        _.get.map(_.toCypher).mkString("[ ", ", ", " ]")
+        list =>
+          if (list.get.forall(_.fragment.isInstanceOf[Lit[_]])) {
+            val (values, ids) = list.get.map(l => (l.fragment: @unchecked) match { case Lit(v, id) => v -> id }).unzip
+            val listId = MurmurHash3.seqHash(ids)
+            MkStatement(listId, paramTemplate, values.asJava)
+          }
+          else
+            list.get.mergeStatements(_.mkString("[ ", ", ", " ]"))
       }
     }
     object In {
       implicit def fragment[A]: CypherFragment[In[A]] = instance.asInstanceOf[CypherFragment[In[A]]]
       private lazy val instance: CypherFragment[In[_]] = define {
-        case In(elem, list) => s"${elem.toCypher} IN ${list.toCypher}"
+        case In(elem, list) =>
+          (elem, list).map2Statements((et, lt) => s"$et IN $lt")
       }
     }
-    private def atIndex(list: Known[Expr[scala.List[_]]], index: String) = s"${list.toCypher}[$index]"
+    private def atIndex(list: Known[Expr[scala.List[_]]], index: MkStatement) =
+      (list.mkCypher, index).map2Statements((lt, it) => s"$lt[$it]")
     object AtIndex {
       implicit def fragment[A]: CypherFragment[AtIndex[A]] = instance.asInstanceOf[CypherFragment[AtIndex[A]]]
       private lazy val instance = define[AtIndex[_]] {
-        case AtIndex(list, index) => atIndex(list, index.toCypher)
+        case AtIndex(list, index) => atIndex(list, index.mkCypher)
       }
     }
     object AtRange {
       implicit def fragment[A]: CypherFragment[AtRange[A]] = instance.asInstanceOf[CypherFragment[AtRange[A]]]
       private lazy val instance = define[AtRange[_]] {
-        case AtRange(list, range) => atIndex(list, rangeStr(range))
+        case AtRange(list, range) => atIndex(list, rangeMkS(range))
       }
     }
     object Concat {
       implicit def fragment[A]: CypherFragment[Concat[A]] = instance.asInstanceOf[CypherFragment[Concat[A]]]
       private lazy val instance = define[Concat[_]] {
-        case Concat(list0, list1) => s"${list0.toCypher} + ${list1.toCypher}"
+        case Concat(list0, list1) =>
+          (list0, list1).join2Statements("+")
       }
     }
     object FilterList {
       implicit def fragment[A]: CypherFragment[FilterList[A]] = instance.asInstanceOf[CypherFragment[FilterList[A]]]
       private lazy val instance = define[FilterList[_]] {
-        case FilterList(list, elemAlias, filter) => s"filter(${escapeName(elemAlias)} in ${list.toCypher} WHERE ${filter.toCypher})"
+        case FilterList(list, elemAlias, filter) =>
+          (list, filter).map2Statements((lt, ft) => s"filter(${escapeName(elemAlias)} in $lt WHERE $ft)")
       }
     }
 
@@ -247,7 +341,7 @@ object CypherFragment {
             case Contains   => "CONTAINS"
             case Regex      => "=~"
           }
-          s"${left.toCypher} $opStr ${right.toCypher}"
+          (left, right).join2Statements(opStr)
       }
     }
 
@@ -262,14 +356,14 @@ object CypherFragment {
       case object Xor extends BinaryOp
 
       implicit lazy val fragment: CypherFragment[LogicExpr] = define {
-        case LogicNegationExpr(expr) => s"NOT ${expr.toCypher}"
+        case LogicNegationExpr(expr) => expr.mkCypher.mapT(t => s"NOT $t")
         case LogicBinaryExpr(left, right, op) =>
           val opStr = op match {
             case Or  => "OR"
             case And => "AND"
             case Xor => "XOR"
           }
-          s"${left.toCypher} $opStr ${right.toCypher}"
+          (left, right).join2Statements(opStr)
       }
     }
 
@@ -302,26 +396,26 @@ object CypherFragment {
             case Gte => ">="
             case Gt  => ">"
           }
-          s"${left.toCypher} $opStr ${right.toCypher}"
+          (left, right).join2Statements(opStr)
         case CompareBinaryAnyExpr(left, right, op) =>
           val opStr = op match {
             case Eq  => "="
             case Neq => "<>"
           }
-          s"${left.toCypher} $opStr ${right.toCypher}"
+          (left, right).join2Statements(opStr)
         case CompareUnaryExpr(expr, op) =>
           val opStr = op match {
             case IsNull  => "IS NULL"
             case NotNull => "IS NOT NULL"
           }
-          s"${expr.toCypher} $opStr"
+          expr.mkCypher.mapT(_ + s" $opStr")
       }
     }
 
     case class Distinct[A](expr: Known[Expr[A]]) extends Expr[A]
     object Distinct {
       implicit def fragment[A]: CypherFragment[Distinct[A]] = define {
-        case Distinct(expr) => s"DISTINCT ${expr.toCypher}"
+        case Distinct(expr) => expr.mkCypher.mapT("DISTINCT " + _)
       }
     }
   }
@@ -336,9 +430,9 @@ object CypherFragment {
 
     implicit def fragment[A]: CypherFragment[Query[A]] = instance.asInstanceOf[CypherFragment[Query[A]]]
     private lazy val instance = define[Query[Any]] {
-      case Union(left, right, all) => s"${left.toCypher} UNION ${if (all) "ALL " else ""}${right.toCypher}"
-      case Clause(clause, query) => s"${clause.toCypher} ${query.toCypher}"
-      case Return(ret) => s"RETURN ${ret.toCypher}"
+      case Union(left, right, all) => (left, right).join2Statements(if (all) "UNION ALL" else "UNION")
+      case Clause(clause, query) => (clause, query).map2Statements(_ + " " + _)
+      case Return(ret) => ret.mkCypher.mapT("RETURN " + _)
     }
   }
 
@@ -458,24 +552,24 @@ object CypherFragment {
 
     implicit def fragment[A]: CypherFragment[Return[A]] = instance.asInstanceOf[CypherFragment[Return[A]]]
     private lazy val instance = define[Return[Any]] {
-      case All => "*"
-      case Expr(expr, as) => expr.toCypher + asStr(as)
-      case List(head :: Nil) => head.toCypher
-      case List(head :: tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
+      case All => MkStatement("*")
+      case Expr(expr, as) => expr.mkCypher.mapT(_ + asStr(as))
+      case List(head :: Nil) => head.mkCypher
+      case List(head :: tail) => (head.mkCypher, tail.mergeStatements(_.mkString(", "))).map2Statements(_ + ", " + _)
       case Options(expr, distinct, order, skip, limit) =>
         val distinctFrag = if (distinct) "DISTINCT " else ""
-        val orderFrag =
-          if (order.isEmpty) ""
+        val orderMkS =
+          if (order.isEmpty) MkStatement("")
           else {
             val by = order.map{
-              case (e, true)  => e.toCypher
-              case (e, false) => s"${e.toCypher} DESC"
+              case (e, true)  => e.mkCypher
+              case (e, false) => e.mkCypher.mapT(_ + " DESC")
             }
-            " ORDER BY " + by.mkString(", ")
+            by.mergeStatements(_.mkString(", ")).mapT(" ORDER BY " + _)
           }
         val skipFrag = skip map (" SKIP " + _) getOrElse ""
         val limitFrag = limit map (" LIMIT " + _) getOrElse ""
-        s"$distinctFrag${expr.toCypher}$orderFrag$skipFrag$limitFrag"
+        (expr.mkCypher, orderMkS).map2Statements((exprT, orderT) => s"$distinctFrag$exprT$orderT$skipFrag$limitFrag")
     }
   }
 
@@ -488,10 +582,12 @@ object CypherFragment {
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
         val optionalStr = if (optional) "OPTIONAL " else ""
-        val patternStr = pattern.toList.map(_.toCypher).mkString(", ")
-        s"${optionalStr}MATCH $patternStr${whereStr(where)}"
-      case With(ret, where) => s"WITH ${ret.toCypher}${whereStr(where)}"
-      case Unwind(expr, as) => s"UNWIND ${expr.toCypher}${asStr(Option(as))}"
+        val patternMkS = pattern.toList.mergeStatements(_.mkString(", "))
+        (patternMkS, whereMkS(where)).map2Statements((patternT, whereT) => s"${optionalStr}MATCH $patternT$whereT")
+      case With(ret, where) =>
+        (ret.mkCypher, whereMkS(where)).map2Statements((returnT, whereT) => s"WITH $returnT$whereT")
+      case Unwind(expr, as) =>
+        expr.mkCypher.mapT(exprT => s"UNWIND $exprT${asStr(Option(as))}")
     }
   }
 
@@ -518,20 +614,20 @@ object CypherFragment {
     }
 
     implicit lazy val fragment: CypherFragment[Pattern] = define[Pattern] {
-      case Let(alias, pattern) => s"${escapeName(alias)} = ${pattern.toCypher}"
-      case Node(alias, labels, map) => s"(${aliasStr(alias)}${labelsStr(labels)}${mapStr(map)})"
-      case Path(left, rel, right) => s"${left.toCypher} ${rel.toCypher} ${right.toCypher}"
+      case Let(alias, pattern) => pattern.mkCypher.mapT(patternT => s"${escapeName(alias)} = $patternT")
+      case Node(alias, labels, map) => mapMkS(map).mapT(mapT => s"(${aliasStr(alias)}${labelsStr(labels)}$mapT)")
+      case Path(left, rel, right) => rel.mkCypher.flatMapT((left, right).join2Statements)
       case Rel(alias, types, map, len, dir) =>
-        val lenStr = len match {
-          case None => ""
-          case Some(Rel.All) => "*"
-          case Some(Rel.Range(range)) => "*" + rangeStr(range.bimap(Expr.Lit(_), Expr.Lit(_)))
+        val lenMkS = len match {
+          case None => MkStatement("")
+          case Some(Rel.All) => MkStatement("*")
+          case Some(Rel.Range(range)) => rangeMkS(range.bimap(Expr.Lit(_), Expr.Lit(_))).mapT("*" + _)
         }
-        val params = s"[${aliasStr(alias)}${typesStr(types)}$lenStr${mapStr(map)}]"
+        val paramsMkS = (mapMkS(map), lenMkS).map2Statements((mapT, lenT) => s"[${aliasStr(alias)}${typesStr(types)}$lenT$mapT]")
         dir match {
-          case Rel.Outgoing => s"-$params->"
-          case Rel.Incoming => s"<-$params-"
-          case Rel.Any      => s"-$params-"
+          case Rel.Outgoing => paramsMkS.mapT(t => s"-$t->")
+          case Rel.Incoming => paramsMkS.mapT(t => s"<-$t-")
+          case Rel.Any      => paramsMkS.mapT(t => s"-$t-")
         }
     }
 
@@ -564,14 +660,15 @@ object CypherFragment {
     case _ => escapeName0(name)
   }
   private def escapeName0(name: String) = "`" + name.replaceAll("`", "``") + "`"
-  private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
+  private def whereMkS(where: Option[Known[Expr[Boolean]]]) =
+    where.map(_.mkCypher.mapT(" WHERE " + _)).getOrElse(MkStatement(""))
   private def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
-  private def mapStr(map: Map[String, Known[Expr[_]]]) =
-    if (map.isEmpty) ""
-    else map.map{ case (k, v) => s"${escapeName(k)}: ${v.toCypher}" }.mkString("{ ", ", ", " }")
-  private def rangeStr(ior: Ior[Known[_], Known[_]]) = ior match {
-      case Ior.Left(min)      => s"${min.toCypher}.."
-      case Ior.Right(max)     => s"..${max.toCypher}"
-      case Ior.Both(min, max) => s"${min.toCypher}..${max.toCypher}"
+  private def mapMkS(map: Map[String, Known[Expr[_]]]) =
+    if (map.isEmpty) MkStatement("")
+    else map.map{ case (k, v) => v.mkCypher.mapT(s"${escapeName(k)}: " + _) }.mergeStatements(_.mkString("{ ", ", ", " }"))
+  private def rangeMkS(ior: Ior[Known[_], Known[_]]) = ior match {
+      case Ior.Left(min)      => min.mkCypher.mapT(_ + "..")
+      case Ior.Right(max)     => max.mkCypher.mapT(".." + _)
+      case Ior.Both(min, max) => (min, max).map2Statements(_ + ".." + _)
   }
 }
