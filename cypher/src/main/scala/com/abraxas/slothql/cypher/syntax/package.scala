@@ -98,41 +98,41 @@ package object syntax extends LowPriorityImplicits {
     def call[R](args: Known[Expr[_]]*): Expr.Call[R] = Expr.Call(func.name, args.toList)
   }
 
-  implicit class BooleanKnownExprOps[E0 <: Expr[Boolean]](expr0: Known[E0]) {
+  implicit class BooleanKnownExprOps(expr0: Known[Expr[Boolean]]) {
     def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0)
 
-    def and[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr          = binary(expr1, Expr.LogicExpr.And)
-    def and[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.And)
+    def and(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                  = binary(expr1, Expr.LogicExpr.And)
+    def and[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.And)
 
-    def or [E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr          = binary(expr1, Expr.LogicExpr.Or)
-    def or [E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Or)
+    def or (expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                  = binary(expr1, Expr.LogicExpr.Or)
+    def or [E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Or)
 
-    def xor[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr          = binary(expr1, Expr.LogicExpr.Xor)
-    def xor[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Xor)
+    def xor(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                  = binary(expr1, Expr.LogicExpr.Xor)
+    def xor[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Xor)
 
-    def &&[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr = and(expr1)
-    def &&[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = and(expr1)
+    def &&(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                   = and(expr1)
+    def &&[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr  = and(expr1)
 
-    def ||[E1 <: Expr[Boolean]](expr1: Known[E1]): Expr.LogicBinaryExpr = or(expr1)
-    def ||[E1 <: Expr[Boolean]: CypherFragment](expr1: E1): Expr.LogicBinaryExpr = or(expr1)
+    def ||(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                   = or(expr1)
+    def ||[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr  = or(expr1)
 
     private def binary[E1 <: Expr[Boolean]](expr1: Known[E1], op: Expr.LogicExpr.BinaryOp) =
       Expr.LogicBinaryExpr(expr0, expr1, op)
   }
-  implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) extends BooleanKnownExprOps[E0](expr0)
+  implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) extends BooleanKnownExprOps(expr0)
 
-  implicit class CompareAnyKnownOps[E0 <: Expr[_]](expr0: Known[E0]) {
-    def eq [E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Eq)
-    def eq [E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Eq)
+  implicit class CompareAnyKnownOps(expr0: Known[Expr[_]]) {
+    def eq (expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = binary(expr1, Expr.CompareExpr.Eq)
+    def eq [E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = binary(expr1, Expr.CompareExpr.Eq)
 
-    def neq[E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Neq)
-    def neq[E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = binary(expr1, Expr.CompareExpr.Neq)
+    def neq(expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = binary(expr1, Expr.CompareExpr.Neq)
+    def neq[E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = binary(expr1, Expr.CompareExpr.Neq)
 
-    def ===[E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = eq(expr1)
-    def ===[E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = eq(expr1)
+    def ===(expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = eq(expr1)
+    def ===[E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = eq(expr1)
 
-    def <> [E1 <: Expr[_]](expr1: Known[E1]): Expr.CompareBinaryAnyExpr = neq(expr1)
-    def <> [E1 <: Expr[_]: CypherFragment](expr1: E1): Expr.CompareBinaryAnyExpr = neq(expr1)
+    def <> (expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = neq(expr1)
+    def <> [E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = neq(expr1)
 
     def isNull  : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.IsNull)
     def notNull : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.NotNull)
@@ -141,7 +141,7 @@ package object syntax extends LowPriorityImplicits {
     private def binary[E1 <: Expr[_]](expr1: Known[E1], op: Expr.CompareExpr.BinaryAnyOp) =
       Expr.CompareBinaryAnyExpr(expr0, expr1, op)
   }
-  implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) extends CompareAnyKnownOps[E0](expr0)
+  implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) extends CompareAnyKnownOps(expr0)
 
   implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) {
     def lt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
@@ -160,20 +160,20 @@ package object syntax extends LowPriorityImplicits {
       Expr.CompareBinaryExpr(expr0.known, expr1.known, op)
   }
 
-  implicit class StringKnownExprOps[E0 <: Expr[String]](expr0: Known[E0]) {
-    def contains[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.Contains)
-    def contains[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.Contains)
+  implicit class StringKnownExprOps(expr0: Known[Expr[String]]) {
+    def contains(expr1: Known[Expr[String]]): Expr.StringExpr                     = binary(expr1, Expr.StringExpr.Contains)
+    def contains[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr    = binary(expr1, Expr.StringExpr.Contains)
 
-    def startsWith[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.StartsWith)
-    def startsWith[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.StartsWith)
+    def startsWith(expr1: Known[Expr[String]]): Expr.StringExpr                   = binary(expr1, Expr.StringExpr.StartsWith)
+    def startsWith[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr  = binary(expr1, Expr.StringExpr.StartsWith)
 
-    def endsWith[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.EndsWith)
-    def endsWith[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.EndsWith)
+    def endsWith(expr1: Known[Expr[String]]): Expr.StringExpr                     = binary(expr1, Expr.StringExpr.EndsWith)
+    def endsWith[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr    = binary(expr1, Expr.StringExpr.EndsWith)
 
     /** Regular expression match */
-    def matches[E1 <: Expr[String]](expr1: Known[E1]): Expr.StringExpr          = binary(expr1, Expr.StringExpr.Regex)
+    def matches(expr1: Known[Expr[String]]): Expr.StringExpr                      = binary(expr1, Expr.StringExpr.Regex)
     /** Regular expression match */
-    def matches[E1 <: Expr[String]: CypherFragment](expr1: E1): Expr.StringExpr = binary(expr1, Expr.StringExpr.Regex)
+    def matches[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr     = binary(expr1, Expr.StringExpr.Regex)
 
 
     def toLower: Expr.Call[String] = 'toLower.call(expr0)
@@ -185,29 +185,29 @@ package object syntax extends LowPriorityImplicits {
     def toLong:    Expr.Call[Long]    = 'toInteger.call(expr0)
 
     /** Returns a string containing the specified number of leftmost characters of the original string. */
-    def takeLeft[E1 <: Expr[Long]](n: Known[E1]): Expr.Call[String]          = 'left.call(expr0, n)
-    def takeLeft[E1 <: Expr[Long]: CypherFragment](n: E1): Expr.Call[String] = 'left.call(expr0, n)
+    def takeLeft(n: Known[Expr[Long]]): Expr.Call[String]                   = 'left.call(expr0, n)
+    def takeLeft[E <: Expr[Long]: CypherFragment](n: E): Expr.Call[String]  = 'left.call(expr0, n)
 
     /** Returns a string containing the specified number of rightmost characters of the original string. */
-    def takeRight[E1 <: Expr[Long]](n: Known[E1]): Expr.Call[String]          = 'right.call(expr0, n)
-    def takeRight[E1 <: Expr[Long]: CypherFragment](n: E1): Expr.Call[String] = 'right.call(expr0, n)
+    def takeRight(n: Known[Expr[Long]]): Expr.Call[String]                  = 'right.call(expr0, n)
+    def takeRight[E <: Expr[Long]: CypherFragment](n: E): Expr.Call[String] = 'right.call(expr0, n)
 
     /** Returns a string in which all occurrences of a specified string in the original string have been replaced by another (specified) string. */
-    def replace[E1 <: Expr[String], E2 <: Expr[String]](search: Known[E1], replace: Known[E2]): Expr.Call[String]                   = 'replace.call(expr0, search, replace)
+    def replace(search: Known[Expr[String]], replace: Known[Expr[String]]): Expr.Call[String]                                       = 'replace.call(expr0, search, replace)
     def replace[E1 <: Expr[String]: CypherFragment, E2 <: Expr[String]: CypherFragment](search: E1, replace: E2): Expr.Call[String] = 'replace.call(expr0, search, replace)
 
     def reverse: Expr.Call[String] = 'reverse.call(expr0)
 
     /** Returns a list of strings resulting from the splitting of the original string around matches of the given delimiter. */
-    def split[E1 <: Expr[String]](delimiter: Known[E1]): Expr.Call[List[String]]          = 'split.call(expr0, delimiter)
-    def split[E1 <: Expr[String]: CypherFragment](delimiter: E1): Expr.Call[List[String]] = 'split.call(expr0, delimiter)
+    def split(delimiter: Known[Expr[String]]): Expr.Call[List[String]]                  = 'split.call(expr0, delimiter)
+    def split[E <: Expr[String]: CypherFragment](delimiter: E): Expr.Call[List[String]] = 'split.call(expr0, delimiter)
 
     /** Returns a substring of the original string, beginning with a 0-based index start. */
-    def substring[E1 <: Expr[Long]](start: Known[E1]): Expr.Call[String]          = 'substring.call(expr0, start)
-    def substring[E1 <: Expr[Long]: CypherFragment](start: E1): Expr.Call[String] = 'substring.call(expr0, start)
+    def substring(start: Known[Expr[Long]]): Expr.Call[String]                  = 'substring.call(expr0, start)
+    def substring[E <: Expr[Long]: CypherFragment](start: E): Expr.Call[String] = 'substring.call(expr0, start)
 
     /** Returns a substring of the original string, beginning with a 0-based index start and length. */
-    def substring[E1 <: Expr[Long], E2 <: Expr[Long]](start: Known[E1], length: Known[E2]): Expr.Call[String]                   = 'substring.call(expr0, start, length)
+    def substring(start: Known[Expr[Long]], length: Known[Expr[Long]]): Expr.Call[String]                                       = 'substring.call(expr0, start, length)
     def substring[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](start: E1, length: E2): Expr.Call[String] = 'substring.call(expr0, start, length)
 
     /** Returns the original string with leading and trailing whitespace removed. */
@@ -220,7 +220,7 @@ package object syntax extends LowPriorityImplicits {
     private def binary(expr1: Known[Expr[String]], op: Expr.StringExpr.Op) = Expr.StringExpr(expr0, expr1, op)
   }
 
-  implicit class StringExprOps[E0 <: Expr[String]: CypherFragment](expr0: E0) extends StringKnownExprOps[E0](expr0)
+  implicit class StringExprOps[E0 <: Expr[String]: CypherFragment](expr0: E0) extends StringKnownExprOps(expr0)
 
   implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]]) {
     def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =
