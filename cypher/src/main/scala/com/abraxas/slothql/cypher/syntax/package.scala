@@ -283,6 +283,12 @@ package object syntax extends LowPriorityImplicits {
       Expr.FilterList(expr0.known.widen, alias, expr)
     }
     def filter0(expr: Known[Expr[Boolean]]): Expr.FilterList[A] = Expr.FilterList(expr0.known.widen, "_", expr)
+
+    def reduce[B](b: Known[Expr[B]])(f: (Expr.Var[A], Expr.Var[B]) => Known[Expr[B]]): Expr.ReduceList[A, B] = {
+      val elemAlias, accAlias = randomAlias()
+      val expr = f(Expr.Var[A](elemAlias), Expr.Var[B](accAlias))
+      Expr.ReduceList(expr0.known.widen, elemAlias, b, accAlias, expr)
+    }
   }
 
   implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]]) {

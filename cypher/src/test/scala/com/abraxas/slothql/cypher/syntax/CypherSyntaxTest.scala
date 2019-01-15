@@ -472,6 +472,16 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "}"
     ).returns[Map[String, Any]]
 
+    "reduce lists" in {
+      val reduceExpr@CypherFragment.Expr.ReduceList(_, elem, _, acc, _) = CypherFragment.Expr.Var[List[String]]("")
+        .reduce(0L)((name, acc) => acc + name.length )
+      test(
+        Match { case v => reduceExpr.copy(list = v.prop[List[String]]("names")) },
+         "MATCH (`v`) " +
+        s"RETURN reduce(`$acc` = 0, `$elem` IN `v`.`names` | `$acc` + `length`(`$elem`))"
+      ).returns[Long]
+    }
+
     "slice collected lists" in test(
       Match {
         case u@Vertex("User") =>

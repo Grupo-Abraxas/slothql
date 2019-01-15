@@ -191,6 +191,7 @@ object CypherFragment {
     case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends Expr[scala.List[A]]
     case class Concat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends Expr[scala.List[A]]
     case class FilterList[A](list: Known[Expr[scala.List[A]]], elemAlias: String, filter: Known[Expr[Boolean]]) extends Expr[scala.List[A]]
+    case class ReduceList[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, initial: Known[Expr[B]], accAlias: String, reduce: Known[Expr[B]]) extends Expr[B]
 
     object List {
       implicit def fragment[A]: CypherFragment[List[A]] = instance.asInstanceOf[CypherFragment[List[A]]]
@@ -227,6 +228,13 @@ object CypherFragment {
       implicit def fragment[A]: CypherFragment[FilterList[A]] = instance.asInstanceOf[CypherFragment[FilterList[A]]]
       private lazy val instance = define[FilterList[_]] {
         case FilterList(list, elemAlias, filter) => s"filter(${escapeName(elemAlias)} in ${list.toCypher} WHERE ${filter.toCypher})"
+      }
+    }
+    object ReduceList {
+      implicit def fragment[A, B]: CypherFragment[ReduceList[A, B]] = instance.asInstanceOf[CypherFragment[ReduceList[A, B]]]
+      private lazy val instance = define[ReduceList[_, _]] {
+        case ReduceList(list, elemAlias, initial, accAlias, reduce) =>
+          s"reduce(${escapeName(accAlias)} = ${initial.toCypher}, ${escapeName(elemAlias)} IN ${list.toCypher} | ${reduce.toCypher})"
       }
     }
 
