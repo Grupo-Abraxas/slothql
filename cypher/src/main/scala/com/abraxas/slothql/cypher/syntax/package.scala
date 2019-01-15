@@ -6,7 +6,7 @@ import scala.language.{ higherKinds, implicitConversions }
 import scala.util.Random
 
 import cats.data.Ior
-import shapeless.{ <:!<, Generic, HList, |∨| }
+import shapeless.{ <:!<, Generic, HList, Unpack1, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known, Query, Return }
 import com.abraxas.slothql.util.raiseCompilationError
@@ -221,6 +221,39 @@ package object syntax extends LowPriorityImplicits {
   }
 
   implicit class StringExprOps[E0 <: Expr[String]: CypherFragment](expr0: E0) extends StringKnownExprOps(expr0)
+
+
+  implicit class NumericKnownExprOps[N: Numeric](expr0: Known[Expr[N]]) {
+    def +(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Addition)
+    def +[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Addition)
+
+    def -(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Subtraction)
+    def -[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Subtraction)
+
+    def *(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Multiplication)
+    def *[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Multiplication)
+
+    def /(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Division)
+    def /[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Division)
+
+    def %(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.ModuloDivision)
+    def %[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.ModuloDivision)
+
+    def ^(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Exponentiation)
+    def ^[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Exponentiation)
+
+    def unary_- : Expr.MathematicalUnaryExpr[N] = Expr.MathematicalUnaryExpr(expr0, Expr.MathematicalExpr.Negation)
+
+    private def binary(expr1: Known[Expr[N]], op: Expr.MathematicalExpr.BinaryOp) = Expr.MathematicalBinaryExpr(expr0, expr1, op)
+  }
+
+  implicit class NumericExprOps[E0 <: Expr[_], N](expr0: E0)
+                                                 (implicit
+                                                  unpack: Unpack1[E0, Expr, N],
+                                                  frag: CypherFragment[E0],
+                                                  numeric: Numeric[N]
+                                                 ) extends NumericKnownExprOps[N](Known(expr0).asInstanceOf[Known[Expr[N]]])
+
 
   implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]]) {
     def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =

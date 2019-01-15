@@ -221,6 +221,32 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`lTrim`(`v`.`name`)"
     ).returns[(String, String, Long, Boolean, Double, Long, String, String, String, String, List[String], String, String, String, String, String)]
 
+    "support mathematical operators" in test(
+      Match {
+        case v =>
+          val i = v.prop[Long]("i")
+          val j = v.prop[Long]("j")
+          (
+            i + j,
+            i - j,
+            i * j,
+            i / j,
+            i % j,
+            i ^ j,
+            -i
+          )
+      },
+      "MATCH (`v`) " +
+      "RETURN " +
+        "`v`.`i` + `v`.`j`, " +
+        "`v`.`i` - `v`.`j`, " +
+        "`v`.`i` * `v`.`j`, " +
+        "`v`.`i` / `v`.`j`, " +
+        "`v`.`i` % `v`.`j`, " +
+        "`v`.`i` ^ `v`.`j`, " +
+        "-`v`.`i`"
+    ).returns[(Long, Long, Long, Long, Long, Long, Long)]
+
     def supportLists[E <: CypherFragment.Expr[List[String]]: CypherFragment](l: E) = test(
       Match {
         case v < e - _ => (

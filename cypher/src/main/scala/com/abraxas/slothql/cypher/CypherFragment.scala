@@ -318,6 +318,47 @@ object CypherFragment {
       }
     }
 
+
+    // // // Mathematical // // //
+    sealed trait MathematicalExpr[N] extends Expr[N] {
+      val numeric: Numeric[N]
+    }
+    case class MathematicalBinaryExpr[N](left: Known[Expr[N]], right: Known[Expr[N]], op: MathematicalExpr.BinaryOp)
+                                        (implicit val numeric: Numeric[N])
+                                      extends MathematicalExpr[N]
+    case class MathematicalUnaryExpr[N](expr: Known[Expr[N]], op: MathematicalExpr.UnaryOp)
+                                       (implicit val numeric: Numeric[N])
+                                      extends MathematicalExpr[N]
+
+    object MathematicalExpr {
+      sealed trait BinaryOp
+      case object Addition        extends BinaryOp
+      case object Subtraction     extends BinaryOp
+      case object Multiplication  extends BinaryOp
+      case object Division        extends BinaryOp
+      case object ModuloDivision  extends BinaryOp
+      case object Exponentiation  extends BinaryOp
+
+      sealed trait UnaryOp
+      case object Negation extends UnaryOp
+
+      implicit lazy val fragment: CypherFragment[MathematicalExpr[_]] = define {
+        case MathematicalBinaryExpr(left, right, op) =>
+          val opStr = op match {
+            case Addition       => "+"
+            case Subtraction    => "-"
+            case Multiplication => "*"
+            case Division       => "/"
+            case ModuloDivision => "%"
+            case Exponentiation => "^"
+          }
+          s"${left.toCypher} $opStr ${right.toCypher}"
+        case MathematicalUnaryExpr(expr, Negation) =>
+          s"-${expr.toCypher}"
+      }
+    }
+
+
     case class Distinct[A](expr: Known[Expr[A]]) extends Expr[A]
     object Distinct {
       implicit def fragment[A]: CypherFragment[Distinct[A]] = define {
