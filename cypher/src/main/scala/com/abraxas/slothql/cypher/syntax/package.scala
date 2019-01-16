@@ -292,7 +292,7 @@ package object syntax extends LowPriorityImplicits {
   }
 
   implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]]) {
-    def add(kv: (String, Known[Expr[A]])*): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, kv.toMap)
+    def add(entries: MapEntry[A]*): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, entries.map(_.toPair).toMap)
     def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, map)
   }
 
