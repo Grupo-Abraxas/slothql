@@ -315,6 +315,18 @@ package object syntax extends LowPriorityImplicits {
       val expr = f(Expr.Var[A](elemAlias), Expr.Var[B](accAlias))
       Expr.ReduceList(listExpr, elemAlias, b, accAlias, expr)
     }
+
+    // predicates
+    def all   (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.All, f)
+    def any   (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Any, f)
+    def exists(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Exists, f)
+    def none  (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.None, f)
+    def single(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Single, f)
+
+    private def predicate(pred: Expr.ListPredicate.Predicate, f: Expr.Var[A] => Known[Expr[Boolean]]) = {
+      val (arg, expr) = ListOps.applyExprVar(f)
+      Expr.ListPredicate(listExpr, arg.name, pred, expr)
+    }
   }
   object ListOps {
     protected class WithFilter[A](list: Known[Expr[List[A]]], filter: Expr.Var[A] => Known[Expr[Boolean]]) extends ListMapOps(list, Some(filter))

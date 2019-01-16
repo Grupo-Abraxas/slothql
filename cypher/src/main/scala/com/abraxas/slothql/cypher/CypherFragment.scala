@@ -197,6 +197,7 @@ object CypherFragment {
     case class Concat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends ListExpr[scala.List[A]]
     case class ReduceList[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, initial: Known[Expr[B]], accAlias: String, reduce: Known[Expr[B]]) extends ListExpr[B]
     case class ListComprehension[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, filter: Option[Known[Expr[Boolean]]], map: Option[Known[Expr[B]]]) extends ListExpr[scala.List[B]]
+    case class ListPredicate[A](list: Known[Expr[scala.List[A]]], elemAlias: String, predicate: ListPredicate.Predicate, expr: Known[Expr[Boolean]]) extends ListExpr[Boolean]
 
     object ListExpr {
       implicit lazy val fragmentList: CypherFragment[List[_]] = define {
@@ -226,9 +227,24 @@ object CypherFragment {
           val map = map0.map(f => s" | ${f.toCypher}").getOrElse("")
           s"[${escapeName(elemAlias)} IN ${list.toCypher}$filter$map]"
       }
+      implicit lazy val fragmentListPredicate: CypherFragment[ListPredicate[_]] = define {
+        case ListPredicate(list, alias, pred, expr) =>
+          s"${pred.toCypher}(${escapeName(alias)} IN ${list.toCypher} WHERE ${expr.toCypher})"
+      }
 
       private def atIndex(list: Known[Expr[scala.List[_]]], index: String) = s"${list.toCypher}[$index]"
     }
+
+    object ListPredicate {
+      sealed abstract class Predicate(protected[Expr] val toCypher: String)
+
+      case object All     extends Predicate("all")
+      case object Any     extends Predicate("any")
+      case object Exists  extends Predicate("exists")
+      case object None    extends Predicate("none")
+      case object Single  extends Predicate("single")
+    }
+
 
     // // // Strings // // //
     case class StringExpr(left: Known[Expr[String]], right: Known[Expr[String]], op: StringExpr.Op) extends Expr[Boolean]
