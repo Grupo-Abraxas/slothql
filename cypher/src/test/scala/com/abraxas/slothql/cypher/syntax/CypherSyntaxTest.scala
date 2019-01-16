@@ -34,6 +34,8 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     def returns[R](implicit correct: TR =:= R): Assertion = query.known.toCypher shouldEqual expected
   }
 
+  private def testVar[T](name: String = "") = CypherFragment.Expr.Var[T](name)
+
   "Slothql cypher syntax" should {
 
     "build path patterns" in test(
@@ -500,7 +502,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     ).returns[Map[String, Any]]
 
     "reduce lists" in {
-      val reduceExpr@CypherFragment.Expr.ReduceList(_, elem, _, acc, _) = CypherFragment.Expr.Var[List[String]]("")
+      val reduceExpr@CypherFragment.Expr.ReduceList(_, elem, _, acc, _) = testVar[List[String]]()
         .reduce(0L)((name, acc) => acc + name.length )
       test(
         Match { case v => reduceExpr.copy(list = v.prop[List[String]]("names")) },
@@ -508,6 +510,50 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         s"RETURN reduce(`$acc` = 0, `$elem` IN `v`.`names` | `$acc` + `length`(`$elem`))"
       ).returns[Long]
     }
+
+    "support list comprehensions (filter)" in {
+      val expr@CypherFragment.Expr.ListComprehension(_, elem, _, _) = testVar[List[Long]]()
+        .filter(_ % lit(2L) === lit(0))
+      test(
+        Match { case v => expr.copy(list = v.prop[List[Long]]("data")) },
+         "MATCH (`v`) " +
+        s"RETURN [`$elem` IN `v`.`data` WHERE `$elem` % 2 = 0]"
+      ).returns[List[Long]]
+    }
+
+    "support list comprehensions (map)" in {
+      val expr@CypherFragment.Expr.ListComprehension(_, elem, _, _) = testVar[List[Long]]()
+        .map(_ * lit(10L))
+      test(
+        Match { case v => expr.copy(list = v.prop[List[Long]]("data")) },
+         "MATCH (`v`) " +
+        s"RETURN [`$elem` IN `v`.`data` | `$elem` * 10]"
+      ).returns[List[Long]]
+    }
+
+    "support list comprehensions (filter + map)" in {
+      val expr@CypherFragment.Expr.ListComprehension(_, elem, _, _) = testVar[List[Long]]()
+        .withFilter(x => x > lit(0L) && x < lit(1000L))
+        .map(_.asString)
+      test(
+        Match { case v => expr.copy(list = v.prop[List[Long]]("data")) },
+         "MATCH (`v`) " +
+        s"RETURN [`$elem` IN `v`.`data` WHERE `$elem` > 0 AND `$elem` < 1000 | `toString`(`$elem`)]"
+      ).returns[List[String]]
+    }
+
+    "[manual fragment] avoid list comprehension if neither filter nor map is defined" in test(
+      Match { case v =>
+        CypherFragment.Expr.ListComprehension[Long, Long](
+          v.prop[List[Long]]("data"),
+          "x",
+          filter = None,
+          map = None
+        )
+      },
+      "MATCH (`v`) " +
+      "RETURN `v`.`data`"
+    ).returns[List[Long]]
 
     "slice collected lists" in test(
       Match {

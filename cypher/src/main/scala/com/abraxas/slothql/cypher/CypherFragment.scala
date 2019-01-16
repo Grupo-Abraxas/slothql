@@ -195,8 +195,8 @@ object CypherFragment {
     case class AtIndex[A](list: Known[Expr[scala.List[A]]], index: Known[Expr[Long]]) extends ListExpr[A]
     case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends ListExpr[scala.List[A]]
     case class Concat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends ListExpr[scala.List[A]]
-    case class FilterList[A](list: Known[Expr[scala.List[A]]], elemAlias: String, filter: Known[Expr[Boolean]]) extends ListExpr[scala.List[A]]
     case class ReduceList[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, initial: Known[Expr[B]], accAlias: String, reduce: Known[Expr[B]]) extends ListExpr[B]
+    case class ListComprehension[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, filter: Option[Known[Expr[Boolean]]], map: Option[Known[Expr[B]]]) extends ListExpr[scala.List[B]]
 
     object ListExpr {
       implicit lazy val fragmentList: CypherFragment[List[_]] = define {
@@ -214,12 +214,17 @@ object CypherFragment {
       implicit lazy val fragmentConcat: CypherFragment[Concat[_]] = define {
         case Concat(list0, list1) => s"${list0.toCypher} + ${list1.toCypher}"
       }
-      implicit lazy val fragmentFilterList: CypherFragment[FilterList[_]] = define {
-        case FilterList(list, elemAlias, filter) => s"filter(${escapeName(elemAlias)} in ${list.toCypher} WHERE ${filter.toCypher})"
-      }
       implicit lazy val fragmentReduceList: CypherFragment[ReduceList[_, _]] = define {
         case ReduceList(list, elemAlias, initial, accAlias, reduce) =>
           s"reduce(${escapeName(accAlias)} = ${initial.toCypher}, ${escapeName(elemAlias)} IN ${list.toCypher} | ${reduce.toCypher})"
+      }
+      implicit lazy val fragmentListComprehension: CypherFragment[ListComprehension[_, _]] = define {
+        case ListComprehension(list, _, None, None) =>
+          list.toCypher
+        case ListComprehension(list, elemAlias, filter0, map0) =>
+          val filter = filter0.map(f => s" WHERE ${f.toCypher}").getOrElse("")
+          val map = map0.map(f => s" | ${f.toCypher}").getOrElse("")
+          s"[${escapeName(elemAlias)} IN ${list.toCypher}$filter$map]"
       }
 
       private def atIndex(list: Known[Expr[scala.List[_]]], index: String) = s"${list.toCypher}[$index]"

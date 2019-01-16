@@ -267,16 +267,26 @@ package object syntax extends LowPriorityImplicits {
                                                  ) extends NumericKnownExprOps[N](Known(expr0).asInstanceOf[Known[Expr[N]]])
 
 
-  implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]]) {
+  protected sealed class ListMapOps[A](list: => Known[Expr[List[A]]], filter: Option[Expr.Var[A] => Known[Expr[Boolean]]]) {
+    def map[B](f: Expr.Var[A] => Known[Expr[B]]): Expr.ListComprehension[A, B] = {
+      val (arg, expr) = ListOps.applyExprVar(f)
+      Expr.ListComprehension(list, arg.name, filter = filter.map(_(arg)), map = Some(expr))
+    }
+  }
+  implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]])
+    extends ListMapOps[A](expr0.known.widen, None)
+  {
+    private lazy val listExpr: Known[Expr[List[A]]] = expr0.known.widen
+
     def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =
-      Expr.Concat(expr0.known.widen, expr1.known)
+      Expr.Concat(listExpr, expr1.known)
     def ++[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] = concat(expr1)
 
     def at[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtIndex[A] =
-      Expr.AtIndex(expr0.known.widen, i.asInstanceOf[E1[Long]].known)
+      Expr.AtIndex(listExpr, i.asInstanceOf[E1[Long]].known)
 
     def at[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](range: Ior[E1, E2]): Expr.AtRange[A] =
-      Expr.AtRange(expr0.known.widen, range.bimap(_.known, _.known))
+      Expr.AtRange(listExpr, range.bimap(_.known, _.known))
 
     def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](l: E1[I1], r: E2[I2])(
       implicit frag1: CypherFragment[E1[Long]], frag2: CypherFragment[E2[Long]]
@@ -291,17 +301,28 @@ package object syntax extends LowPriorityImplicits {
 
     def length: Expr.Call[Long] = Expr.Call("length", List(expr0))
 
-    def filter(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.FilterList[A] = {
-      val alias = randomAlias()
-      val expr = f(Expr.Var[A](alias))
-      Expr.FilterList(expr0.known.widen, alias, expr)
+    def withFilter(f: Expr.Var[A] => Known[Expr[Boolean]]): ListOps.WithFilter[A] = new ListOps.WithFilter(listExpr, f)
+
+    def filter(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListComprehension[A, A] = {
+      val (arg, expr) = ListOps.applyExprVar(f)
+      Expr.ListComprehension(listExpr, arg.name, filter = Some(expr), map = None)
     }
-    def filter0(expr: Known[Expr[Boolean]]): Expr.FilterList[A] = Expr.FilterList(expr0.known.widen, "_", expr)
+    def filter0(expr: Known[Expr[Boolean]]): Expr.ListComprehension[A, A] =
+      Expr.ListComprehension(listExpr, "_", filter = Some(expr), map = None)
 
     def reduce[B](b: Known[Expr[B]])(f: (Expr.Var[A], Expr.Var[B]) => Known[Expr[B]]): Expr.ReduceList[A, B] = {
       val elemAlias, accAlias = randomAlias()
       val expr = f(Expr.Var[A](elemAlias), Expr.Var[B](accAlias))
-      Expr.ReduceList(expr0.known.widen, elemAlias, b, accAlias, expr)
+      Expr.ReduceList(listExpr, elemAlias, b, accAlias, expr)
+    }
+  }
+  object ListOps {
+    protected class WithFilter[A](list: Known[Expr[List[A]]], filter: Expr.Var[A] => Known[Expr[Boolean]]) extends ListMapOps(list, Some(filter))
+
+    protected[syntax] def applyExprVar[A, B](f: Expr.Var[A] => Known[Expr[B]]): (Expr.Var[A], Known[Expr[B]]) = {
+      val arg = Expr.Var[A](randomAlias())
+      val expr = f(arg)
+      arg -> expr
     }
   }
 
