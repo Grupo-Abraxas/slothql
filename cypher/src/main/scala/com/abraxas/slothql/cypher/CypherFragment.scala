@@ -385,6 +385,28 @@ object CypherFragment {
         case Distinct(expr) => s"DISTINCT ${expr.toCypher}"
       }
     }
+
+
+    sealed trait CaseExpr[A] extends Expr[A]
+    case class SimpleCaseExpr[V, A](value: Known[Expr[V]], cases: Predef.Map[Known[Expr[V]], Known[Expr[A]]], default: Option[Known[Expr[A]]]) extends CaseExpr[A]
+    case class GenericCaseExpr[A](cases: Predef.Map[Known[Expr[Boolean]], Known[Expr[A]]], default: Option[Known[Expr[A]]]) extends CaseExpr[A]
+
+    object CaseExpr {
+      implicit lazy val fragmentSimpleCaseExpr: CypherFragment[SimpleCaseExpr[_, _]] = define {
+        case SimpleCaseExpr(value, cases, default) =>
+          s"CASE ${value.toCypher}${casesCypher(cases)}${defaultCypher(default)} END"
+      }
+      implicit lazy val fragmentGenericCaseExpr: CypherFragment[GenericCaseExpr[_]] = define {
+        case GenericCaseExpr(cases, default) =>
+          s"CASE${casesCypher(cases)}${defaultCypher(default)} END"
+      }
+
+      private def casesCypher[K](cases: Predef.Map[Known[Expr[K]], Known[Expr[_]]]) =
+        if (cases.nonEmpty) cases.map{ case (k, v) => s"WHEN ${k.toCypher} THEN ${v.toCypher}" }.mkString(" ", " ", "")
+        else ""
+      private def defaultCypher(default: Option[Known[Expr[_]]]) =
+        default.map(d => s" ELSE ${d.toCypher}").getOrElse("")
+    }
   }
 
   sealed trait Query[+A]

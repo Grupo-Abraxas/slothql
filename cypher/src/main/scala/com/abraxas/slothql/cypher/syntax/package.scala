@@ -345,6 +345,58 @@ package object syntax extends LowPriorityImplicits {
     def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, map)
   }
 
+
+  implicit class SimpleCaseKnownExprOps[A](expr: Known[Expr[A]]) {
+    /** Simple case expression. */
+    def whenUnsafe[B](case0: SimpleCaseSyntax.Case[A, B], cases: SimpleCaseSyntax.Case[A, B]*): Expr.SimpleCaseExpr[A, B] = SimpleCaseSyntax.make(expr, case0 +: cases, None)
+    /** Simple case expression. */
+    def when[B](case0: SimpleCaseSyntax.Case[A, B], cases: SimpleCaseSyntax.Case[A, B]*): SimpleCaseSyntax.Builder[A, B] = new SimpleCaseSyntax.Builder(expr, case0 +: cases)
+  }
+  implicit class SimpleCaseExprOps[E <: Expr[_], A](expr: E)(implicit unpack: Unpack1[E, Expr, A], frag: CypherFragment[E])
+    extends SimpleCaseKnownExprOps[A](expr.known.asInstanceOf[Known[Expr[A]]])
+
+  object SimpleCaseSyntax {
+    protected[syntax] class Builder[A, B](value: Known[Expr[A]], cases: Seq[Case[A, B]]) {
+      def otherwise(default: Known[Expr[B]]): Expr.SimpleCaseExpr[A, B] = make(value, cases, Some(default))
+    }
+    protected[syntax] def make[A, B](value: Known[Expr[A]], cases: Seq[Case[A, B]], default: Option[Known[Expr[B]]]): Expr.SimpleCaseExpr[A, B] =
+      Expr.SimpleCaseExpr(value, cases.map(_.toPair).toMap, default)
+
+    protected[syntax] case class Case[A, B](value: Known[Expr[A]], result: Known[Expr[B]]) {
+      def toPair: (Known[Expr[A]], Known[Expr[B]]) = value -> result
+    }
+    object Case {
+      implicit def pairKnownToCase[A, B](pair: (Known[Expr[A]], Known[Expr[B]])): Case[A, B] = Case(pair._1, pair._2)
+      implicit def pairToCase[A, EA[_] <: Expr[_], B, EB[_] <: Expr[_]](pair: (EA[A], EB[B]))
+                                                                       (implicit fragA: CypherFragment[EA[A]], fragB: CypherFragment[EB[B]]): Case[A, B] =
+        Case(Known(pair._1)(fragA).asInstanceOf[Known[Expr[A]]], Known(pair._2)(fragB).asInstanceOf[Known[Expr[B]]])
+    }
+  }
+
+  /** Generic case expression. */
+  def whenUnsafe[A](case0: GenericCaseSyntax.Case[A], cases: GenericCaseSyntax.Case[A]*): Expr.GenericCaseExpr[A] = GenericCaseSyntax.make(case0 +: cases, None)
+  /** Generic case expression. */
+  def when[A](case0: GenericCaseSyntax.Case[A], cases: GenericCaseSyntax.Case[A]*): GenericCaseSyntax.Builder[A] = new GenericCaseSyntax.Builder(case0 +: cases)
+
+  object GenericCaseSyntax {
+    protected[syntax] class Builder[A](cases: Seq[Case[A]]) {
+      def otherwise(default: Known[Expr[A]]): Expr.GenericCaseExpr[A] = make(cases, Some(default))
+    }
+    protected[syntax] def make[A](cases: Seq[Case[A]], default: Option[Known[Expr[A]]]): Expr.GenericCaseExpr[A] =
+      Expr.GenericCaseExpr(cases.map(_.toPair).toMap, default)
+
+    protected[syntax] case class Case[A](value: Known[Expr[Boolean]], result: Known[Expr[A]]) {
+      def toPair: (Known[Expr[Boolean]], Known[Expr[A]]) = value -> result
+    }
+    object Case {
+      implicit def pairKnownToCase[A](pair: (Known[Expr[Boolean]], Known[Expr[A]])): Case[A] = Case(pair._1, pair._2)
+      implicit def pairToCase[EB <: Expr[Boolean], A, EA[_] <: Expr[_]](pair: (EB, EA[A]))
+                                                                       (implicit fragA: CypherFragment[EA[A]], fragB: CypherFragment[EB]): Case[A] =
+        Case(Known(pair._1)(fragB).widen, Known(pair._2)(fragA).asInstanceOf[Known[Expr[A]]])
+    }
+  }
+
+
   private def randomAlias(): String = Random.alphanumeric.take(20).mkString
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
