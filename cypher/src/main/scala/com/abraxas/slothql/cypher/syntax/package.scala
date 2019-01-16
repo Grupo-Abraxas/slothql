@@ -277,6 +277,8 @@ package object syntax extends LowPriorityImplicits {
     def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
       at[E1[Long], E1[Long]](Ior.Right(i.asInstanceOf[E1[Long]]))
 
+    def length: Expr.Call[Long] = Expr.Call("length", List(expr0))
+
     def filter(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.FilterList[A] = {
       val alias = randomAlias()
       val expr = f(Expr.Var[A](alias))
@@ -292,6 +294,8 @@ package object syntax extends LowPriorityImplicits {
   }
 
   implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]]) {
+    def value[V](key: String): Expr.MapKey[V] = Expr.MapKey(expr0.known.widen, key)
+
     def add(entries: MapEntry[A]*): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, entries.map(_.toPair).toMap)
     def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, map)
   }

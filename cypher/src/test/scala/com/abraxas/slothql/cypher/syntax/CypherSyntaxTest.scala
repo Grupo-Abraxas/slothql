@@ -255,6 +255,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
           list(v.id, e.id),
           l,
           v.labels ++ list(e.tpe),
+          v.labels.length,
           e.tpe in l,
           v.labels at lit(0),
           l at (lit(1), lit(2L)),
@@ -267,12 +268,13 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "[ `id`(`v`), `id`(`e`) ], " +
         "[ \"Admin\", \"Share\", \"Create\" ], " +
         "`labels`(`v`) + [ `type`(`e`) ], " +
+        "`length`(`labels`(`v`)), " +
         "`type`(`e`) IN [ \"Admin\", \"Share\", \"Create\" ], " +
         "`labels`(`v`)[0], " +
         "[ \"Admin\", \"Share\", \"Create\" ][1..2], " +
         "[ \"Admin\", \"Share\", \"Create\" ][2..], " +
         "[ \"Admin\", \"Share\", \"Create\" ][..2]"
-    ).returns[(List[Long], List[String], List[String], Boolean, String, List[String], List[String], List[String])]
+    ).returns[(List[Long], List[String], List[String], Long, Boolean, String, List[String], List[String], List[String])]
 
 
     "support lists of literals" in supportLists(list("Admin", "Share", "Create"))
@@ -662,6 +664,12 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `v`.`name`"
       ).returns[String]
     }
+
+    "get map value by key" in test(
+      Match{ case v => v.value[String]("name") },
+      "MATCH (`v`) " +
+      "RETURN `v`.`name`"
+    ).returns[String]
 
     "add keys to a map" in {
       val query = Match{ case v => v add ("foo" -> lit("bar"), "labels" -> v.labels) }
