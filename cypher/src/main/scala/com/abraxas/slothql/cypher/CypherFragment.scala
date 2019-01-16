@@ -123,6 +123,7 @@ object CypherFragment {
 
     // // // Values and Variables // // //
     case class Lit[+A](value: A) extends Expr[A]
+    sealed trait Null[+A] extends Expr[A]
     trait Var[A] extends Expr[A] {
       val name: String
 
@@ -144,6 +145,13 @@ object CypherFragment {
       }
 
       private lazy val literalToString = define[Lit[_]](_.value.toString)
+    }
+    object Null {
+      def apply[A]: Null[A] = instance.asInstanceOf[Null[A]]
+      def unapply(expr: Expr[_]): Boolean = expr == instance
+      private lazy val instance = new Null[Any] { override def toString: String = "Null" }
+
+      implicit lazy val fragment: CypherFragment[Null[_]] = define(_ => "null")
     }
     object Var {
       def apply[A](nme: String): Var[A] = new Var[A] { val name: String = nme }

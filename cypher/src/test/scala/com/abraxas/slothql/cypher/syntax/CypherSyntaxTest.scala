@@ -671,6 +671,13 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `v`{.*, `foo`: \"bar\", `labels`: `labels`(`v`)}"
       ).returns[Map[String, Any]]
     }
+
+    "support `null` values" in test(
+      Match { case v => (v.id, cypherNull[String]) },
+      "MATCH (`v`) " +
+      "RETURN `id`(`v`), null"
+    ).returns[(Long, String)]
+
   }
 }
 
