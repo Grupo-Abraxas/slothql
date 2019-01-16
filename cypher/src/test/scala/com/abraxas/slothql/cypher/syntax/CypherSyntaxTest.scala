@@ -144,7 +144,8 @@ class CypherSyntaxTest extends WordSpec with Matchers {
           !(v.id > lit(2L)),
           v.id > lit(2L) && v.id <= lit(4L),
           (v.id > lit(2L)) xor (v.id <= lit(4L)),
-          v.isNull
+          v.isNull,
+          !(v.isNull || v.id <= lit(2L))
         )
       },
       "MATCH (`v`) <-[]- () " +
@@ -156,8 +157,9 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "NOT `id`(`v`) > 2, " +
         "`id`(`v`) > 2 AND `id`(`v`) <= 4, " +
         "`id`(`v`) > 2 XOR `id`(`v`) <= 4, " +
-        "`v` IS NULL"
-    ).returns[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)]
+        "`v` IS NULL, " +
+        "NOT (`v` IS NULL OR `id`(`v`) <= 2)"
+    ).returns[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)]
 
     "support string comparison expressions" in test(
       Match {

@@ -270,14 +270,18 @@ object CypherFragment {
       case object Xor extends BinaryOp
 
       implicit lazy val fragment: CypherFragment[LogicExpr] = define {
-        case LogicNegationExpr(expr) => s"NOT ${expr.toCypher}"
+        case LogicNegationExpr(expr) => s"NOT ${exprToCypher(expr)}"
         case LogicBinaryExpr(left, right, op) =>
           val opStr = op match {
             case Or  => "OR"
             case And => "AND"
             case Xor => "XOR"
           }
-          s"${left.toCypher} $opStr ${right.toCypher}"
+          s"${exprToCypher(left)} $opStr ${exprToCypher(right)}"
+      }
+      private def exprToCypher(expr: Known[Expr[Boolean]]) = expr.fragment match {
+        case _: LogicExpr => s"(${expr.toCypher})"
+        case _ => expr.toCypher
       }
     }
 
