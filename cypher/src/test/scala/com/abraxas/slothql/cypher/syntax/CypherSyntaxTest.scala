@@ -180,6 +180,29 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`v`.`name` =~ \"foo.*bar\""
     ).returns[(Boolean, Boolean, Boolean, Boolean)]
 
+    "support cypher's `toString` built-in function for numbers, booleans and strings" in test(
+      Match { case v =>
+        (
+          v.prop[Long]("long").asString,
+          v.prop[Float]("float").asString,
+          v.prop[String]("string").asString,
+          v.prop[Boolean]("boolean").asString
+        )
+      },
+      "MATCH (`v`) " +
+      "RETURN " +
+        "`toString`(`v`.`long`), " +
+        "`toString`(`v`.`float`), " +
+        "`toString`(`v`.`string`), " +
+        "`toString`(`v`.`boolean`)"
+    ).returns[(String, String, String, String)]
+
+    "not allow to use cypher's `toString` built-in function for other types" in
+      shapeless.test.illTyped(
+        """Match { case v => v.prop[List[Int]]("data").asString }""",
+        """value asString is not a member of com\.abraxas\.slothql\.cypher\.CypherFragment\.Expr\.MapKey\[List\[Int\]\]"""
+      )
+
     "support built-in functions for strings" in test(
       Match {
         case v =>

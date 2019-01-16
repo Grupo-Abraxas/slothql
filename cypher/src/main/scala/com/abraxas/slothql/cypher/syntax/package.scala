@@ -98,6 +98,18 @@ package object syntax extends LowPriorityImplicits {
     def call[R](args: Known[Expr[_]]*): Expr.Call[R] = Expr.Call(func.name, args.toList)
   }
 
+
+  protected sealed abstract class AsStringKnownExprOps(expr: Known[Expr[_]]) {
+    def asString: Expr.Call[String] = Expr.Call("toString", List(expr))
+  }
+
+  implicit class NumberAsStringKnownExprOps   [A: Numeric]               (expr: Known[Expr[A]]) extends AsStringKnownExprOps(expr)
+  implicit class NotNumberAsStringKnownExprOps[A: (String |∨| Boolean)#λ](expr: Known[Expr[A]]) extends AsStringKnownExprOps(expr)
+
+  implicit class NumberAsStringExprOps   [E <: Expr[_], A](expr: E)(implicit unpack: Unpack1[E, Expr, A], frag: CypherFragment[E], ev: Numeric[A])                extends AsStringKnownExprOps(expr)
+  implicit class NotNumberAsStringExprOps[E <: Expr[_], A](expr: E)(implicit unpack: Unpack1[E, Expr, A], frag: CypherFragment[E], ev: (String |∨| Boolean)#λ[A]) extends AsStringKnownExprOps(expr)
+
+
   implicit class BooleanKnownExprOps(expr0: Known[Expr[Boolean]]) {
     def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0)
 
