@@ -20,6 +20,8 @@ object Match { MatchObj =>
   object Result{
     implicit def resultToQuery[R](result: Result[R]): Query[R] = result.result
 
+    def manually[R](res: Query.Query0[R]): Result[R] = new Result[R] { def result: Query.Query0[R] = res }
+
     protected[syntax] trait Ret[R] extends Result[R] {
       protected[syntax] def ret: Known[Return[R]]
       def result: Query.Query0[R] = Query.Return(ret)
