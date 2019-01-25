@@ -77,36 +77,40 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       test[List[String]](tx.read(query), Seq(Nil))
     }
 
-    "chain dependent queries in transaction (1)" in {
-      val q1 = Match { case u@Vertex("User") => u.id }
-      def q2(id: Long) = Match {
-        case (g@Vertex("Group")) -> _ -> u if u.id === lit(id) => g
+    object ChainAndGatherTest {
+      val userQuery = Match { case u@Vertex("User") => u.prop[String]("id") }
+      def groupDepQuery(id: String) = Match {
+        case (g@Vertex("Group")) -> _ -> u if u.prop[String]("id") === lit(id) => g orderBy g.prop[String]("id")
       }
+
+      val groupQuery = Match { case g@Vertex("Group") => g.prop[String]("id") }
+      def userDepQuery(id: String) = Match {
+        case (u@Vertex("User")) `<-` _ `<-` g if g.prop[String]("id") === lit(id) => u orderBy u.prop[String]("id")
+      }
+    }
+
+    "chain dependent queries in transaction (1)" in {
       val query = for {
-        userId <- tx.read(q1)
-        q2i = q2(userId)
+        userId <- tx.read(ChainAndGatherTest.userQuery)
+        q2i = ChainAndGatherTest.groupDepQuery(userId)
         group <- tx.read(q2i)
       } yield (userId, group)
 
-      test[(Long, Map[String, Any])](query, Seq(
-        0L -> Map("name" -> "Root Group", "id" -> "g1"),
-        0L -> Map("name" -> "Sub Group",  "id" -> "g2")
+      test[(String, Map[String, Any])](query, Seq(
+        "u1" -> Map("name" -> "Root Group", "id" -> "g1"),
+        "u1" -> Map("name" -> "Sub Group",  "id" -> "g2")
       ))
     }
 
     "`gather` query results (1)" in {
-      val q1 = Match { case u@Vertex("User") => u.id }
-      def q2(id: Long) = Match {
-        case (g@Vertex("Group")) -> _ -> u if u.id === lit(id) => g
-      }
       val query = for {
-        userId <- tx.read(q1)
-        q2i = q2(userId)
+        userId <- tx.read(ChainAndGatherTest.userQuery)
+        q2i = ChainAndGatherTest.groupDepQuery(userId)
         groups <- tx.read(q2i).gather
       } yield (userId, groups)
 
-      test[(Long, Vector[Map[String, Any]])](query, Seq(
-        0L -> Vector(
+      test[(String, Vector[Map[String, Any]])](query, Seq(
+        "u1" -> Vector(
           Map("name" -> "Root Group", "id" -> "g1"),
           Map("name" -> "Sub Group",  "id" -> "g2")
         )
@@ -114,18 +118,14 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "`gather` query results (2)" in {
-      val q1 = Match { case g@Vertex("Group") => g.id }
-      def q2(id: Long) = Match {
-        case (u@Vertex("User")) `<-` _ `<-` g if g.id === lit(id) => u
-      }
       val query = for {
-        groupIds <- tx.read(q1).gather
-        q2is = groupIds.map(q2)
+        groupIds <- tx.read(ChainAndGatherTest.groupQuery).gather
+        q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
         users <- q2is.traverse(tx.read(_))
       } yield (groupIds, users)
 
-      test[(Vector[Long], Vector[Map[String, Any]])](query, Seq(
-        Vector(2L, 3L) -> Vector(
+      test[(Vector[String], Vector[Map[String, Any]])](query, Seq(
+        Vector("g1", "g2") -> Vector(
           Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1"),
           Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1")
         )
@@ -133,13 +133,9 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "`unwind` gathered results" in {
-      val q1 = Match { case g@Vertex("Group") => g.id }
-      def q2(id: Long) = Match {
-        case (u@Vertex("User")) `<-` _ `<-` g if g.id === lit(id) => u
-      }
       val query = for {
-        groupIds <- tx.read(q1).gather
-        q2is = groupIds.map(q2)
+        groupIds <- tx.read(ChainAndGatherTest.groupQuery).gather
+        q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
         users <- q2is.traverse(tx.read(_))
         user <- tx.Read.unwind(users.map(_("name").asInstanceOf[String]))
       } yield user
