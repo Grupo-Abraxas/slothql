@@ -1,12 +1,14 @@
 package com.abraxas.slothql.cypher
 
+import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 
 import cats.effect.IO
 import cats.free.Free
 import cats.free.Free.liftF
-import cats.{ Functor, FunctorFilter, Monad, ~> }
+import cats.{ Functor, FunctorFilter, Monad, Traverse, ~> }
 import cats.instances.vector._
+import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.traverse._
 import shapeless.{ DepFn1, |∨| }
@@ -67,7 +69,14 @@ trait CypherTxBuilder {
 
   protected[cypher] case class ReadQuery[A, R](query: Known[Query[A]], reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
 
-  protected[cypher] case class Gather[R](read: Read[R]) extends Read[Vector[R]]
+  protected[cypher] case class Gather[F[_] <: Iterable[_], R]
+                                     (read: Read[R])
+                                     (protected [slothql] val fromIterable: Iterable[R] => F[R]) extends Read[F[R]] { type CC[_] = F[_] }
+  protected[cypher] object Gather {
+    def apply[F[_] <: Iterable[_], R](read: Read[R])
+                                     (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Gather[F, R] =
+      new Gather(read)(xs => (cbf.apply() ++= xs).result().asInstanceOf[F[R]])
+  }
   protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R]
 
   object Read {
@@ -106,7 +115,7 @@ trait CypherTxBuilder {
       } yield a
 
     def unwind[A](iterable: Iterable[A]): ReadTx[A] = liftF(Unwind(iterable))
-    def nothing[A]: ReadTx[A] = unwind(Vector.empty)
+    def nothing[A]: ReadTx[A] = unwind(Nil)
 
     class CannotZipException(left: Seq[Any], right: Seq[Any]) extends Exception(
       s"Cannot zip because of different length:\n\tleft:  $left\n\tright: $right")
@@ -115,20 +124,20 @@ trait CypherTxBuilder {
       s"Cannot zip because of different length:\n\t1: $seq1\n\t2: $seq2\n\t3: $seq3")
 
 
-    implicit object ReadTxVectorIsMonad extends Monad[λ[A => ReadTx[Vector[A]]]] {
-      def pure[A](x: A): ReadTx[Vector[A]] =
-        Free.pure(Vector(x))
-      override def map[A, B](fa: ReadTx[Vector[A]])(f: A => B): ReadTx[Vector[B]] =
-        fa.map(_.map(f))
-      def flatMap[A, B](fa: ReadTx[Vector[A]])(f: A => ReadTx[Vector[B]]): ReadTx[Vector[B]] =
+    implicit def readTxTraversableMonadIsMonad[F[_]: Monad: Traverse]: Monad[λ[A => ReadTx[F[A]]]] = new Monad[λ[A => ReadTx[F[A]]]]{
+      def pure[A](x: A): ReadTx[F[A]] =
+        Free.pure(x.pure[F])
+      override def map[A, B](fa: ReadTx[F[A]])(f: A => B): ReadTx[F[B]] =
+        fa.map(Monad[F].map(_)(f))
+      def flatMap[A, B](fa: ReadTx[F[A]])(f: A => ReadTx[F[B]]): ReadTx[F[B]] =
         fa.flatMap(_.flatTraverse(f))
 
       // TODO: Is it tail-call optimised? (I doubt it)
-      def tailRecM[A, B](a0: A)(f: A => ReadTx[Vector[Either[A, B]]]): ReadTx[Vector[B]] =
+      def tailRecM[A, B](a0: A)(f: A => ReadTx[F[Either[A, B]]]): ReadTx[F[B]] =
         f(a0) flatMap {
           _.flatTraverse[ReadTx, B] {
             case Left(a)  => tailRecM(a)(f)
-            case Right(b) => Free.pure(Vector(b))
+            case Right(b) => Free.pure(b.pure[F])
           }
         }
     }
@@ -140,9 +149,13 @@ trait CypherTxBuilder {
 
 
     implicit class ReadTxOps[A](tx: ReadTx[A]) {
-      def gather: ReadTx[Vector[A]] = tx.foldMap[λ[A => ReadTx[Vector[A]]]](
-        λ[Read ~> λ[A => ReadTx[Vector[A]]]](fa => liftF(newGather(fa)))
-      )
+      def gather[F[_] <: Iterable[_]: Monad: Traverse]
+                (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): ReadTx[F[A]] =
+        tx.foldMap[λ[X => ReadTx[F[X]]]](
+          λ[Read ~> λ[X => ReadTx[F[X]]]](fa => liftF(newGather(fa)))
+        )
+      /** Gather rows to [[Vector]] by default. */
+      def gather: ReadTx[Vector[A]] = gather[Vector]
 
       def filtering(predTx: A => ReadTx[Boolean]): ReadTx[A] = Read.filtering(tx)(predTx)
       def filter(pred: A => Boolean): ReadTx[A] = Read.filter(tx)(pred)
@@ -154,7 +167,7 @@ trait CypherTxBuilder {
       def zip[B](that: ReadTx[B]): ReadTx[(A, B)] = Read.zip(tx, that)
     }
 
-    private def newGather[R](read: Read[R]): Read[Vector[R]] = Gather(read)
+    private def newGather[F[_] <: Iterable[_], R](read: Read[R])(implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Read[F[R]] = Gather[F, R](read)
   }
 
 

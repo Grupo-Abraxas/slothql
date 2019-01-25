@@ -1,6 +1,8 @@
 package com.abraxas.slothql.neo4j
 
 import scala.collection.convert.decorateAsScala._
+import scala.collection.generic.CanBuildFrom
+import scala.language.higherKinds
 import scala.reflect.runtime.{ universe => ru }
 
 import cats.effect.IO
@@ -26,7 +28,7 @@ class Neo4jCypherTransactor(protected val session: () => Session) extends Cypher
     IO {
       session().readTransaction(new TransactionWork[Seq[A]] {
         def execute(transaction: Transaction): Seq[A] =
-          tx.foldMap(Neo4jCypherTransactor.syncInterpreter(tx0, transaction))
+          tx.foldMap(Neo4jCypherTransactor.syncInterpreter[Vector](tx0, transaction))
       })
     }
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
@@ -171,14 +173,18 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     def toCells: CypherFragment.Return.Return0[List[Cell]] = ul.asInstanceOf[CypherFragment.Return.Return0[List[Cell]]]
   }
 
-  protected def syncInterpreter(t: Neo4jCypherTransactor, tx: Transaction): t.Read ~> Vector =
-    λ[t.Read ~> Vector]{
-      case t.txBuilder.Unwind(i)          => i.toVector
-      case t.txBuilder.Gather(r)          => Vector(syncInterpreter(t, tx)(r))
-      case rq@t.txBuilder.ReadQuery(_, _) => runReadQueryTxSync(tx, rq)
+  protected def syncInterpreter[F[_] <: Iterable[_]](t: Neo4jCypherTransactor, tx: Transaction)
+                                                    (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): t.Read ~> F =
+    λ[t.Read ~> F]{
+      case    t.txBuilder.Unwind(i)       => fromIterable(i)
+      case g@ t.txBuilder.Gather(r)       => fromIterable(Seq(g.fromIterable(syncInterpreter(t, tx)(cbf)(r))))
+      case rq@t.txBuilder.ReadQuery(_, _) => fromIterable(runReadQueryTxSync(tx, rq))
     }
 
-  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Vector[R] =
-    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala.toVector // TODO: issue #8
+  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Iterable[R] =
+    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala // TODO: issue #8
 
-}
+
+  private def fromIterable[F[_], A](a: Iterable[A])(implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): F[A] =
+    (cbf.apply() ++= a).result().asInstanceOf[F[A]]
+  }

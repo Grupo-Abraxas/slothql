@@ -1,6 +1,7 @@
 package com.abraxas.slothql
 
 import cats.data.NonEmptyList
+import cats.instances.list._
 import cats.instances.vector._
 import cats.syntax.traverse._
 import org.scalactic.source.Position
@@ -102,7 +103,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
-    "`gather` query results (1)" in {
+    "`gather` query results to Vector (1)" in {
       val query = for {
         userId <- tx.read(ChainAndGatherTest.userQuery)
         q2i = ChainAndGatherTest.groupDepQuery(userId)
@@ -117,7 +118,22 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
-    "`gather` query results (2)" in {
+    "`gather` query results to List (1)" in {
+      val query = for {
+        userId <- tx.read(ChainAndGatherTest.userQuery)
+        q2i = ChainAndGatherTest.groupDepQuery(userId)
+        groups <- tx.read(q2i).gather[List]
+      } yield (userId, groups)
+
+      test[(String, List[Map[String, Any]])](query, Seq(
+        "u1" -> List(
+          Map("name" -> "Root Group", "id" -> "g1"),
+          Map("name" -> "Sub Group",  "id" -> "g2")
+        )
+      ))
+    }
+
+    "`gather` query results to Vector (2)" in {
       val query = for {
         groupIds <- tx.read(ChainAndGatherTest.groupQuery).gather
         q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
