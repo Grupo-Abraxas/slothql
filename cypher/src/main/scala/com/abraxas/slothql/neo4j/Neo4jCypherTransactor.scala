@@ -10,7 +10,7 @@ import cats.instances.vector._
 import cats.{ Functor, ~> }
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
-import shapeless._
+import shapeless.{ :: => #:, _ }
 
 import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
 import com.abraxas.slothql.neo4j.util.JavaExt._
@@ -54,32 +54,63 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
     implicit def resultCells: RecordReader.Aux[List[Cell], List[Cell]] = RecordReader define { _.values().asScala.toList }
 
-    implicit def singleValue[A](implicit vr: ValueReader[A], lowPriority: LowPriority): RecordReader.Aux[A, A] =
-      RecordReader define { rec =>
-        vr(rec.ensuring(_.size() == 1).values().get(0))
+    implicit def recordCellsReader[A](implicit reader: ValuesReader[A]): RecordReader.Aux[A, reader.Res] =
+      RecordReader.define{ vs =>
+        val (read, leftover) = reader(vs.values().asScala.toList)
+        if (leftover.nonEmpty) sys.error(s"Leftover cells: $leftover")
+        read
+      }
+  }
+
+  trait ValuesReader[A] extends CypherTransactor.Reader[List[Value], A] {
+    type Res
+    type Out = (Res, List[Value])
+  }
+  object ValuesReader {
+    type Aux[A, R] = ValuesReader[A] { type Res = R }
+
+    def define[A, R](f: List[Value] => (R, List[Value])): Aux[A, R] =
+      new ValuesReader[A] {
+        type Res = R
+        def apply(rec: List[Value]): (R, List[Value]) = f(rec)
       }
 
-    private object ReadValue extends Poly2 {
-      implicit def impl[A](implicit reader: ValueReader[A]): Case.Aux[A, Value, A] =
-        at[A, Value]((_, v) => reader(v))
+
+    protected sealed trait ValueType[A]
+    protected object ValueType {
+      implicit def apply[A]: ValueType[A] = instance.asInstanceOf[ValueType[A]]
+      private val instance = new ValueType[Any] {}
     }
 
-    private object Null extends Poly0 {
-      implicit def impl[A]: Case0[A] = at[A](null.asInstanceOf[A])
+    protected object ReadValues extends Poly2 {
+      implicit def impl[AccRev <: HList, A, R](
+        implicit reader: Strict[ValuesReader.Aux[A, R]]
+      ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
+        at { case ((accRev, values), _) =>
+          val (read, rest) = reader.value(values)
+          (read :: accRev) -> rest
+        }
     }
+
+
+    implicit def singleValue[A](implicit vr: ValueReader[A]): ValuesReader.Aux[A, A] =
+      ValuesReader define {
+        case head :: tail => vr(head) -> tail
+        case Nil => sys.error("Input ended unexpectedly")
+      }
 
     // converts HList to tuple
-    implicit def hlist[L <: HList, Values <: HList, Read <: HList](
+    implicit def hlist[L <: HList, VL <: HList, ReadU, ReadRev <: HList, Read <: HList](
       implicit
-      stubL: ops.hlist.FillWith[Null.type, L],
-      valuesT: ops.hlist.ConstMapper.Aux[Value, L, Values],
-      values: ops.traversable.FromTraversable[Values],
-      zipApply: ops.hlist.ZipWith.Aux[L, Values, ReadValue.type, Read],
+      valueTypes: ops.hlist.LiftAll.Aux[ValueType, L, VL],
+      fold: ops.hlist.LeftFolder.Aux[VL, (HNil, List[Value]), ReadValues.type, ReadU],
+      unpack: Unpack2[ReadU, Tuple2, ReadRev, List[Value]],
+      revRead: ops.hlist.Reverse.Aux[ReadRev, Read],
       toTuple: ops.hlist.Tupler[Read]
-    ): RecordReader.Aux[L, toTuple.Out] =
-      RecordReader define { record =>
-        val Some(vs) = values(record.values().asScala)
-        toTuple(zipApply(stubL(), vs))
+    ): ValuesReader.Aux[L, toTuple.Out] =
+      ValuesReader define { cells =>
+        val (read, rest) = fold(valueTypes.instances, HNil -> cells).asInstanceOf[(ReadRev, List[Value])]
+        toTuple(revRead(read)) -> rest
       }
 
   }
