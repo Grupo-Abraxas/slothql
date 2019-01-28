@@ -484,23 +484,23 @@ package object syntax extends LowPriorityImplicits {
         def apply(e: E): Return.Expr[A] = Return.Expr(Known(e).widen, as = None)
       }
 
-    implicit def returnTuple[P <: Product, L <: HList, R <: HList, E <: HList](
+    implicit def returnTuple[P <: Product, L <: HList, R <: HList](
       implicit
       ev: P <:!< Expr[_],
       gen: Generic.Aux[P, L],
-      build: Return.List.Build.Aux[L, R, E]
-    ): AuxOut[P, R, Return.List.Aux[R, E]] =
+      build: Return.Tuple.FromHList.Aux[L, R]
+    ): AuxOut[P, R, Return.Tuple[R]] =
       new QueryReturn[P] {
         type Ret = R
-        type Out = Return.List.Aux[R, E]
-        def apply(p: P): Return.List.Aux[R, E] = build(gen.to(p))
+        type Out = Return.Tuple[R]
+        def apply(p: P): Return.Tuple[R] = build(gen.to(p))
       }
 
-    implicit lazy val returnUntypedList: AuxOut[Return.UntypedList, List[Any], Return.UntypedList] =
-      new QueryReturn[Return.UntypedList] {
+    implicit lazy val returnUntyped: AuxOut[Return.Untyped, List[Any], Return.Untyped] =
+      new QueryReturn[Return.Untyped] {
         type Ret = List[Any]
-        type Out = Return.UntypedList
-        @inline def apply(t: Return.UntypedList): Return.UntypedList = t
+        type Out = Return.Untyped
+        @inline def apply(t: Return.Untyped): Return.Untyped = t
       }
 
     implicit def returnOptions[A, E <: Return.Options[_]](implicit ev: E <:< Return.Options.Inv[A]): AuxOut[E, A, Return.Options[A]] =
@@ -513,7 +513,7 @@ package object syntax extends LowPriorityImplicits {
   }
 
 
-  def returnTuple(exprs: Iterable[Known[Expr[_]]]): Return.UntypedList = CypherFragment.Return.List.untyped(exprs)
+  def returnTuple(exprs: Iterable[Known[Expr[_]]]): Return.Untyped = CypherFragment.Return.Untyped(exprs)
 
   implicit def toReturnOps[E, A](e: E)(implicit rq: QueryReturn.Aux[E, A]): ReturnOps[A] = ReturnOps(rq(e))
   implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }

@@ -169,7 +169,7 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     }
   }
 
-  implicit class UntypedListCellsOps(ul: CypherFragment.Return.UntypedList) {
+  implicit class UntypedListCellsOps(ul: CypherFragment.Return.Untyped) {
     def toCells: CypherFragment.Return.Return0[List[Cell]] = ul.asInstanceOf[CypherFragment.Return.Return0[List[Cell]]]
   }
 

@@ -62,7 +62,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
           where = None
         ),
         Query.Return(
-          Return.List(
+          Return.Tuple(
             Expr.MapKey[String](n, "email"),
             Expr.MapKey[String](n, "name")
           ).known
