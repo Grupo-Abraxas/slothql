@@ -97,6 +97,10 @@ object CypherFragment {
 
     def widen[B](implicit ev: A <:< B): Known[B] = this.asInstanceOf[Known[B]]
 
+
+    override def hashCode(): Int = fragment.##
+    override def equals(obj: Any): Boolean = PartialFunction.cond(obj) { case that: Known[_] => this.fragment == that.fragment }
+
     override def toString: String = s"Known$fragment{ $toCypher }"
   }
   object Known {
@@ -126,6 +130,10 @@ object CypherFragment {
     sealed trait Null[+A] extends Expr[A]
     trait Var[A] extends Expr[A] {
       val name: String
+
+
+      override def hashCode(): Int = name.hashCode
+      override def equals(obj: Any): Boolean = PartialFunction.cond(obj) { case that: Var[_] => this.name == that.name }
 
       override def toString: String = s"Var($name)"
     }
@@ -221,6 +229,8 @@ object CypherFragment {
       }
       implicit lazy val fragmentListComprehension: CypherFragment[ListComprehension[_, _]] = define {
         case ListComprehension(list, _, None, None) =>
+          list.toCypher
+        case ListComprehension(list, elemAlias, None, Some(Known(map))) if map == Expr.Var[Any](elemAlias) =>
           list.toCypher
         case ListComprehension(list, elemAlias, filter0, map0) =>
           val filter = filter0.map(f => s" WHERE ${f.toCypher}").getOrElse("")
