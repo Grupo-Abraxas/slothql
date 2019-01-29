@@ -79,7 +79,7 @@ object Match { MatchObj =>
 
   // The definitions that should be package-private but cannot be
   object Internal {
-    @inline def setAlias(e: CypherFragment.Expr.Var[_], alias: String): Unit = e.asInstanceOf[GraphElem.Impl]._alias = alias
+    @inline def setAlias(e: CypherFragment.Expr.Var[_], alias: String): Unit = e.asInstanceOf[Graph.Impl[_]]._alias = alias
     @inline def graph: Graph = Graph()
   }
 
@@ -99,8 +99,8 @@ object Match { MatchObj =>
     val `syntax :=` = typeOf[:=.type]
     val `syntax :?=` = typeOf[:?=.type]
     val `syntax *:` = typeOf[*:.type]
-    val GraphVertexType = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Vertex]]
-    val GraphEdgeType   = weakTypeOf[ClassTag[CypherFragment.Expr.Var[Map[String, Any]] with Graph.Edge]]
+    val GraphVertexType = weakTypeOf[ClassTag[Vertex]]
+    val GraphEdgeType   = weakTypeOf[ClassTag[Edge]]
     val ExprType        = weakTypeOf[CypherFragment.Expr[_]]
     val KnownExprType   = weakTypeOf[Known[CypherFragment.Expr[_]]]
 
@@ -108,15 +108,8 @@ object Match { MatchObj =>
       def unapply(tree: Tree): Option[Tree] = if (tree.tpe <:< ExprType || tree.tpe <:< KnownExprType) Some(tree) else None
     }
 
-    object UnApplyClassTag {
-      def unapply(tree :Tree): Option[(Type, Tree)] = PartialFunction.condOpt(tree) {
-        case UnApply(Apply(Select(Typed(_, tpt), TermName("unapply")), _), List(arg)) => tpt.tpe -> arg
-      }
-    }
-
 
     def extractBindParams(body: Tree): (Tree, List[Tree]) = body match {
-      case UnApplyClassTag(_, arg) => extractBindParams(arg)
       case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
         val labels = args.collect{
           case one if one.tpe <:< typeOf[String] => q"_root_.scala.List($one)"
@@ -186,7 +179,6 @@ object Match { MatchObj =>
 
     object ExtractNode {
       def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = tree match {
-        case UnApplyClassTag(tpe, arg) if tpe <:< GraphVertexType => unapply(arg)
         case Ident(termNames.WILDCARD) =>
           Some{ (tree.symbol, None) -> knownNodeExpr1(termNames.WILDCARD) }
         case Ident(name) =>
@@ -203,7 +195,6 @@ object Match { MatchObj =>
       type Build = c.Expr[Rel.Direction] => NamedKnownExpr[Pattern.Rel]
 
       def unapply(tree: Tree): Option[Build] = tree match {
-        case UnApplyClassTag(tpe, arg) if tpe <:< GraphEdgeType => unapply(arg)
         case Ident(termNames.WILDCARD) =>
           Some{ dir => (tree.symbol, None) -> knownRelExpr(None, EmptyTree, None, dir) }
         case Bind(name, body) =>
@@ -214,8 +205,8 @@ object Match { MatchObj =>
           val name = DeepRel.name(bind)
           val length = DeepRel.length(limits)
           val edge = (edgeT: @unchecked) match {
-            case UnApplyClassTag(tpe, arg) if tpe <:< GraphEdgeType => arg
-            case Ident(termNames.WILDCARD)                          => EmptyTree
+            case Ident(termNames.WILDCARD)                                     => EmptyTree
+            case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] => ua
           }
           Some { dir: c.Expr[Rel.Direction] => ((bind.symbol, name), knownRelExpr(name, edge, Some(length), dir)) }
         case _ => None

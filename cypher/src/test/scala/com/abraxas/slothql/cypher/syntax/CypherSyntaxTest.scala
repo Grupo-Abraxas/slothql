@@ -84,7 +84,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       test(
         Match {
           case Vertex("User", "email" := `email`) -(e)> (g@Vertex("Group")) =>
-            e -> g.prop[String]("id")
+            e.props -> g.prop[String]("id")
         },
         "MATCH (:`User`{ `email`: \"user@example.com\" }) -[`e`]-> (`g`:`Group`) " +
         "RETURN `e`, `g`.`id`"
@@ -103,7 +103,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     "match relation types, support variable length paths (right direction)" in test(
       Match {
         case Vertex("Group") - es *:(_, _) > (g@Vertex("Group")) =>
-          es -> g.prop[String]("name")
+          es.map(_.props) -> g.prop[String]("name")
       },
       "MATCH (:`Group`) -[`es`*]-> (`g`:`Group`) " +
       "RETURN `es`, `g`.`name`"
@@ -112,11 +112,11 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     "build function calls" in test(
       Match {
         case Vertex("Group") < _ *:(_, Edge("parent")) - (g@Vertex("Group")) =>
-          (g, g.call[Map[String, Any]]("properties"), 'pi.call[Double]())
+          (g.call[Long]("id"), g.call[Map[String, Any]]("properties"), 'pi.call[Double]())
       },
       "MATCH (:`Group`) <-[:`parent`*]- (`g`:`Group`) " +
-      "RETURN `g`, `properties`(`g`), `pi`()"
-    ).returns[(Map[String, Any], Map[String, Any], Double)]
+      "RETURN `id`(`g`), `properties`(`g`), `pi`()"
+    ).returns[(Long, Map[String, Any], Double)]
 
     "provide syntax for common built-in functions" in test(
       Match {
@@ -128,9 +128,9 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "RETURN `id`(`g`), `count`(`g`), `keys`(`g`), `labels`(`g`), `id`(`e`), `count`(`e`), `keys`(`e`), `type`(`e`)"
     ).returns[(Long, Long, List[String], List[String], Long, Long, List[String], String)]
 
-    "allow to select edge lists (from variable length match)" in test(
+    "allow to select edge list properties (from variable length match)" in test(
       Match {
-        case Vertex("Group") < es*:(0 - _, Edge("parent")) - (g@Vertex("Group")) => es
+        case Vertex("Group") < es*:(0 - _, Edge("parent")) - (g@Vertex("Group")) => es.map(_.props)
       },
       "MATCH (:`Group`) <-[`es`:`parent`*0..]- (`g`:`Group`) " +
       "RETURN `es`"
@@ -308,16 +308,16 @@ class CypherSyntaxTest extends WordSpec with Matchers {
 
     "support `if` guards" in test(
       Match {
-        case v < e - _ if e.tpe in list("Admin", "Share") => v
+        case v < e - _ if e.tpe in list("Admin", "Share") => v.props
       },
       "MATCH (`v`) <-[`e`]- () " +
       "WHERE `type`(`e`) IN [ \"Admin\", \"Share\" ] " +
       "RETURN `v`"
     ).returns[Map[String, Any]]
 
-    "allow returning lists of vertices" in test(
+    "allow returning lists of vertex properties" in test(
       Match {
-        case v1 -> v2 `<-` v3 => list(v1, v2, v3)
+        case v1 -> v2 `<-` v3 => list(v1.props, v2.props, v3.props)
       },
       "MATCH (`v1`) -[]-> (`v2`) <-[]- (`v3`) " +
       "RETURN [ `v1`, `v2`, `v3` ]"
@@ -325,7 +325,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
 
     "~~ relation direction (1) ~~" in test(
       Match {
-        case v1 -> v2 -(e)> v3 `<-` v4 => list(v1, v2, v3, v4) -> e.tpe
+        case v1 -> v2 -(e)> v3 `<-` v4 => list(v1.props, v2.props, v3.props, v4.props) -> e.tpe
       },
       "MATCH (`v1`) -[]-> (`v2`) -[`e`]-> (`v3`) <-[]- (`v4`) " +
       "RETURN [ `v1`, `v2`, `v3`, `v4` ], `type`(`e`)"
@@ -333,7 +333,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
 
     "~~ relation direction (2) ~~" in test(
       Match {
-        case v1 -> v2 <(e)- v3 `<-` v4 => list(v1, v2, v3, v4) -> e.tpe
+        case v1 -> v2 <(e)- v3 `<-` v4 => list(v1.props, v2.props, v3.props, v4.props) -> e.tpe
       },
       "MATCH (`v1`) -[]-> (`v2`) <-[`e`]- (`v3`) <-[]- (`v4`) " +
       "RETURN [ `v1`, `v2`, `v3`, `v4` ], `type`(`e`)"
@@ -396,7 +396,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       val id = Some("g1")
       test(
         Match {
-          case g@Vertex("Group", "id" :?= `id`) => g
+          case g@Vertex("Group", "id" :?= `id`) => g.props
         },
         "MATCH (`g`:`Group`{ `id`: \"g1\" }) " +
         "RETURN `g`"
@@ -407,7 +407,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       val id = Option.empty[String]
       test(
         Match {
-          case g@Vertex("Group", "id" :?= `id`) => g
+          case g@Vertex("Group", "id" :?= `id`) => g.props
         },
         "MATCH (`g`:`Group`) " +
         "RETURN `g`"
@@ -630,7 +630,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       val types  = Set("Admin", "Share")
       test(
         Match {
-          case (v@Vertex(`labels`)) - Edge(`types`) > x => v -> x
+          case (v@Vertex(`labels`)) - Edge(`types`) > x => v.props -> x.props
         },
         "MATCH (`v`:`User`) -[:`Admin`|`Share`]-> (`x`) " +
         "RETURN `v`, `x`"
@@ -772,7 +772,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     ).returns[String]
 
     "add keys to a map" in {
-      val query = Match{ case v => v add ("foo" -> lit("bar"), "labels" -> v.labels) }
+      val query = Match{ case v => v.props add ("foo" -> lit("bar"), "labels" -> v.labels) }
       test(
         query,
         "MATCH (`v`) " +

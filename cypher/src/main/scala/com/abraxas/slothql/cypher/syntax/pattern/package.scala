@@ -79,12 +79,12 @@ package object pattern {
   implicit class VarExprBuilder(name: String) {
     def vertexAlias: Vertex = {
       val v = Vertex()
-      v.asInstanceOf[GraphElem.Impl]._alias = name
+      v.asInstanceOf[Graph.Impl[_]]._alias = name
       v
     }
     def edgeAlias: Edge = {
       val e = Edge()
-      e.asInstanceOf[GraphElem.Impl]._alias = name
+      e.asInstanceOf[Graph.Impl[_]]._alias = name
       e
     }
   }

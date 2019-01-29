@@ -13,22 +13,33 @@ import com.abraxas.slothql.util.raiseCompilationError
 
 package object syntax extends LowPriorityImplicits {
 
-  sealed trait Graph extends Expr.Var[Map[String, Any]] with Graph.Vertex
+  sealed trait Graph extends Expr.Var[Graph] with Graph.Vertex
+  private[syntax] object Graph{
+    def apply(): Graph = new Impl[Graph] with Graph {}
 
-  type GraphElem = Expr.Var[Map[String, Any]] with Graph.Elem
-  type Vertex    = Expr.Var[Map[String, Any]] with Graph.Vertex
-  type Edge      = Expr.Var[Map[String, Any]] with Graph.Edge
+    sealed trait Elem
+    sealed trait Vertex extends Elem
+    sealed trait Edge   extends Elem
 
-  object GraphElem {
-    private[syntax] class Impl extends Expr.Var[Map[String, Any]] {
+
+    sealed abstract class Impl[E <: Elem] extends Expr.Var[E] {
+      self: E =>
+
       private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
       lazy val name: String = _alias
     }
   }
 
+  type GraphElem = Expr.Var[Graph.Elem]
+  type Vertex    = Expr.Var[Graph.Vertex]
+  type Edge      = Expr.Var[Graph.Edge]
+
+
   final implicit class GraphElemOps(e: GraphElem) {
+    def props: Expr.Var[Map[String, Any]] = e.asInstanceOf[Expr.Var[Map[String, Any]]]
+
     /** Select vertex/edge property. */
-    def prop[A](k: String): Expr.MapKey[A] = Expr.MapKey[A](e, k)
+    def prop[A](k: String): Expr.MapKey[A] = Expr.MapKey[A](props, k)
     /** Select vertex/edge property as [[Option]]. */
     def propOpt[A](k: String): Expr.MapKey[Option[A]] = prop[Option[A]](k)
 
@@ -63,20 +74,13 @@ package object syntax extends LowPriorityImplicits {
     def `type`: Expr.Call[String] = tpe
   }
 
-  private[syntax] object Graph{
-    def apply(): Graph = new GraphElem.Impl with Graph {}
-
-    sealed trait Elem
-    sealed trait Vertex extends Elem
-    sealed trait Edge   extends Elem
-  }
 
   object Vertex {
-    @inline private[syntax] def apply(): Vertex = (new GraphElem.Impl).asInstanceOf[Vertex]
+    @inline private[syntax] def apply(): Vertex = new Graph.Impl[Graph.Vertex] with Graph.Vertex
     def unapplySeq(v: Vertex): Option[Seq[AnyRef]] = Some(???)
   }
   object Edge {
-    @inline private[syntax] def apply(): Edge = (new GraphElem.Impl).asInstanceOf[Edge]
+    @inline private[syntax] def apply(): Edge = new Graph.Impl[Graph.Edge] with Graph.Edge
     def unapplySeq(v: Edge): Option[Seq[AnyRef]] = Some(???)
   }
 
@@ -89,7 +93,7 @@ package object syntax extends LowPriorityImplicits {
   }
 
   object *: {
-    def unapply(edge: Edge): Option[(Expr.Var[List[Map[String, Any]]], -[Int, Int], Edge)] = Some(???)
+    def unapply(edge: Edge): Option[(Expr.Var[List[Graph.Edge]], -[Int, Int], Edge)] = Some(???)
   }
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //

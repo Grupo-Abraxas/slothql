@@ -95,12 +95,12 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     object ChainAndGatherTest {
       val userQuery = Match { case u@Vertex("User") => u.prop[String]("id") }
       def groupDepQuery(id: String) = Match {
-        case (g@Vertex("Group")) -> _ -> u if u.prop[String]("id") === lit(id) => g orderBy g.prop[String]("id")
+        case (g@Vertex("Group")) -> _ -> u if u.prop[String]("id") === lit(id) => g.props orderBy g.prop[String]("id")
       }
 
       val groupQuery = Match { case g@Vertex("Group") => g.prop[String]("id") }
       def userDepQuery(id: String) = Match {
-        case (u@Vertex("User")) `<-` _ `<-` g if g.prop[String]("id") === lit(id) => u orderBy u.prop[String]("id")
+        case (u@Vertex("User")) `<-` _ `<-` g if g.prop[String]("id") === lit(id) => u.props orderBy u.prop[String]("id")
       }
     }
 

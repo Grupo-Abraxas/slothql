@@ -128,7 +128,7 @@ object CypherFragment {
     // // // Values and Variables // // //
     case class Lit[+A](value: A) extends Expr[A]
     sealed trait Null[+A] extends Expr[A]
-    trait Var[A] extends Expr[A] {
+    trait Var[+A] extends Expr[A] {
       val name: String
 
 
