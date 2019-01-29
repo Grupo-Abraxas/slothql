@@ -78,6 +78,20 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       test[List[String]](tx.read(query), Seq(Nil))
     }
 
+    "read tuple results" in {
+      val query = tx.read(Match {
+        case u@Vertex("User") =>
+          u.labels -> (
+            u.prop[String]("id"),
+            (u.prop[String]("name"), u.prop[Int]("age")),
+            u.prop[Boolean]("confirmed")
+          )
+      })
+      test[(List[String], (String, (String, Int), Boolean))](query, Seq(
+        List("User") -> ("u1", ("John", 28), true)
+      ))
+    }
+
     object ChainAndGatherTest {
       val userQuery = Match { case u@Vertex("User") => u.prop[String]("id") }
       def groupDepQuery(id: String) = Match {

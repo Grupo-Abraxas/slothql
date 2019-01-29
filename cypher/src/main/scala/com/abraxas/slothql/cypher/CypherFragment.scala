@@ -430,6 +430,7 @@ object CypherFragment {
 
     sealed trait Return0[+A] extends Return[A]
     sealed trait Return1[+A] extends Return0[A]
+    sealed trait ReturnE[+A] extends Return0[A] { val expressions: List[Known[Expr[_]]] }
 
     type Ascending = Boolean
     type Order = Map[Known[CypherFragment.Expr[_]], Ascending]
@@ -463,7 +464,9 @@ object CypherFragment {
     }
     type All = All.type
 
-    case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A]
+    case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A] with ReturnE[A] {
+      val expressions: List[Known[Expr[_]]] = this.known :: Nil
+    }
 
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
     sealed trait Untyped extends Return0[scala.List[Any]] {
@@ -483,7 +486,7 @@ object CypherFragment {
     }
 
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
-    sealed trait Tuple[Repr <: HList] extends Return0[Repr] {
+    sealed trait Tuple[Repr <: HList] extends Return0[Repr] with ReturnE[Repr] {
       val expressions: scala.List[Known[Expr[_]]]
 
       override def toString: String = s"Tuple(${expressions.mkString(", ")})"
@@ -503,7 +506,7 @@ object CypherFragment {
         type Aux[L <: HList, R] = FromHList[L] { type Ret = R }
 
         private object UnpackKnownReturnExprPoly extends Poly1 {
-          implicit def impl[KE, E, A](implicit unpackKnown: Unpack1[KE, Known, E], unpackExpr: Unpack1[E, Return.Expr, A]): Case.Aux[KE, A] = at(_ => null.asInstanceOf[A])
+          implicit def impl[KE, E, A](implicit unpackKnown: Unpack1[KE, Known, E], unpackExpr: Unpack1[E, Return, A]): Case.Aux[KE, A] = at(_ => null.asInstanceOf[A])
         }
 
         object KnownReturnExprPoly extends Poly1 {
@@ -515,18 +518,25 @@ object CypherFragment {
             at[E](e => Return.Expr[Boolean](e.known.widen, None).known)
           implicit def list[E, L, A](implicit isExpr: E <:< CypherFragment.Expr[L], unpack: Unpack1[L, scala.List, A], fragment: CypherFragment[E], lowPriority: LowPriority): Case.Aux[E, Known[Return.Expr[scala.List[A]]]] =
             at[E](e => Return.Expr(e.known.asInstanceOf[Known[CypherFragment.Expr[scala.List[A]]]], None).known)
+          implicit def product[P <: Product, Repr <: HList, R0 <: HList, R <: HList](
+            implicit
+            notExpr: P <:!< Expr[_],
+            gen: Generic.Aux[P, Repr],
+            fromHList: FromHList.Aux[Repr, R]
+          ): Case.Aux[P, Known[Return.Tuple[R]]] =
+            at[P](p => fromHList(gen.to(p)))
         }
 
-        implicit def fromHListOfExpressions[Exprs <: HList, R0 <: HList, R <: HList](
+        implicit def listOfExpressions[Exprs <: HList, R0 <: HList, R <: HList](
           implicit
           nonEmpty: ops.hlist.IsHCons[Exprs],
           known: ops.hlist.Mapper.Aux[KnownReturnExprPoly.type, Exprs, R0],
           extract: ops.hlist.Mapper.Aux[UnpackKnownReturnExprPoly.type, R0, R],
-          list: ops.hlist.ToTraversable.Aux[R0, scala.List, Known[Return.Expr[_]]]
+          list: ops.hlist.ToTraversable.Aux[R0, scala.List, Known[Return.ReturnE[_]]]
         ): FromHList.Aux[Exprs, R] =
           new FromHList[Exprs] {
             type Ret = R
-            def expressions(exprs: Exprs): scala.List[Known[Expr[_]]] = list(known(exprs))
+            def expressions(exprs: Exprs): scala.List[Known[Expr[_]]] = list(known(exprs)).flatMap(_.fragment.expressions)
           }
       }
 

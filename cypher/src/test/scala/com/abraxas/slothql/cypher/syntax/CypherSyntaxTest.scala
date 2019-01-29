@@ -850,6 +850,21 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "END"
     ).returns[String]
 
+    "return products by flattening" in test(
+      Match {
+        case v =>
+          val x = v.labels -> (v.prop[String]("name"), (v.prop[Int]("x"), v.prop[Int]("y")), v.prop[Boolean]("z"))
+          toReturnOps(x)
+      },
+      "MATCH (`v`) " +
+      "RETURN " +
+        "`labels`(`v`), " +
+        "`v`.`name`, " +
+        "`v`.`x`, " +
+        "`v`.`y`, " +
+        "`v`.`z`"
+    ).returns[(List[String], (String, (Int, Int), Boolean))]
+
   }
 }
 

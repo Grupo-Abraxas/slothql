@@ -83,11 +83,19 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     }
 
     protected object ReadValues extends Poly2 {
-      implicit def impl[AccRev <: HList, A, R](
+      implicit def default[AccRev <: HList, A, R](
         implicit reader: Strict[ValuesReader.Aux[A, R]]
       ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
         at { case ((accRev, values), _) =>
           val (read, rest) = reader.value(values)
+          (read :: accRev) -> rest
+        }
+
+      implicit def product[AccRev <: HList, A, Repr <: HList, R](
+        implicit gen: Generic.Aux[A, Repr], reader: ValuesReader.Aux[Repr, R]
+      ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
+        at { case ((accRev, values), _) =>
+          val (read, rest) = reader(values)
           (read :: accRev) -> rest
         }
     }
