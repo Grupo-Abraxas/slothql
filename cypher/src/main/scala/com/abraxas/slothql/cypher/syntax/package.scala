@@ -13,29 +13,41 @@ import com.abraxas.slothql.util.raiseCompilationError
 
 package object syntax extends LowPriorityImplicits {
 
-  sealed trait Graph extends Expr.Var[Graph] with Graph.Vertex
-  private[syntax] object Graph{
-    def apply(): Graph = new Impl[Graph] with Graph {}
-
-    sealed trait Elem
-    sealed trait Vertex extends Elem
-    sealed trait Edge   extends Elem
+  sealed trait Graph extends Expr.Var[Graph] with Graph.Path with Graph.Vertex
+  object Graph{
+    private[syntax] def apply(): Graph = new Impl[Root] with Graph {}
+    private[syntax] def path(): syntax.Path = new Impl[Path] with Path {}
 
 
-    sealed abstract class Impl[E <: Elem] extends Expr.Var[E] {
-      self: E =>
+    sealed trait Pattern
+    sealed trait Atom   extends Pattern
+    sealed trait Root   extends Pattern
+
+    sealed trait Vertex extends Atom with Root
+    sealed trait Edge   extends Atom
+    sealed trait Path   extends Root
+
+
+    private[syntax] sealed abstract class Impl[P <: Pattern] extends Expr.Var[P] {
+      self: P =>
 
       private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
       lazy val name: String = _alias
     }
   }
 
-  type GraphElem = Expr.Var[Graph.Elem]
   type Vertex    = Expr.Var[Graph.Vertex]
   type Edge      = Expr.Var[Graph.Edge]
+  type Path      = Expr.Var[Graph.Path]
 
 
-  final implicit class GraphElemOps(e: GraphElem) {
+  final implicit class GraphPatternOps(e: Expr.Var[Graph.Pattern]) {
+    /** Call built-in function `func` passing `this` expression as first argument. */
+    def call[R](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
+      Expr.Call(func, e.known :: args.toList)
+  }
+
+  final implicit class GraphAtomOps(e: Expr.Var[Graph.Atom]) {
     def props: Expr.Var[Map[String, Any]] = e.asInstanceOf[Expr.Var[Map[String, Any]]]
 
     /** Select vertex/edge property. */
@@ -49,16 +61,12 @@ package object syntax extends LowPriorityImplicits {
     /** Alias for [[propOpt]]. */
     def opt[A](k: String): Expr.MapKey[Option[A]] = propOpt(k)
 
-    /** Call built-in function `func` passing `this` expression as first argument. */
-    def call[R](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
-      Expr.Call(func, e.known :: args.toList)
-
     /** Call built-in `id` function. */
-    def id: Expr.Call[Long] = call("id")
+    def id: Expr.Call[Long] = e.call("id")
     /** Call built-in `count` function. */
-    def count: Expr.Call[Long] = call("count")
+    def count: Expr.Call[Long] = e.call("count")
     /** Call built-in `keys` function. */
-    def keys: Expr.Call[List[String]] = call("keys")
+    def keys: Expr.Call[List[String]] = e.call("keys")
 
   }
 
@@ -72,6 +80,15 @@ package object syntax extends LowPriorityImplicits {
     def tpe: Expr.Call[String] = e.call("type")
     /** Call built-in `type` function. */
     def `type`: Expr.Call[String] = tpe
+  }
+
+  final implicit class PathOps(e: Path) {
+    /** Call built-in `nodes` function. */
+    def nodes: Expr.Call[List[Graph.Vertex]] = e.call("nodes")
+    /** Call built-in `relationships` function. */
+    def edges: Expr.Call[List[Graph.Edge]] = e.call("relationships")
+    /** Call built-in `nodes` function. */
+    def length: Expr.Call[Long] = e.call("length")
   }
 
 
@@ -92,6 +109,10 @@ package object syntax extends LowPriorityImplicits {
     def unapply(arg: Any): Option[(String, Option[Any])] = Some(???)
   }
 
+  object ::= {
+    def unapply(arg: Graph): Option[(Path, Graph)] = Some(Graph.path() -> Graph())
+  }
+  // TODO: binding relationships list to a variable is deprecated by neo4j
   object *: {
     def unapply(edge: Edge): Option[(Expr.Var[List[Graph.Edge]], -[Int, Int], Edge)] = Some(???)
   }

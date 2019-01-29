@@ -601,7 +601,7 @@ object CypherFragment {
   type PatternTuple = NonEmptyList[Known[Pattern]]
   sealed trait Pattern
   object Pattern {
-    case class Let[+A](alias: String, pattern: Known[Pattern0]) extends Pattern
+    case class Let(alias: String, pattern: Known[Pattern0]) extends Pattern
 
     sealed trait Pattern0 extends Pattern
     case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0

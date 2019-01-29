@@ -98,6 +98,7 @@ object Match { MatchObj =>
     val `syntax Int-Int` = typeOf[II]
     val `syntax :=` = typeOf[:=.type]
     val `syntax :?=` = typeOf[:?=.type]
+    val `syntax ::=` = typeOf[::=.type]
     val `syntax *:` = typeOf[*:.type]
     val GraphVertexType = weakTypeOf[ClassTag[Vertex]]
     val GraphEdgeType   = weakTypeOf[ClassTag[Edge]]
@@ -177,30 +178,41 @@ object Match { MatchObj =>
       c.Expr[Known[Pattern.Rel]](tree)
     }
 
+    def knownLetExpr0(name: Name, pattern: Tree): c.Expr[Known[Pattern.Let]] = c.Expr[Known[Pattern.Let]](
+      q"""
+        _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
+          _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Let(
+            alias = ${name.decodedName.toString},
+            pattern = $pattern
+          )
+        )
+      """
+    )
+
     object ExtractNode {
-      def unapply(tree: Tree): Option[NamedKnownExpr[Pattern.Node]] = tree match {
+      def unapply(tree: Tree): Option[NodeKP] = tree match {
         case Ident(termNames.WILDCARD) =>
-          Some{ (tree.symbol, None) -> knownNodeExpr1(termNames.WILDCARD) }
+          Some{ NodeKP(tree.symbol, None, knownNodeExpr1(termNames.WILDCARD)) }
         case Ident(name) =>
-          Some{ (tree.symbol, None) -> knownNodeExpr1(name) }
+          Some{ NodeKP(tree.symbol, None, knownNodeExpr1(name)) }
         case Bind(name, body) =>
-          Some{ (tree.symbol, Some(name)) -> knownNodeExpr(name, body) }
+          Some{ NodeKP(tree.symbol, Some(name), knownNodeExpr(name, body)) }
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
-          Some{ (tree.symbol, None) -> knownNodeExpr(termNames.WILDCARD, ua) }
+          Some{ NodeKP(tree.symbol, None, knownNodeExpr(termNames.WILDCARD, ua)) }
         case _ => None
       }
     }
 
     object ExtractRel {
-      type Build = c.Expr[Rel.Direction] => NamedKnownExpr[Pattern.Rel]
+      type Build = c.Expr[Rel.Direction] => RelKP
 
       def unapply(tree: Tree): Option[Build] = tree match {
         case Ident(termNames.WILDCARD) =>
-          Some{ dir => (tree.symbol, None) -> knownRelExpr(None, EmptyTree, None, dir) }
+          Some{ dir => RelKP(tree.symbol, None, knownRelExpr(None, EmptyTree, None, dir)) }
         case Bind(name, body) =>
-          Some{ dir => (tree.symbol, Some(name)) -> knownRelExpr(Some(name), body, None, dir) }
+          Some{ dir => RelKP(tree.symbol, Some(name), knownRelExpr(Some(name), body, None, dir)) }
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
-          Some{ dir => (tree.symbol, None) -> knownRelExpr(None, ua, None, dir) }
+          Some{ dir => RelKP(tree.symbol, None, knownRelExpr(None, ua, None, dir)) }
         case UnApply(Apply(Select(sel, TermName("unapply")), _), List(bind, limits, edgeT)) if sel.tpe =:= `syntax *:` =>
           val name = DeepRel.name(bind)
           val length = DeepRel.length(limits)
@@ -208,7 +220,7 @@ object Match { MatchObj =>
             case Ident(termNames.WILDCARD)                                     => EmptyTree
             case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] => ua
           }
-          Some { dir: c.Expr[Rel.Direction] => ((bind.symbol, name), knownRelExpr(name, edge, Some(length), dir)) }
+          Some { dir: c.Expr[Rel.Direction] => RelKP(bind.symbol, name, knownRelExpr(name, edge, Some(length), dir)) }
         case _ => None
       }
 
@@ -239,48 +251,53 @@ object Match { MatchObj =>
       }
     }
 
-    type NamedKnownExpr[A] = ((Symbol, Option[Name]), c.Expr[Known[A]])
-    type KnownVertexEdgeExpr = Either[NamedKnownExpr[Pattern.Node], NamedKnownExpr[Pattern.Rel]]
+    sealed trait KnownExpr[+A] {
+      def symbol: Symbol
+      def name: Option[Name]
+      def expr: c.Expr[Known[A]]
+    }
+    sealed trait KnownPattern extends KnownExpr[Pattern]
+    case class NodeKP(symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Node]]) extends KnownPattern with KnownExpr[Pattern.Node]
+    case class RelKP (symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Rel]])  extends KnownPattern with KnownExpr[Pattern.Rel]
+    case class LetKP (symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Let]])  extends KnownPattern with KnownExpr[Pattern.Let]
 
     object V1 {
-      def unapply(tree: Tree): Option[KnownVertexEdgeExpr] = PartialFunction.condOpt(tree) {
-        case ExtractNode(node) => Left(node)
+      def unapply(tree: Tree): Option[KnownPattern] = PartialFunction.condOpt(tree) {
+        case ExtractNode(node) => node
       }
     }
 
     object V {
-      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
-        case ExtractNode(node) => Left(node) :: Nil
+      def unapply(tree: Tree): Option[List[KnownPattern]] = PartialFunction.condOpt(tree) {
+        case ExtractNode(node) => node :: Nil
       }
     }
 
     object VOrDashEV {
-      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[List[KnownPattern]] = PartialFunction.condOpt(tree) {
         case Apply(tt, List(ExtractRel(rel), ExtractNode(node))) if tt.tpe.resultType =:= `syntax E-V` =>
-          Left(node) :: Right(rel(reify(Rel.Incoming))) :: Nil
+          node :: rel(reify(Rel.Incoming)) :: Nil
         case ExtractNode(node) =>
-          Left(node) :: Nil
+          node :: Nil
       }
     }
     object VOrDashVE {
-      def unapply(tree: Tree): Option[List[KnownVertexEdgeExpr]] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[List[KnownPattern]] = PartialFunction.condOpt(tree) {
         case Apply(tt: TypeTree, List(ExtractNode(node), ExtractRel(rel))) if tt.tpe.resultType =:= `syntax V-E` =>
-          Right(rel(reify(Rel.Outgoing))) :: Left(node) :: Nil
+          rel(reify(Rel.Outgoing)) :: node :: Nil
         case ExtractNode(node) =>
-          Left(node) :: Nil
+          node :: Nil
       }
     }
 
     object DashListE {
-      def unapply(tree: Tree): Option[(Tree, c.Expr[Rel.Direction] => KnownVertexEdgeExpr)] = PartialFunction.condOpt(tree) {
+      def unapply(tree: Tree): Option[(Tree, c.Expr[Rel.Direction] => KnownPattern)] = PartialFunction.condOpt(tree) {
         case Apply(tt: TypeTree, List(t, ExtractRel(rel))) if tt.tpe.resultType =:= `syntax V-E` =>
-          t -> (dir => Right(rel(dir)))
+          t -> (dir => rel(dir))
       }
     }
 
-    def simpleRel(dir: c.Expr[Rel.Direction]): KnownVertexEdgeExpr = Right {
-      (NoSymbol, None) -> knownRelExpr(None, EmptyTree, None, dir)
-    }
+    def simpleRel(dir: c.Expr[Rel.Direction]): RelKP = RelKP(NoSymbol, None, knownRelExpr(None, EmptyTree, None, dir))
 
     def failedToParse(tree: Tree) =
       c.abort(c.enclosingPosition, s"Failed to parse pattern of ${showCode(tree)}\n\n${showRaw(tree)}")
@@ -296,7 +313,7 @@ object Match { MatchObj =>
           case _ => c.abort(c.enclosingPosition, "Only one case is permitted in `Match`.")
         }
 
-        def extractPatternRev(tree: Tree): List[KnownVertexEdgeExpr] = tree match {
+        def extractPatternRev(tree: Tree): List[KnownPattern] = tree match {
           case ua@UnApply(Apply(Select(arrow, TermName("unapply")), _), args) =>
             (args: @unchecked) match {
               case List(V1(v1),              V1(v2))              if arrow.tpe =:= `syntax <-` => v2 :: simpleRel(reify(Rel.Incoming)) :: v1 :: Nil
@@ -308,6 +325,8 @@ object Match { MatchObj =>
               case List(l,                   VOrDashVE(revHead))  if arrow.tpe =:= `syntax >`  => revHead  ::: extractPatternRev(l)
               case List(V(v),                VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: v
               case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: extractPatternRev(l)
+              case List(b@Bind(name, _), pat)                     if arrow.tpe =:= `syntax ::=` =>
+                LetKP(b.symbol, Some(name), knownLetExpr(name, extractPatternRev(pat))) :: Nil // TODO: handle Wildcard name
               case List(V(v)) if arrow.tpe <:< GraphVertexType => v
               case _ => failedToParse(ua)
             }
@@ -315,26 +334,28 @@ object Match { MatchObj =>
           case _ => failedToParse(tree)
         }
 
+        def knownLetExpr(name: Name, patterns: List[KnownPattern]): c.Expr[Known[Pattern.Let]] = knownLetExpr0(name, toFragment(patterns).left.get.tree) // TODO: get
 
-        def toFragment0(patternRev: List[KnownVertexEdgeExpr], acc: c.Expr[Known[Pattern.Pattern0]]): c.Expr[Known[Pattern.Pattern0]] =
+        def toFragment0(patternRev: List[KnownPattern], acc: c.Expr[Known[Pattern.Pattern0]]): Either[c.Expr[Known[Pattern.Pattern0]], c.Expr[Known[Pattern.Let]]] =
           (patternRev: @unchecked) match {
-            case Nil => acc
-            case Right((_, relExpr)) :: Left((_, nodeExpr)) :: tail =>
+            case Nil => Left(acc)
+            case RelKP(_, _, rel) :: NodeKP(_, _, node) :: tail =>
               val newAcc = reify {
                 Known(
-                  Pattern.Path(nodeExpr.splice, relExpr.splice, acc.splice)
+                  Pattern.Path(node.splice, rel.splice, acc.splice)
                 )
               }
               toFragment0(tail, newAcc)
           }
-        def toFragment(patternRev: List[KnownVertexEdgeExpr]): c.Expr[Known[Pattern.Pattern0]] = (patternRev: @unchecked) match {
-          case Left((_, node)) :: tail => toFragment0(tail, node)
+        def toFragment(patternRev: List[KnownPattern]): Either[c.Expr[Known[Pattern.Pattern0]], c.Expr[Known[Pattern.Let]]] = (patternRev: @unchecked) match {
+          case LetKP(_, _, let) :: Nil => Right(let)
+          case NodeKP(_, _, node) :: tail => toFragment0(tail, node)
         }
 
         val p = extractPatternRev(pattern0)
-        val pattern = toFragment(p)
+        val pattern = toFragment(p).merge
 
-        val bindSymbols = p.map(_.left.map(_._1).right.map(_._1).merge).toSet
+        val bindSymbols = p.map(ke => ke.symbol -> ke.name).toSet
 
         val setAliases = bindSymbols.withFilter(_._2.isDefined).map{
           case (symbol, name) =>

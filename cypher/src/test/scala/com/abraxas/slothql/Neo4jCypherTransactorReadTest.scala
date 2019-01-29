@@ -92,6 +92,44 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
+    "assign paths to variables" in {
+      val query = tx.read(Match {
+        case ps ::= (Vertex("Group") - _ *:(0 - _, _) > Vertex("User")) =>
+          (
+            ps.length,
+            ps.nodes.map(n => dict("labels" -> n.labels, "id" -> n.prop[String]("id"))),
+            ps.edges.map(_.tpe)
+          )
+      })
+      test[(Long, List[Map[String, Any]], List[String])](query, Seq(
+        ( 2,
+          List(
+            Map("id" -> "g1",   "labels" -> List("Group")),
+            Map("id" -> None,   "labels" -> List("Members")),
+            Map("id" -> "u1",   "labels" -> List("User"))
+          ),
+          List("members", "Admin")
+        ),
+        ( 3,
+          List(
+            Map("id" -> "g2",   "labels" -> List("Group")),
+            Map("id" -> "g1",   "labels" -> List("Group")),
+            Map("id" -> None,   "labels" -> List("Members")),
+            Map("id" -> "u1",   "labels" -> List("User"))
+          ),
+          List("parent", "members", "Admin")
+        ),
+        ( 2,
+          List(
+            Map("id" -> "g2",   "labels" -> List("Group")),
+            Map("id" -> None,   "labels" -> List("Members")),
+            Map("id" -> "u1",   "labels" -> List("User"))
+          ),
+          List("members", "Edit")
+        )
+      ))
+    }
+
     object ChainAndGatherTest {
       val userQuery = Match { case u@Vertex("User") => u.prop[String]("id") }
       def groupDepQuery(id: String) = Match {
