@@ -169,8 +169,6 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     implicit lazy val float: ValueReader[Float] = ValueReader define ("Float", _.asFloat())
     implicit lazy val double: ValueReader[Double] = ValueReader define ("Double", _.asDouble())
 
-    implicit lazy val cell: ValueReader[Cell] = ValueReader define ("Cell", locally)
-
     object Default extends Default
     class Default {
       def apply[A: ru.TypeTag]: ValueReader[_] = apply(ru.typeOf[A])
@@ -193,7 +191,6 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
       protected def atomicReaders = Map[ru.Type, ValueReader[_]](
         ru.typeOf[Any]     -> any,
-        ru.typeOf[Cell]    -> cell,
         ru.typeOf[String]  -> string,
         ru.typeOf[Boolean] -> boolean,
         ru.typeOf[Int]     -> int,
