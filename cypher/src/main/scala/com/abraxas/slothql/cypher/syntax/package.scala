@@ -194,7 +194,7 @@ package object syntax extends LowPriorityImplicits {
 
     def toLower: Expr.Call[String] = 'toLower.call(expr0)
     def toUpper: Expr.Call[String] = 'toUpper.call(expr0)
-    def length:  Expr.Call[Long]   = 'length.call(expr0)
+    def size:    Expr.Call[Long]   = 'size.call(expr0)
 
     def toBoolean: Expr.Call[Boolean] = 'toBoolean.call(expr0)
     def toDouble:  Expr.Call[Double]  = 'toFloat.call(expr0)
@@ -303,7 +303,7 @@ package object syntax extends LowPriorityImplicits {
     def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
       at[E1[Long], E1[Long]](Ior.Right(i.asInstanceOf[E1[Long]]))
 
-    def length: Expr.Call[Long] = Expr.Call("length", List(expr0))
+    def size: Expr.Call[Long] = Expr.Call("size", List(expr0))
 
     def withFilter(f: Expr.Var[A] => Known[Expr[Boolean]]): ListOps.WithFilter[A] = new ListOps.WithFilter(listExpr, f)
 

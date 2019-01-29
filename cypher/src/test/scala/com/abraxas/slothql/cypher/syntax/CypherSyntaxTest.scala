@@ -212,7 +212,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
           (
             name.toLower,
             name.toUpper,
-            name.length,
+            name.size,
             name.toBoolean,
             name.toDouble,
             name.toLong,
@@ -232,7 +232,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "RETURN " +
         "`toLower`(`v`.`name`), " +
         "`toUpper`(`v`.`name`), " +
-        "`length`(`v`.`name`), " +
+        "`size`(`v`.`name`), " +
         "`toBoolean`(`v`.`name`), " +
         "`toFloat`(`v`.`name`), " +
         "`toInteger`(`v`.`name`), " +
@@ -280,7 +280,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
           list(v.id, e.id),
           l,
           v.labels ++ list(e.tpe),
-          v.labels.length,
+          v.labels.size,
           e.tpe in l,
           v.labels at lit(0),
           l at (lit(1), lit(2L)),
@@ -293,7 +293,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "[ `id`(`v`), `id`(`e`) ], " +
         "[ \"Admin\", \"Share\", \"Create\" ], " +
         "`labels`(`v`) + [ `type`(`e`) ], " +
-        "`length`(`labels`(`v`)), " +
+        "`size`(`labels`(`v`)), " +
         "`type`(`e`) IN [ \"Admin\", \"Share\", \"Create\" ], " +
         "`labels`(`v`)[0], " +
         "[ \"Admin\", \"Share\", \"Create\" ][1..2], " +
@@ -503,11 +503,11 @@ class CypherSyntaxTest extends WordSpec with Matchers {
 
     "reduce lists" in {
       val reduceExpr@CypherFragment.Expr.ReduceList(_, elem, _, acc, _) = testVar[List[String]]()
-        .reduce(0L)((name, acc) => acc + name.length )
+        .reduce(0L)((name, acc) => acc + name.size )
       test(
         Match { case v => reduceExpr.copy(list = v.prop[List[String]]("names")) },
          "MATCH (`v`) " +
-        s"RETURN reduce(`$acc` = 0, `$elem` IN `v`.`names` | `$acc` + `length`(`$elem`))"
+        s"RETURN reduce(`$acc` = 0, `$elem` IN `v`.`names` | `$acc` + `size`(`$elem`))"
       ).returns[Long]
     }
 
