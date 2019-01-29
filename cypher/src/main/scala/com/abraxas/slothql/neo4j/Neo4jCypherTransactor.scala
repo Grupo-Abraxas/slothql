@@ -76,13 +76,13 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
       }
 
 
-    protected sealed trait ValueType[A]
-    protected object ValueType {
+    private trait ValueType[A]
+    private object ValueType {
       implicit def apply[A]: ValueType[A] = instance.asInstanceOf[ValueType[A]]
       private val instance = new ValueType[Any] {}
     }
 
-    protected object ReadValues extends Poly2 {
+    private object ReadValues extends Poly2 {
       implicit def default[AccRev <: HList, A, R](
         implicit reader: Strict[ValuesReader.Aux[A, R]]
       ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
