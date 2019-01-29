@@ -112,8 +112,8 @@ package object syntax extends LowPriorityImplicits {
   object ::= {
     def unapply(arg: Graph): Option[(Path, Graph)] = Some(Graph.path() -> Graph())
   }
-  // TODO: binding relationships list to a variable is deprecated by neo4j
   object *: {
+    // TODO: Binding relationships to a list in a variable length pattern is deprecated by neo4j
     def unapply(edge: Edge): Option[(Expr.Var[List[Graph.Edge]], -[Int, Int], Edge)] = Some(???)
   }
 

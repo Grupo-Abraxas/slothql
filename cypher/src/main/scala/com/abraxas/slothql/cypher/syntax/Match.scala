@@ -215,6 +215,8 @@ object Match { MatchObj =>
           Some{ dir => RelKP(tree.symbol, None, knownRelExpr(None, ua, None, dir)) }
         case UnApply(Apply(Select(sel, TermName("unapply")), _), List(bind, limits, edgeT)) if sel.tpe =:= `syntax *:` =>
           val name = DeepRel.name(bind)
+          if (name.nonEmpty) c.warning(bind.pos,
+            s"Binding a variable length relationship pattern to a variable ('${name.get}') is deprecated and will be unsupported in a future version of neo4j")
           val length = DeepRel.length(limits)
           val edge = (edgeT: @unchecked) match {
             case Ident(termNames.WILDCARD)                                     => EmptyTree
