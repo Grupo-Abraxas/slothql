@@ -8,4 +8,4 @@ It might include _Nous_ related code.
 
 -----------------------------------------------------
 
-[What we have/want](what.md)
+[Cypher syntax](cypher/doc/syntax.md)
