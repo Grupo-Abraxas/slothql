@@ -55,11 +55,33 @@ case Vertex(`labelA`, `labelB`, "id" := `id`) - Edge(`types`) > (v@Vertex(`label
 // MATCH (:`A`:`B`{ `id`: 100 }) -[:`foo`|`bar`]-> (`v`:`Z`:`W`)
 ```
 
+Optional properties can be matched.
+```scala
+val idOpt = Option.empty[String]
+case v@Vertex("id" :?= `idOpt`) =>
+// MATCH (`v`)
+
+val idOpt = Some("123")
+case v@Vertex("id" :?= `idOpt`) =>
+// MATCH (`v`{ `id`: \"123\" })
+```
+
 #### Where
 Where clauses can be added to match with scala's `if` guards.
 ```scala
 case v if v.id <= lit(1000L) =>
 // MATCH (`v`) WHERE `id`(`v`) <= 1000
+```
+
+Condition in `if` guard can be an optional _known_ expression.
+```scala
+def condOpt(v: Vertex): Option[CypherFragment.Known[CypherFragment.Expr[Boolean]]] = None 
+case v if condOpt(v) => 
+// MATCH (`v`)
+
+def condOpt(v: Vertex) = Some(v.prop[String]("name").matches(lit("foo.*bar")).known) 
+case v if condOpt(v) => 
+// MATCH (`v`) WHERE `v`.`name` =~ \"foo.*bar\"
 ```
 
 ## Expressions
@@ -157,12 +179,62 @@ case v if v.id <= lit(1000L) =>
 | Trailing whitespace removal       | `x.trimRight`             | `rTrim(x)`        | String
 
 
+#### Case
+**Simple** case expressions allow to match a value by equality.
+```scala
+Match { case v =>
+  v.labels whenUnsafe(
+    lit("foo" :: Nil) -> lit(1),
+    lit("bar" :: Nil) -> lit(2)
+  )
+}
+// MATCH (`v`)
+// RETURN
+//  CASE `labels`(`v`)
+//    WHEN [ \"foo\" ] THEN 1
+//    WHEN [ \"bar\" ] THEN 2
+//  END
+
+Match { case v =>
+  v.labels when(
+    lit("foobar" :: Nil) -> lit(1)
+  ) otherwise               lit(0)
+}
+// MATCH (`v`)
+// RETURN
+//  CASE `labels`(`v`)
+//    WHEN [ \"foobar\" ] THEN 1
+//    ELSE 0
+//  END
+```
+
+
+**Generic** case expressions can match any condition.
+```scala
+Match { case v =>
+  when(
+    (lit("foo") in v.labels)    -> lit(1),
+    (v.prop[Int]("x") % 2 <> 0) -> lit(2)
+  ) otherwise                      lit(0)
+}
+// MATCH (`v`)
+// RETURN
+//  CASE
+//    WHEN \"foo\" IN `labels`(`v`) THEN 1
+//    WHEN `v`.`x` % 2 <> 0         THEN 2
+//    ELSE 0
+//  END
+```
+(it has `whenUnsafe` version without `otherwise` clause)
+
+
 ## Other Clauses
 
 #### Unwind
 
-
 #### With
+
+#### Union
 
 
 ## Return
