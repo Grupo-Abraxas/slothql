@@ -232,10 +232,61 @@ Match { case v =>
 
 #### Unwind
 
+Unwind list expression to rows.
+```scala
+Match { case v =>
+  unwind(v.prop[List[String]]("children")) {
+    child =>
+    Match { case c@Vertex("name" := `child`) =>
+      ...
+    }
+  }
+}
+// MATCH (`v`)
+// UNWIND `v`.`children` AS `child`
+// MATCH (`c`{ `name`: `child` })
+```
+
+Unwind a literal list.
+```scala
+unwind(lit(1 to 5)) { id =>
+  Match { case v@Vertex("id" := `id`) =>
+    ...
+  }
+}
+// UNWIND [ 1, 2, 3, 4, 5 ] AS `id`
+// MATCH (`v`{ `id`: `id` })
+```
+
 #### With
+_With_ functionality is greatly reduced due to the problem of unbinding variables, not included in `with`.
+It only allows specifying return modifiers.
+```scala
+Match { case v =>
+  `with`(_.distinct.orderBy(v.prop("age")).skip(10).limit(10)) {
+    Match { case v - _ > w =>
+      ...
+    }
+  }
+}
+// MATCH (`v`)
+// WITH DISTINCT *
+//  ORDER BY `v`.`age`
+//  SKIP 10 LIMIT 10
+// MATCH (`v`) -[]-> (`w`)
+```
 
 #### Union
-
+Concatenate results of the queries (each query must return same columns).
+```scala
+val query1 = Match { case v@Vertex("A") => v.prop[String]("name") }
+val query2 = Match { case v@Vertex("B") => v.prop[String]("foo") as "name" }
+query1 union query2
+// MATCH (`v`:`A`) RETURN `v`.`name`
+// UNION
+// MATCH (`v`:`B`) RETURN `v`.`foo` AS `name`
+```
 
 ## Return
+
 
