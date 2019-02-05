@@ -509,6 +509,17 @@ package object syntax extends LowPriorityImplicits {
         def apply(e: E): Return.Expr[A] = Return.Expr(Known(e).widen, as = None)
       }
 
+    implicit def returnReturnExpr[A, E <: Return.Expr[_]](
+      implicit
+      unpack: Unpack1[E, Return.Expr, A],
+      fragment: CypherFragment[E]
+    ): AuxOut[E, A, Return.Expr[A]] =
+      new QueryReturn[E] {
+        type Ret = A
+        type Out = Return.Expr[A]
+        def apply(e: E): Return.Expr[A] = e.asInstanceOf[Return.Expr[A]]
+      }
+
     implicit def returnTuple[P <: Product, L <: HList, R <: HList](
       implicit
       ev: P <:!< Expr[_],
