@@ -76,31 +76,6 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
       }
 
 
-    private trait ValueType[A]
-    private object ValueType {
-      implicit def apply[A]: ValueType[A] = instance.asInstanceOf[ValueType[A]]
-      private val instance = new ValueType[Any] {}
-    }
-
-    private object ReadValues extends Poly2 {
-      implicit def default[AccRev <: HList, A, R](
-        implicit reader: Strict[ValuesReader.Aux[A, R]]
-      ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
-        at { case ((accRev, values), _) =>
-          val (read, rest) = reader.value(values)
-          (read :: accRev) -> rest
-        }
-
-      implicit def product[AccRev <: HList, A, Repr <: HList, R](
-        implicit gen: Generic.Aux[A, Repr], reader: ValuesReader.Aux[Repr, R]
-      ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
-        at { case ((accRev, values), _) =>
-          val (read, rest) = reader(values)
-          (read :: accRev) -> rest
-        }
-    }
-
-
     implicit def singleValue[A](implicit vr: ValueReader[A]): ValuesReader.Aux[A, A] =
       ValuesReader define {
         case head :: tail => vr(head) -> tail
@@ -110,8 +85,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     // converts HList to tuple
     implicit def hlist[L <: HList, VL <: HList, ReadU, ReadRev <: HList, Read <: HList](
       implicit
-      valueTypes: ops.hlist.LiftAll.Aux[ValueType, L, VL],
-      fold: ops.hlist.LeftFolder.Aux[VL, (HNil, List[Value]), ReadValues.type, ReadU],
+      valueTypes: ops.hlist.LiftAll.Aux[HListImpl.ValueType, L, VL],
+      fold: ops.hlist.LeftFolder.Aux[VL, (HNil, List[Value]), HListImpl.ReadValues.type, ReadU],
       unpack: Unpack2[ReadU, Tuple2, ReadRev, List[Value]],
       revRead: ops.hlist.Reverse.Aux[ReadRev, Read],
       toTuple: ops.hlist.Tupler[Read]
@@ -121,6 +96,32 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
         toTuple(revRead(read)) -> rest
       }
 
+
+    object HListImpl {
+      sealed trait ValueType[A]
+      object ValueType {
+        implicit def apply[A]: ValueType[A] = instance.asInstanceOf[ValueType[A]]
+        private val instance = new ValueType[Any] {}
+      }
+
+      object ReadValues extends Poly2 {
+        implicit def default[AccRev <: HList, A, R](
+          implicit reader: Strict[ValuesReader.Aux[A, R]]
+        ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
+          at { case ((accRev, values), _) =>
+            val (read, rest) = reader.value(values)
+            (read :: accRev) -> rest
+          }
+
+        implicit def product[AccRev <: HList, A, Repr <: HList, R](
+          implicit gen: Generic.Aux[A, Repr], reader: ValuesReader.Aux[Repr, R]
+        ): Case.Aux[(AccRev, List[Value]), ValueType[A], (R #: AccRev, List[Value])] =
+          at { case ((accRev, values), _) =>
+            val (read, rest) = reader(values)
+            (read :: accRev) -> rest
+          }
+      }
+    }
   }
 
   trait ValueReader[A] extends CypherTransactor.Reader[Value, A] {
