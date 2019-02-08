@@ -148,13 +148,15 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     implicit lazy val ValueIsTypeable: Typeable[Value] = Typeable.simpleTypeable(classOf[Value])
 
     implicit def option[A](implicit reader: ValueReader[A]): ValueReader[Option[A]] =
-      ValueReader define (s"Option[${reader.describeResult}]", v => if (v.isNull) None else Some(reader(v)))
+      ValueReader define (s"Option[${reader.describeResult}]", ifNotNull(reader.apply _ andThen Some.apply, None))
 
     implicit def list[A](implicit reader: ValueReader[A]): ValueReader[List[A]] =
-      ValueReader define (s"List[${reader.describeResult}]", _.values(reader.apply(_: Value)).asScala.toList )
+      ValueReader define (s"List[${reader.describeResult}]", ifNotNull(_.values(reader.apply(_: Value)).asScala.toList, Nil) )
 
     implicit def map[A](implicit reader: ValueReader[A]): ValueReader[Map[String, A]] =
-      ValueReader define (s"Map[String, ${reader.describeResult}]", _.asMap(reader.apply(_: Value)).asScala.toMap)
+      ValueReader define (s"Map[String, ${reader.describeResult}]", ifNotNull(_.asMap(reader.apply(_: Value)).asScala.toMap, Map()))
+
+    private def ifNotNull[R](notNull: Value => R, isNull: => R): Value => R = v => if (v.isNull) isNull else notNull(v)
 
     implicit lazy val any: ValueReader[Any] = ValueReader define ("Any", {
       case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.LIST) => list[Any].apply(v)
