@@ -522,8 +522,12 @@ object CypherFragment {
         object KnownReturnExprPoly extends Poly1 {
           implicit def expr[A, E](implicit isExpr: Unpack1[E, CypherFragment.Expr, A], fragment: CypherFragment[E]): Case.Aux[E, Known[Return.Expr[A]]] =
             at[E](e => Return.Expr(e.known.asInstanceOf[Known[CypherFragment.Expr[A]]], None).known.widen)
+          implicit def knownExpr[A, E](implicit isExpr: Unpack1[E, CypherFragment.Expr, A]): Case.Aux[Known[E], Known[Return.Expr[A]]] =
+            at[Known[E]](ke => Return.Expr(ke.asInstanceOf[Known[CypherFragment.Expr[A]]], None).known.widen)
           implicit def returnExpr[A, E](implicit isReturnExpr: Unpack1[E, CypherFragment.Return.Expr, A], fragment: CypherFragment[E]): Case.Aux[E, Known[Return.Expr[A]]] =
             at[E](_.known.asInstanceOf[Known[Return.Expr[A]]])
+          implicit def knownReturnExpr[A, E](implicit isReturnExpr: Unpack1[E, CypherFragment.Return.Expr, A]): Case.Aux[Known[E], Known[Return.Expr[A]]] =
+            at[Known[E]](_.asInstanceOf[Known[Return.Expr[A]]])
           implicit def boolean[E](implicit isBoolean: E <:< CypherFragment.Expr[Boolean], fragment: CypherFragment[E], lowPriority: LowPriority): Case.Aux[E, Known[Return.Expr[Boolean]]] =
             at[E](e => Return.Expr[Boolean](e.known.widen, None).known)
           implicit def list[E, L, A](implicit isExpr: E <:< CypherFragment.Expr[L], unpack: Unpack1[L, scala.List, A], fragment: CypherFragment[E], lowPriority: LowPriority): Case.Aux[E, Known[Return.Expr[scala.List[A]]]] =
