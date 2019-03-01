@@ -310,19 +310,26 @@ package object syntax extends LowPriorityImplicits {
     def at[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtIndex[A] =
       Expr.AtIndex(listExpr, i.asInstanceOf[E1[Long]].known)
 
-    def at[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](range: Ior[E1, E2]): Expr.AtRange[A] =
-      Expr.AtRange(listExpr, range.bimap(_.known, _.known))
+    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](
+      range: Ior[E1[I1], E2[I2]]
+    )(
+      implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
+    ): Expr.AtRange[A] =
+      Expr.AtRange(listExpr, range.bimap(_.known.asInstanceOf[Known[Expr[Long]]], _.known.asInstanceOf[Known[Expr[Long]]]))
 
     def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](l: E1[I1], r: E2[I2])(
-      implicit frag1: CypherFragment[E1[Long]], frag2: CypherFragment[E2[Long]]
-    ): Expr.AtRange[A] =
-      at(Ior.Both(l.asInstanceOf[E1[Long]], r.asInstanceOf[E2[Long]]))
+      implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
+    ): Expr.AtRange[A] = at(Ior.Both(l, r))
 
-    def from[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
-      at[E1[Long], E1[Long]](Ior.Left(i.asInstanceOf[E1[Long]]))
+    def from[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[I]]): Expr.AtRange[A] = at[I, I, E1, E1](Ior.Left(i))
 
-    def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtRange[A] =
-      at[E1[Long], E1[Long]](Ior.Right(i.asInstanceOf[E1[Long]]))
+    def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[I]]): Expr.AtRange[A] = at[I, I, E1, E1](Ior.Right(i))
+
+    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](
+      rangeOpt: Option[Ior[E1[I1], E2[I2]]]
+    )(
+      implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
+    ): Known[Expr[List[A]]] = rangeOpt.map(at(_).known) getOrElse listExpr
 
     def size: Expr.Call[Long] = Expr.Call("size", List(expr0))
 
