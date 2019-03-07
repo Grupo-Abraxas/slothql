@@ -158,6 +158,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
     private def ifNotNull[R](notNull: Value => R, isNull: => R): Value => R = v => if (v.isNull) isNull else notNull(v)
 
+    lazy val cell: ValueReader[Cell] = ValueReader define ("Cell", locally)
+
     implicit lazy val any: ValueReader[Any] = ValueReader define ("Any", {
       case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.LIST) => list[Any].apply(v)
       case v if v.hasType(InternalTypeSystem.TYPE_SYSTEM.MAP)  => map[Any].apply(v)
