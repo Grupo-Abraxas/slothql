@@ -173,6 +173,8 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     implicit lazy val long: ValueReader[Long] = ValueReader define ("Long", _.asLong())
     implicit lazy val float: ValueReader[Float] = ValueReader define ("Float", _.asFloat())
     implicit lazy val double: ValueReader[Double] = ValueReader define ("Double", _.asDouble())
+    implicit lazy val bigInt: ValueReader[BigInt] = ValueReader define ("BigInt", BigInt apply _.asString())
+    implicit lazy val bigDecimal: ValueReader[BigDecimal] = ValueReader define ("BigDecimal", BigDecimal apply _.asString())
 
     object Default extends Default
     class Default {
@@ -201,7 +203,9 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
         ru.typeOf[Int]     -> int,
         ru.typeOf[Long]    -> long,
         ru.typeOf[Float]   -> float,
-        ru.typeOf[Double]  -> double
+        ru.typeOf[Double]  -> double,
+        ru.typeOf[BigInt]  -> bigInt,
+        ru.typeOf[BigDecimal] -> bigDecimal
       )
 
       private val OptionType    = ru.typeOf[Option[_]]
