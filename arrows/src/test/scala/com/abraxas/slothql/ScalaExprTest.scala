@@ -1,16 +1,97 @@
 package com.abraxas.slothql
 
 import cats.data.Ior
-import shapeless.Witness
+import cats.instances.list._
+import cats.instances.option._
 import org.scalatest.Assertions.{ assert, assertionsHelper }
+import shapeless._
 
-import com.abraxas.slothql.arrow.ScalaExpr
-import com.abraxas.slothql.test.models.{ Book, Page }
+import com.abraxas.slothql.arrow.{ Arrow, ScalaExpr }
+import com.abraxas.slothql.test.models._
 
 object RunScalaExprTest extends App { ScalaExprTest }
 object ScalaExprTest {
-  type text  = Witness.`"text"`.T
-  type pages = Witness.`"pages"`.T
+  type title   = Witness.`"title"`.T
+  type author  = Witness.`"author"`.T
+  type pages   = Witness.`"pages"`.T
+  type meta    = Witness.`"meta"`.T
+  type reviews = Witness.`"reviews"`.T
+  type name    = Witness.`"name"`.T
+  type text    = Witness.`"text"`.T
+  type isbn    = Witness.`"isbn"`.T
+  type user    = Witness.`"user"`.T
+  type vote    = Witness.`"vote"`.T
+
+
+  val splitBook = ScalaExpr[Book].split(_.title, _.author.map(_.name), _.meta.isbn)
+  implicitly[splitBook.type <:<
+    ScalaExpr.Split[
+      ScalaExpr.SelectField[Book, title, String] ::
+      ScalaExpr.Composition[
+          ScalaExpr.FMap[Option, ScalaExpr.SelectField[Author, name, String]],
+          ScalaExpr.SelectField[Book, author, Option[Author]]
+        ]{ type Source = Book; type Target = Option[String] } ::
+      ScalaExpr.Composition[
+          ScalaExpr.SelectField[Meta, isbn, String],
+          ScalaExpr.SelectField[Book, meta, Meta]
+        ]{ type Source = Book; type Target = String } ::
+      HNil
+    ]{ type Source = Book; type Target = (String, Option[String], String) }
+  ]
+  assert(splitBook ==
+    Arrow.Split(
+      ScalaExpr.SelectField[Book, title, String]("title"),
+      ScalaExpr.FMap.tpe[Option].expr(ScalaExpr.SelectField[Author, name, String]("name"))
+        ∘ ScalaExpr.SelectField[Book, author, Option[Author]]("author"),
+      ScalaExpr.SelectField[Meta, isbn, String]("isbn")
+        ∘ ScalaExpr.SelectField[Book, meta, Meta]("meta")
+    )
+  )
+
+
+  val chooseBookReview = ScalaExpr[Book].reviews.map(_.choose(
+    _.on[UserReview].split(_.user, _.text, _.vote),
+    _.on[AnyReview].text
+  ))
+  implicitly[chooseBookReview.type <:<
+    ScalaExpr.Composition[
+      ScalaExpr.FMap[List,
+        ScalaExpr.Choose[Review,
+          ScalaExpr.Split[
+              ScalaExpr.SelectField[UserReview, user, String] ::
+              ScalaExpr.SelectField[UserReview, text, String] ::
+              ScalaExpr.SelectField[UserReview, vote, Int] ::
+              HNil
+            ]{ type Source = UserReview; type Target = (String, String, Int) } ::
+          ScalaExpr.SelectField[AnyReview, text, String] ::
+          HNil
+        ]{ type Target = (String, String, Int) :+: String :+: CNil }
+      ],
+      ScalaExpr.SelectField[Book, reviews, List[Review]]
+    ]{ type Source = Book; type Target = List[(String, String, Int) :+: String :+: CNil] }
+
+  ]
+  assert(chooseBookReview == (
+    ScalaExpr.FMap.tpe[List].expr(
+      Arrow.Choose[Review].from(
+        Arrow.Split(
+          ScalaExpr.SelectField[UserReview, user, String]("user"),
+          ScalaExpr.SelectField[UserReview, text, String]("text"),
+          ScalaExpr.SelectField[UserReview, vote, Int]("vote")
+        ),
+        ScalaExpr.SelectField[AnyReview, text, String]("text")
+      )
+    ) ∘ ScalaExpr.SelectField[Book, reviews, List[Review]]("reviews")
+  ))
+
+  shapeless.test.illTyped(
+    """ScalaExpr[Review].choose(
+         _.on[UserReview].user,
+         _.on[UserReview].split(_.text, _.vote)
+       )
+    """,
+    "Source types of the arrows must be distinct"
+  )
 
 
   val filterPage1 = ScalaExpr[Page].text === "abc"

@@ -46,6 +46,7 @@ object Arrow {
   // case class Obj[A ](get: A) extends Arrow { type Source = A;    type Target =  A }
   // case class Lit[+A](get: A) extends Arrow { type Source = Unit; type Target <: A }
 
+  /** A bundle of arrows with common source. Its target is product of arrows' targets. */
   trait Split[Arrows <: HList] extends Arrow {
     val arrows: Arrows
     val toList: List[Arrow]
@@ -135,6 +136,125 @@ object Arrow {
       q"""
         _root_.com.abraxas.slothql.arrow.Arrow.Split(..${arrows.map(t => q"$t($idBuilder())")}) ∘ $f
       """
+    }
+  }
+
+
+  /** A bundle of arrows with common source `From`. Its target is coproduct of arrows' targets. */
+  trait Choose[From, Arrows <: HList] extends Arrow {
+    val arrows: Arrows
+    val toList: List[Arrow]
+
+    type Source = From
+
+    override def equals(obj: Any): Boolean = PartialFunction.cond(obj) {
+      case that: Choose[_, _] => this.arrows == that.arrows
+    }
+    override def hashCode(): Int = arrows.##
+    override def toString: String = s"Choose($arrows)"
+  }
+
+  object Choose {
+    type Aux[From, Arrows <: HList, T] = Choose[From, Arrows] { type Target = T }
+
+    def unapply(arr: Arrow): Option[List[Arrow]] = PartialFunction.condOpt(arr) { case choice: Choose[_, _] => choice.toList }
+
+    def apply[From]: ChooseBuilder[From] = ChooseBuilder.asInstanceOf[ChooseBuilder[From]]
+
+    protected class ChooseBuilder[From] extends ProductArgs {
+      def fromProduct[Arrows <: HList](arrows: Arrows)(
+        implicit
+        sourcesAreDistinct: CanChoose.SourcesAreDistinct[Arrows],
+        chooser: Chooser[From, Arrows]
+      ): chooser.Out = chooser(arrows)
+    }
+    private object ChooseBuilder extends ChooseBuilder[Any]
+
+
+    trait Chooser[From, Arrows <: HList] extends DepFn1[Arrows] { type Out <: Choose[From, Arrows] }
+    object Chooser {
+      type Aux[From, Arrows <: HList, C <: Choose[_, _]] = Chooser[From, Arrows] { type Out = C }
+    }
+
+    trait CanChoose[From, Arrows <: HList] {
+      type Targets <: Coproduct
+    }
+    object CanChoose{
+      type Aux[From, Arrows <: HList, C <: Coproduct] = CanChoose[From, Arrows] { type Target = C }
+
+      @implicitNotFound("Source types of the arrows must be distinct")
+      trait SourcesAreDistinct[Arrows <: HList]
+      object SourcesAreDistinct {
+        implicit def impl[Arrows <: HList, Ss <: HList](
+          implicit
+          sources: Sources.Aux[Arrows, Ss],
+          sourcesAreDistinct: ShapelessUtils.HListElementAreUnique[Ss]
+        ): SourcesAreDistinct[Arrows] = instance.asInstanceOf[SourcesAreDistinct[Arrows]]
+
+        private lazy val instance = new SourcesAreDistinct[HList] {}
+      }
+
+      implicit def proveCanChoose[From, Arrows <: HList, Ss <: HList, Ts <: HList](
+        implicit
+        sources: Sources.Aux[Arrows, Ss],
+        sourcesAreFrom: LUBConstraint[Ss, From],
+        sourcesAreDistinct: SourcesAreDistinct[Arrows], // TODO: remove? already checked at `ChooseBuilder`
+        targets: Targets.Aux[Arrows, Ts],
+        toCoproduct: ops.hlist.ToCoproduct[Ts]
+      ): CanChoose.Aux[From, Arrows, toCoproduct.Out] = instance.asInstanceOf[CanChoose.Aux[From, Arrows, toCoproduct.Out]]
+
+      private lazy val instance = new CanChoose[Any, HList] {}
+    }
+  }
+
+  // Had to move it from `Chooser` companion object because it was causing ambiguity even with `LowPriority`
+  implicit def arrowChooser[Arrows <: HList, S, C <: Coproduct](
+    implicit
+    canChoose: Choose.CanChoose.Aux[S, Arrows, C]
+  ): Choose.Chooser.Aux[S, Arrows, Choose.Aux[S, Arrows, C]] =
+    arrowChooserInstance.asInstanceOf[Choose.Chooser.Aux[S, Arrows, Choose.Aux[S, Arrows, C]]]
+
+  private lazy val arrowChooserInstance = new Choose.Chooser[Any, HList] {
+    type Out = Choose.Aux[Any, HList, Any]
+    def apply(t: HList): Out =
+      new Choose[Any, HList] {
+        type Target = Any
+        val arrows: HList = t
+        val toList: List[Arrow] = ShapelessUtils.unsafeHListToList(t)
+      }
+  }
+
+  implicit class ChooseOps[F <: Arrow](f: F) {
+    /**
+     *  Warning: any macro application error in the arguments (like incorrect field name) will be swallowed by this macro,
+     *  showing just `exception during macro expansion` error. Looks like [[https://github.com/scala/bug/issues/9889]].
+     */
+    def choose(alternatives: (ChooseOps.AlternativeBuilder[F] => Arrow)*): Arrow = macro ChooseOps.chooseImpl[F]
+  }
+  object ChooseOps {
+    protected class AlternativeBuilder[F0 <: Arrow] {
+      def on[A <: F0#Target](implicit idArr: Id.Builder[F0, A]): idArr.Out = idArr()
+    }
+    object AlternativeBuilder {
+      def apply[F0 <: Arrow]: AlternativeBuilder[F0] = instance.asInstanceOf[AlternativeBuilder[F0]]
+      private lazy val instance = new AlternativeBuilder[Arrow]
+    }
+
+    def chooseImpl[F: c.WeakTypeTag](c: whitebox.Context)(alternatives: c.Tree*): c.Tree = {
+      import c.universe._
+
+      val F = weakTypeOf[F]
+      val f = c.prefix.tree match {
+        case q"new $clazz($param)" if clazz.tpe <:< typeOf[ChooseOps[_]] => param
+        case q"arrow.this.Arrow.ChooseOps[$_]($param)" => param
+        case other => c.abort(c.prefix.tree.pos, s"Unexpected: $other")
+      }
+
+      val choiceArrows = alternatives.map{ altBuilder =>
+        q"$altBuilder(_root_.com.abraxas.slothql.arrow.Arrow.ChooseOps.AlternativeBuilder[$F])"
+      }
+
+      q"_root_.com.abraxas.slothql.arrow.Arrow.Choose[$F#Target].from(..$choiceArrows) ∘ $f"
     }
   }
 
@@ -288,6 +408,22 @@ object Arrow {
     ): CommonSource.Aux[H :: T, S] = instance.asInstanceOf[CommonSource.Aux[H :: T, S]]
 
     private lazy val instance = new CommonSource[HList]{}
+  }
+
+  trait Sources[Arrows <: HList] { type Sources <: HList }
+  object Sources {
+    type Aux[Arrows <: HList, Ts <: HList] = Sources[Arrows] { type Sources = Ts }
+    def apply[Arrows <: HList](implicit t: Sources[Arrows]): Aux[Arrows, t.Sources] = t
+
+    implicit def singleSource[H <: Arrow]: Sources.Aux[H :: HNil, H#Source :: HNil] =
+      instance.asInstanceOf[Sources.Aux[H :: HNil, H#Source :: HNil]]
+    implicit def multipleSources[H <: Arrow, T <: HList](
+      implicit
+      notSingle: T =:!= HNil,
+      t: Sources[T]
+    ): Sources.Aux[H :: T, H#Source :: t.Sources] = instance.asInstanceOf[Sources.Aux[H :: T, H#Source :: t.Sources]]
+
+    private lazy val instance = new Sources[HList] {}
   }
 
   trait Targets[Arrows <: HList] { type Targets <: HList }

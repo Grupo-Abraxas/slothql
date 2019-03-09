@@ -159,6 +159,34 @@ object ScalaExpr {
   ): Arrow.Split.Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]] = Split.mkSplitter
 
 
+  sealed trait Choose[From, Arrows <: HList] extends ScalaExpr with Arrow.Choose[From, Arrows] {
+    override val toList: List[ScalaExpr]
+  }
+  object Choose {
+    type Aux[From, Arrows <: HList, T] = Choose[From, Arrows] { type Target = T }
+    def unapply[From, Arrows <: HList](arr: Choose[From, Arrows]): Option[List[ScalaExpr]] =
+      PartialFunction.condOpt(arr) { case choose: Choose[_, _] => choose.toList }
+  }
+
+  implicit def chooseScalaExpr[Arrows <: HList, S, C <: Coproduct](
+    implicit
+    areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
+    canChoose: Arrow.Choose.CanChoose.Aux[S, Arrows, C],
+    sourceTag: ru.TypeTag[S]
+  ): Arrow.Choose.Chooser.Aux[S, Arrows, Choose.Aux[S, Arrows, C]] =
+    new Arrow.Choose.Chooser[S, Arrows] {
+      type Out = Choose.Aux[S, Arrows, C]
+      def apply(t: Arrows): Choose.Aux[S, Arrows, C] =
+        new Choose[S, Arrows] {
+          val arrows: Arrows = t
+          type Target = C
+          val src: ru.TypeTag[S] = sourceTag
+          lazy val tgt: ru.TypeTag[C] = TypeUtils.Shapeless.tagCoproduct(toList.map(_.tgt))
+          lazy val toList: List[ScalaExpr] = ShapelessUtils.unsafeHListToList(t)
+        }
+    }
+
+
   case class Literal[A](lit: A)(implicit tag: ru.TypeTag[A]) extends ScalaExpr {
     type Source = Unit
     type Target = A

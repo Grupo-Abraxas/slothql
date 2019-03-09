@@ -3,6 +3,8 @@ package com.abraxas.slothql.util
 import scala.reflect.api.{ Mirror, TypeCreator, Universe }
 import scala.reflect.runtime.{ universe => ru }
 
+import shapeless.{ :+:, CNil, Coproduct }
+
 object TypeUtils {
   private lazy val ruMirror = ru.runtimeMirror(getClass.getClassLoader)
 
@@ -23,6 +25,12 @@ object TypeUtils {
     ru.internal.typeRef(pre, sym, args)
   }
 
+  object Shapeless {
+    def mkCoproductType(types: List[ru.Type]): ru.Type = types.foldRight(ru.typeOf[CNil]) {
+      case (tpe, acc) => mkTypeRef(ru.typeOf[:+:[_, _]], List(tpe, acc))
+    }
+    def tagCoproduct[C <: Coproduct](tags: List[ru.TypeTag[_]]): ru.TypeTag[C] = tagType[C](mkCoproductType(tags.map(_.tpe)))
+  }
 
   object Show {
     def apply(tag: ru.TypeTag[_]): String = apply(tag.tpe)
