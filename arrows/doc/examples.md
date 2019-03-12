@@ -14,4 +14,4 @@ ScalaExpr[Book].reviews.map(_.choose(
   ))
 ```
 
-[Example1](examples/example-1.png)
+[Example1](!examples/example-1.png)
