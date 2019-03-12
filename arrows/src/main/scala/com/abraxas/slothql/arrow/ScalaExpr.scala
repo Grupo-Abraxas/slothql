@@ -7,6 +7,7 @@ import scala.reflect.runtime.{ universe => ru }
 import cats.data.Ior
 import shapeless._
 
+import com.abraxas.slothql.arrow.util.{ ArrowToDot, ShowT }
 import com.abraxas.slothql.util.{ HasField, ShapelessUtils, TypeUtils }
 
 
@@ -206,6 +207,21 @@ object ScalaExpr {
 
     override def toString: String = s"SelectField[${TypeUtils.Show(src)}, ${TypeUtils.Show(tgt)}]($field)"
   }
+  object SelectField {
+    implicit def showSelectFieldType[A <: Arrow, Obj, K <: String, V](
+      implicit
+      isSelectField: A <:< SelectField[Obj, K, V],
+      showSrc: ShowT[Obj],
+      showTgt: ShowT[V],
+      kWitness: Witness.Aux[K]
+    ): ShowT[A] =
+      ShowT.define(
+        show         = s"SelectField[${showSrc.simple}, ${kWitness.value}, ${showTgt.simple}]",
+        showSimple   = kWitness.value,
+        showSimplest = "SelectField",
+        infix = false
+      )
+  }
 
   /** Expression representing functor `map` operation. */
   case class FMap[F[_], E <: ScalaExpr](expr: E)(implicit val F: cats.Functor[F], fTag: ru.TypeTag[F[_]]) extends ScalaExpr {
@@ -225,9 +241,9 @@ object ScalaExpr {
 
     implicit def fmapToDot[F[_], E <: ScalaExpr](
       implicit
-      showSrc: util.ShowT[E#Source],
-      toDot: util.ArrowToDot[E]
-    ): util.ArrowToDot[FMap[F, E]] = dotCluster(_.expr, "map")
+      showSrc: ShowT[E#Source],
+      toDot: ArrowToDot[E]
+    ): ArrowToDot[FMap[F, E]] = dotCluster(_.expr, "map")
   }
 
   /** Expression representing monadic bind / `flatMap` operation. */
@@ -248,22 +264,23 @@ object ScalaExpr {
 
     implicit def mbindToDot[F[_], E <: ScalaExpr](
       implicit
-      showSrc: util.ShowT[E#Source],
-      toDot: util.ArrowToDot[E]
-    ): util.ArrowToDot[MBind[F, E]] = dotCluster(_.expr, "flatMap")
+      showSrc: ShowT[E#Source],
+      toDot: ArrowToDot[E]
+    ): ArrowToDot[MBind[F, E]] = dotCluster(_.expr, "flatMap")
   }
 
-  private def dotCluster[A <: Arrow, S: util.ShowT, E <: ScalaExpr: util.ArrowToDot](getE: A => E, label: String) =
-    util.ArrowToDot.define[A]{
+  private def dotCluster[A <: Arrow, S: ShowT, E <: ScalaExpr: ArrowToDot](getE: A => E, label: String) =
+    ArrowToDot.define[A]{
       (a, srcId) =>
-        val (sourceDot, source) = util.ArrowToDot.defaultNewTypeNode[S]
-        val (dot, target) = implicitly[util.ArrowToDot[E]].apply(getE(a), source)
+        val (sourceDot, source) = ArrowToDot.defaultNewTypeNode[S]()
+        val (dot, target) = implicitly[ArrowToDot[E]].apply(getE(a), source)
         s"""subgraph cluster_${scala.util.Random.nextInt(Int.MaxValue)}{
            |  $sourceDot
            |  $dot
            |}
-           |edge [label="$label"];
+           |edge [label=<<b>$label</b>>,arrowtail=inv,dir=both];
            |$srcId -> $source;
+           |edge [dir=forward]; // reset
            |""".stripMargin -> target
     }
 

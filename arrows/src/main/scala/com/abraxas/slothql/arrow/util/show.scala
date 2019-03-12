@@ -12,19 +12,60 @@ import com.abraxas.slothql.util.{ ClassUtils, TypeUtils }
 trait ShowT[T] {
   def apply(): String
   def simple: String
+  def simplest: String
+  def isInfix: Boolean
 }
-object ShowT {
+object ShowT extends ShowTLowPriorityImplicits {
   def apply[T](implicit show: ShowT[T]): String = show()
-  def define[T](show: String, showSimple: String = null): ShowT[T] =
+  def define[T](show: String, showSimple: String, showSimplest: String, infix: Boolean): ShowT[T] =
     new ShowT[T] {
       def apply(): String = show
       def simple: String = Option(showSimple).getOrElse(apply())
+      def simplest: String = Option(showSimplest).getOrElse(simple)
+      def isInfix: Boolean = infix
     }
+  def define[T](show: String, showSimple: String = null, infix: Boolean)(implicit typeTag: ru.TypeTag[T]): ShowT[T] =
+    define(show, showSimple, TypeUtils.Show.noTypeParams(typeTag.tpe), infix)
 
-  implicit def defaultShowT[T: ru.TypeTag](implicit low: LowPriority): ShowT[T] =
-    define(TypeUtils.Show(ru.typeOf[T]), TypeUtils.Show.noTypeParams(ru.typeOf[T]))
+  implicit def defaultTupleShow[P <: Product, Repr <: HList, ShowRepr <: HList](
+    implicit
+    gen: Generic.Aux[P, Repr],
+    isTuple: ops.hlist.Tupler.Aux[Repr, P],
+    showEach: ops.hlist.LiftAll.Aux[ShowT, Repr, ShowRepr],
+    toList: ops.hlist.ToTraversable.Aux[ShowRepr, List, ShowT[_]],
+    tag: ru.TypeTag[P],
+    low: LowPriority
+  ): ShowT[P] = {
+    val showL = showEach.instances.toList
+    ShowT.define(
+      show       = showL.map(_())     .mkString("(", ", ", ")"),
+      showSimple = showL.map(_.simple).mkString("(", ", ", ")"),
+      infix = false
+    )
+  }
+
+  implicit def defaultHListShowT[L <: HList, ShowL <: HList](
+    implicit
+    showEach: ops.hlist.LiftAll.Aux[ShowT, L, ShowL],
+    toList: ops.hlist.ToTraversable.Aux[ShowL, List, ShowT[_]],
+    low: LowPriority
+  ): ShowT[L] = {
+    val showL = showEach.instances.toList
+    ShowT.define[L](
+      show         = showL.foldRight("HNil")((show, acc) => s"${showInfix(show, _())} :: $acc"),
+      showSimple   = showL.foldRight("HNil")((show, acc) => s"${showInfix(show, _.simple)} :: $acc"),
+      showSimplest = "HList",
+      infix = true
+    )
+  }
+
+  private def showInfix(show: ShowT[_], f: ShowT[_] => String) = if (show.isInfix) s"(${f(show)})" else f(show)
 }
 
+trait ShowTLowPriorityImplicits {
+  implicit def defaultShowT[T: ru.TypeTag](implicit low: LowPriority): ShowT[T] =
+    ShowT.define(TypeUtils.Show(ru.typeOf[T]), TypeUtils.Show.noTypeParams(ru.typeOf[T]), infix = false)
+}
 
 
 trait ToDot[A <: Arrow] { def apply(a: A): String }
@@ -37,7 +78,7 @@ object ToDot {
     showSource: ShowT[A#Source],
     toDot: ArrowToDot[A]
   ): ToDot[A] = define { a =>
-    val (sourceDot, source) = ArrowToDot.defaultNewTypeNode[A#Source]
+    val (sourceDot, source) = ArrowToDot.defaultNewTypeNode[A#Source]()
     s"""
        |digraph {
        |${sourceDot + toDot(a, source)._1}
@@ -61,13 +102,13 @@ object ArrowToDot {
       def apply(a: A, source: SourceNodeId): (String, TargetNodeId) = toDot(a, source)
     }
 
-  def defaultNewTypeNode[T](implicit show: ShowT[T]): (String, NodeId) = {
-    val id = show.simple + "_" + randInt()
-    s"""$id [label="${show()}"]""" -> id
+  def defaultNewTypeNode[T](props: String*)(implicit show: ShowT[T]): (String, NodeId) = {
+    val id = show.simplest + "_" + randInt()
+    s"""$id [label="${show()}",${props.mkString(",")}]""" -> id
   }
-  def defaultEdge(source: SourceNodeId, target: TargetNodeId, label: String): String =
+  def defaultEdge(source: SourceNodeId, target: TargetNodeId, label: String, props: String*): String =
     s"""
-       |edge [label="$label"];
+       |edge [label="$label",${props.mkString(",")}];
        |$source -> $target;
      """.stripMargin
 
@@ -92,7 +133,9 @@ object ArrowToDot {
       val dot = s"""
          |$tupleNode;
          |${dots.mkString}
+         |edge[style=bold];
          |$tupleArrows
+         |edge[style=solid]; // reset
        """.stripMargin
       dot -> id
   }
@@ -113,7 +156,7 @@ object ArrowToDot {
     showArrow: ShowT[A] = null
   ): ArrowToDot[A] = define {
     (a, source) =>
-      val (targetDot, target) = defaultNewTypeNode[A#Target]
+      val (targetDot, target) = defaultNewTypeNode[A#Target]()
       val arrLabel = Option(showArrow).map(_.simple).getOrElse(ClassUtils.Show(a.getClass))
       val edgeDot = defaultEdge(source, target, arrLabel)
       val dot = s"""
