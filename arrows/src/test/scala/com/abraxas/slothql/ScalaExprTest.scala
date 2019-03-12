@@ -21,6 +21,8 @@ object ScalaExprTest {
   type isbn    = Witness.`"isbn"`.T
   type user    = Witness.`"user"`.T
   type vote    = Witness.`"vote"`.T
+  type review  = Witness.`"review"`.T
+  type url     = Witness.`"url"`.T
 
 
   val splitBook = ScalaExpr[Book].split(_.title, _.author.map(_.name), _.meta.isbn)
@@ -51,7 +53,13 @@ object ScalaExprTest {
 
   val chooseBookReview = ScalaExpr[Book].reviews.map(_.choose(
     _.on[UserReview].split(_.user, _.text, _.vote),
-    _.on[AnyReview].text
+    _.on[AnonReview].text,
+    _.on[CustomReview].choose(
+      _.on[Reviews].reviews.map(_.choose(
+        _.on[AnonReview].text
+      )),
+      _.on[ImageReviewAttachment].split(_.review.split(_.user, _.text), _.url)
+    )
   ))
   implicitly[chooseBookReview.type <:<
     ScalaExpr.Composition[
@@ -63,13 +71,38 @@ object ScalaExprTest {
               ScalaExpr.SelectField[UserReview, vote, Int] ::
               HNil
             ]{ type Source = UserReview; type Target = (String, String, Int) } ::
-          ScalaExpr.SelectField[AnyReview, text, String] ::
+          ScalaExpr.SelectField[AnonReview, text, String] ::
+          ScalaExpr.Choose[CustomReview,
+              ScalaExpr.Composition[
+                  ScalaExpr.FMap[List,
+                      ScalaExpr.Choose[Review,
+                          ScalaExpr.SelectField[AnonReview, text, String] ::
+                          HNil
+                        ]{ type Target = String :+: CNil }
+                    ],
+                  ScalaExpr.SelectField[Reviews, reviews, List[Review]]
+                ]{ type Source = Reviews; type Target = List[String :+: CNil] } ::
+              ScalaExpr.Split[
+                  ScalaExpr.Composition[
+                      ScalaExpr.Split[
+                          ScalaExpr.SelectField[UserReview, user, String] ::
+                          ScalaExpr.SelectField[UserReview, text, String] ::
+                          HNil
+                        ]{ type Source = UserReview; type Target = (String, String) },
+                      ScalaExpr.SelectField[ImageReviewAttachment, review, UserReview]
+                    ]{ type Source = ImageReviewAttachment; type Target = (String, String) } ::
+                  ScalaExpr.SelectField[ImageReviewAttachment, url, String] ::
+                  HNil
+                ]{ type Source = ImageReviewAttachment; type Target = ((String, String), String)} ::
+              HNil
+            ]{ type Target = List[String :+: CNil] :+: ((String, String), String) :+: CNil } ::
           HNil
-        ]{ type Target = (String, String, Int) :+: String :+: CNil }
+        ]{ type Target = (String, String, Int) :+: String :+: (List[String :+: CNil] :+: ((String, String), String) :+: CNil) :+: CNil }
       ],
       ScalaExpr.SelectField[Book, reviews, List[Review]]
-    ]{ type Source = Book; type Target = List[(String, String, Int) :+: String :+: CNil] }
-
+    ]{ type Source = Book
+       type Target = List[(String, String, Int) :+: String :+: (List[String :+: CNil] :+: ((String, String), String) :+: CNil) :+: CNil]
+    }
   ]
   assert(chooseBookReview == (
     ScalaExpr.FMap.tpe[List].expr(
@@ -79,7 +112,21 @@ object ScalaExprTest {
           ScalaExpr.SelectField[UserReview, text, String]("text"),
           ScalaExpr.SelectField[UserReview, vote, Int]("vote")
         ),
-        ScalaExpr.SelectField[AnyReview, text, String]("text")
+        ScalaExpr.SelectField[AnonReview, text, String]("text"),
+        Arrow.Choose[CustomReview].from(
+          ScalaExpr.FMap.tpe[List].expr(
+              Arrow.Choose[Review].from(
+                ScalaExpr.SelectField[AnonReview, text, String]("text")
+              )
+            ) ∘ ScalaExpr.SelectField[Reviews, reviews, List[Review]]("reviews"),
+          Arrow.Split(
+            Arrow.Split(
+                ScalaExpr.SelectField[UserReview, user, String]("user"),
+                ScalaExpr.SelectField[UserReview, text, String]("text")
+              ) ∘ ScalaExpr.SelectField[ImageReviewAttachment, review, UserReview]("review"),
+            ScalaExpr.SelectField[ImageReviewAttachment, url, String]("url")
+          )
+        )
       )
     ) ∘ ScalaExpr.SelectField[Book, reviews, List[Review]]("reviews")
   ))

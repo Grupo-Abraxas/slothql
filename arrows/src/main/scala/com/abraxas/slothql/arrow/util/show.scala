@@ -49,16 +49,22 @@ object ShowT extends ShowTLowPriorityImplicits {
     showEach: ops.hlist.LiftAll.Aux[ShowT, L, ShowL],
     toList: ops.hlist.ToTraversable.Aux[ShowL, List, ShowT[_]],
     low: LowPriority
-  ): ShowT[L] = {
-    val showL = showEach.instances.toList
-    ShowT.define[L](
-      show         = showL.foldRight("HNil")((show, acc) => s"${showInfix(show, _())} :: $acc"),
-      showSimple   = showL.foldRight("HNil")((show, acc) => s"${showInfix(show, _.simple)} :: $acc"),
-      showSimplest = "HList",
-      infix = true
-    )
-  }
+  ): ShowT[L] = showCons("HList", "HNil", "::", showEach.instances.toList)
 
+  implicit def defaultCoproductShowT[C <: Coproduct, ShowL <: HList](
+    implicit
+    showEach: ops.coproduct.LiftAll.Aux[ShowT, C, ShowL],
+    toList: ops.hlist.ToTraversable.Aux[ShowL, List, ShowT[_]],
+    low: LowPriority
+  ): ShowT[C] = showCons("Coproduct", "CNil", ":+:", showEach.instances.toList)
+
+
+  private def showCons[A](name: String, empty: String, op: String, showL: List[ShowT[_]]) = ShowT.define[A](
+    show       = showL.foldRight(empty)((show, acc) => s"${showInfix(show, _())} $op $acc"),
+    showSimple = showL.foldRight(empty)((show, acc) => s"${showInfix(show, _.simple)} $op $acc"),
+    showSimplest = name,
+    infix = true
+  )
   private def showInfix(show: ShowT[_], f: ShowT[_] => String) = if (show.isInfix) s"(${f(show)})" else f(show)
 }
 
@@ -107,8 +113,12 @@ object ArrowToDot {
     s"""$id [label="${show()}",${props.mkString(",")}]""" -> id
   }
   def defaultEdge(source: SourceNodeId, target: TargetNodeId, label: String, props: String*): String =
+    dotEdge(source, target, s"""label="$label",${props.mkString(",")}""")
+  def defaultHtmlLabelEdge(source: SourceNodeId, target: TargetNodeId, labelHtml: String, props: String*): String =
+    dotEdge(source, target, s"""label=<$labelHtml>,${props.mkString(",")}""")
+  def dotEdge(source: SourceNodeId, target: TargetNodeId, props: String*): String =
     s"""
-       |edge [label="$label",${props.mkString(",")}];
+       |edge [${props.mkString(",")}];
        |$source -> $target;
      """.stripMargin
 
@@ -138,6 +148,48 @@ object ArrowToDot {
          |edge[style=solid]; // reset
        """.stripMargin
       dot -> id
+  }
+
+  object ArrowToDotPoly2 extends Poly2 {
+    implicit def impl[A <: Arrow](implicit toDot: ArrowToDot[A]): Case.Aux[A, SourceNodeId, (String, TargetNodeId)] =
+      at{ (a, source) => toDot(a, source) }
+  }
+
+  implicit def chooseArrowToDot[
+    A <: Arrow, Arrs <: HList, ArrsLen <: Nat, SourceNodeIds <: HList, ArrsDot <: HList,
+    SourceTypes <: HList, ShowSourceTypes <: HList
+  ](
+    implicit
+    choose: A <:< Arrow.Choose[_, Arrs],
+    arrsLength: ops.hlist.Length.Aux[Arrs, ArrsLen],
+    sourceNodesIdsType: ops.hlist.Fill.Aux[ArrsLen, String, SourceNodeIds],
+    liftSourceNodeIds: ops.traversable.FromTraversable[SourceNodeIds],
+    toDot: ops.hlist.ZipWith.Aux[Arrs, SourceNodeIds, ArrowToDotPoly2.type, ArrsDot],
+    dotToList: ops.hlist.ToTraversable.Aux[ArrsDot, List, (String, TargetNodeId)],
+    arrSourceTypes: Arrow.Sources.Aux[Arrs, SourceTypes],
+    showSourceTypes: ops.hlist.LiftAll.Aux[ShowT, SourceTypes, ShowSourceTypes],
+    showSourceTypesToList: ops.hlist.ToTraversable.Aux[ShowSourceTypes, List, ShowT[_]],
+    showTargetType: ShowT[A#Target]
+  ): ArrowToDot[A] = define {
+    (a, source0) =>
+      val showSources = showSourceTypes.instances.toList
+      val (sources, sourceIds) = showSources.map(defaultNewTypeNode("style=dashed")(_)).unzip
+      val chooseArrows = sourceIds.map{ id => defaultHtmlLabelEdge(source0, id, "<i>on</i>") }.mkString
+      val (dots, targets) = toDot(a.arrows, liftSourceNodeIds(sourceIds).get).toList.unzip
+      val coprodNodeId = "choose_" + randInt()
+      val coprodNode = s"""$coprodNodeId [label="${showTargetType.simple}"]"""
+      val coprodArrows = targets.map{ id => defaultEdge(id, coprodNodeId, "", "style=dashed") }.mkString
+      val dot =
+      s"""
+         |${sources.mkString}
+         |edge [style=dashed,dir=back,arrowtail=odot];
+         |$chooseArrows
+         |edge [style=solid,dir=forward]; // reset
+         |$coprodNode;
+         |${dots.mkString}
+         |${coprodArrows.mkString}
+       """.stripMargin
+      dot -> coprodNodeId
   }
 
   implicit def compositeArrowToDot[A <: Arrow, Arrs0 <: HList, Arrs <: HList](
