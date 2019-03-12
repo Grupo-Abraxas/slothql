@@ -131,6 +131,34 @@ object ScalaExprTest {
     ) ∘ ScalaExpr.SelectField[Book, reviews, List[Review]]("reviews")
   ))
 
+  val chooseReview = ScalaExpr[Review].choose(
+    _.on[UserReview].split(_.user, _.text, _.vote),
+    _.on[AnonReview].text
+  )
+  implicitly[chooseReview.type <:<
+    ScalaExpr.Choose[Review,
+      ScalaExpr.Split[
+          ScalaExpr.SelectField[UserReview, user, String] ::
+          ScalaExpr.SelectField[UserReview, text, String] ::
+          ScalaExpr.SelectField[UserReview, vote, Int] ::
+          HNil
+        ]{ type Source = UserReview; type Target = (String, String, Int) } ::
+      ScalaExpr.SelectField[AnonReview, text, String] ::
+      HNil
+    ]{ type Target = (String, String, Int) :+: String :+: CNil }
+  ]
+  assert(chooseReview ==
+    Arrow.Choose[Review].from(
+      Arrow.Split(
+        ScalaExpr.SelectField[UserReview, user, String]("user"),
+        ScalaExpr.SelectField[UserReview, text, String]("text"),
+        ScalaExpr.SelectField[UserReview, vote, Int]("vote")
+      ),
+      ScalaExpr.SelectField[AnonReview, text, String]("text")
+    )
+  )
+
+
   shapeless.test.illTyped(
     """ScalaExpr[Review].choose(
          _.on[UserReview].user,

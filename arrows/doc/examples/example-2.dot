@@ -1,0 +1,64 @@
+// Generated with `ToDot(ScalaExprTest.chooseReview)`
+
+digraph {
+    Review_1294544513 [label="Review",]
+    UserReview_2020758547 [label="UserReview",style=dashed]AnonReview_1510748414 [label="AnonReview",style=dashed]
+    edge [style=dashed,dir=back,arrowtail=odot];
+
+    edge [label=<<i>on</i>>,];
+    Review_1294544513 -> UserReview_2020758547;
+
+    edge [label=<<i>on</i>>,];
+    Review_1294544513 -> AnonReview_1510748414;
+
+    edge [style=solid,dir=forward]; // reset
+choose_1255245930 [label="(String, String, Int) :+: String :+: CNil"];
+
+    split_tuple_894575168 [label="(String, String, Int)"];
+
+    String_384492121 [label="String",]
+
+    edge [label="user",];
+    UserReview_2020758547 -> String_384492121;
+
+
+    String_1098996397 [label="String",]
+
+    edge [label="text",];
+    UserReview_2020758547 -> String_1098996397;
+
+
+    Int_2104976670 [label="Int",]
+
+    edge [label="vote",];
+    UserReview_2020758547 -> Int_2104976670;
+
+
+    edge[style=bold];
+
+    edge [label="_1",];
+    String_384492121 -> split_tuple_894575168;
+
+    edge [label="_2",];
+    String_1098996397 -> split_tuple_894575168;
+
+    edge [label="_3",];
+    Int_2104976670 -> split_tuple_894575168;
+
+    edge[style=solid]; // reset
+
+    String_1386894088 [label="String",]
+
+    edge [label="text",];
+    AnonReview_1510748414 -> String_1386894088;
+
+
+
+    edge [label="",style=dashed];
+    split_tuple_894575168 -> choose_1255245930;
+
+    edge [label="",style=dashed];
+    String_1386894088 -> choose_1255245930;
+
+
+}
