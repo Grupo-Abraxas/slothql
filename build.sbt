@@ -63,7 +63,7 @@ lazy val arrows = (project in file("arrows"))
 // // // Repository // // //
 
 publishTo in ThisBuild := Some("Artifactory Realm" at "http://artifactory.arkondata.com/artifactory/sbt-dev")
-credentials += Credentials("Artifactory Realm", "artifactory.arkondata.com", sys.env("ARTIFACTORY_USER"), sys.env("ARTIFACTORY_PASSWORD"))
+credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkondata.com", sys.env("ARTIFACTORY_USER"), sys.env("ARTIFACTORY_PASSWORD"))
 
 
 // Ammonite
