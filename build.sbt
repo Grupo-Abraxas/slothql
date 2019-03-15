@@ -2,15 +2,19 @@ import com.typesafe.sbt.SbtGit.GitKeys
 
 enablePlugins(GitVersioning)
 
+lazy val scala211 = "2.11.12"
+lazy val scala212 = "2.12.8"
+
 lazy val root = (project in file(".")).
   settings(
     inThisBuild(List(
       organization := "com.abraxas",
-      scalaVersion := "2.11.12",
+      scalaVersion := scala212,
       git.gitHeadCommit := GitKeys.gitReader.value.withGit(
         _.asInstanceOf[com.typesafe.sbt.git.JGit]
           .headCommit.map(_.abbreviate(8).name)
       ),
+      crossScalaVersions := scala211 :: scala212 :: Nil,
 
       scalacOptions in Compile ++= Seq("-unchecked", "-feature"),
       scalacOptions in Compile += "-Ypartial-unification",
@@ -19,6 +23,7 @@ lazy val root = (project in file(".")).
       addCompilerPlugin(Dependencies.`kind-projector`)
     ) ++ versionWithGit),
 
+    crossScalaVersions := Nil,
     name := "slothql"
   )
   .aggregate(cypher, arrows)

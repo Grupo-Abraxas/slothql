@@ -159,6 +159,7 @@ trait CypherTxBuilder {
 
       def filtering(predTx: A => ReadTx[Boolean]): ReadTx[A] = Read.filtering(tx)(predTx)
       def filter(pred: A => Boolean): ReadTx[A] = Read.filter(tx)(pred)
+      def withFilter(pred: A => Boolean): ReadTx[A] = filter(pred)
       def filterOpt[B](f: A => Option[B]): ReadTx[B] = Read.filterOpt(tx)(f)
 
       def x[B](that: ReadTx[B]): ReadTx[(A, B)] = Read.product(tx, that)
