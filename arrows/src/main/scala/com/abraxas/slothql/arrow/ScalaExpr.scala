@@ -14,6 +14,8 @@ import com.abraxas.slothql.util.{ HasField, ShapelessUtils, TypeUtils }
 trait ScalaExpr extends Arrow with ScalaExpr.FieldSelectionOps {
   val src: ru.TypeTag[Source]
   val tgt: ru.TypeTag[Target]
+
+  def short: String
 }
 
 object ScalaExpr {
@@ -33,6 +35,7 @@ object ScalaExpr {
       }
       override def hashCode(): Int = (expr, right).##
       override def toString: String = s"PartiallyAppliedRight[${TypeUtils.Show(src)}, ${TypeUtils.Show(tgt)}]($expr, $right)"
+      def short: String = s" ${expr.short} ${right.short}"
     }
     object PartiallyAppliedRight {
       type Aux[E <: ScalaExpr, R <: ScalaExpr, SL, T] = PartiallyAppliedRight[E, R] { type Source = SL; type Target = T }
@@ -75,6 +78,7 @@ object ScalaExpr {
       new Id[A]{
         val src: ru.TypeTag[A] = ru.typeTag[A]
         val tgt: ru.TypeTag[A] = ru.typeTag[A]
+        def short: String = ""
       }
     def unapply[A](arr: Id[A]): Option[ru.TypeTag[_]] = PartialFunction.condOpt(arr) { case id: Id[_] => id.src }
   }
@@ -99,6 +103,7 @@ object ScalaExpr {
         type Target = F.Target
         val src: ru.TypeTag[G.Source] = G.src
         val tgt: ru.TypeTag[F.Target] = F.tgt
+        def short: String = s"${g.short}${f.short}"
       }
   }
 
@@ -117,6 +122,7 @@ object ScalaExpr {
 
   sealed trait Split[Arrows <: HList] extends ScalaExpr with Arrow.Split[Arrows] {
     override val toList: List[ScalaExpr]
+    def short: String = s".split(${toList.map("_" + _.short).mkString(", ")})"
   }
   object Split {
     type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
@@ -162,6 +168,8 @@ object ScalaExpr {
 
   sealed trait Choose[From, Arrows <: HList] extends ScalaExpr with Arrow.Choose[From, Arrows] {
     override val toList: List[ScalaExpr]
+    def short: String = s".choose(${toList.map(shortChoose).mkString(", ")})"
+    private def shortChoose(expr: ScalaExpr) = s"_.on[${TypeUtils.Show(expr.src)}]${expr.short}"
   }
   object Choose {
     type Aux[From, Arrows <: HList, T] = Choose[From, Arrows] { type Target = T }
@@ -195,6 +203,10 @@ object ScalaExpr {
     val tgt: ru.TypeTag[A] = tag
 
     override def toString: String = s"Literal[${TypeUtils.Show(src)}]($lit)"
+    def short: String = lit match {
+      case s: String => s""""$s""""
+      case _ => lit.toString
+    }
   }
 
 
@@ -206,6 +218,7 @@ object ScalaExpr {
     val tgt: ru.TypeTag[V] = ru.typeTag[V]
 
     override def toString: String = s"SelectField[${TypeUtils.Show(src)}, ${TypeUtils.Show(tgt)}]($field)"
+    def short: String = s".$field"
   }
   object SelectField {
     implicit def showSelectFieldType[A <: Arrow, Obj, K <: String, V](
@@ -231,6 +244,7 @@ object ScalaExpr {
     val tgt: ru.TypeTag[F[expr.Target]] = appliedTypeTag(fTag, expr.tgt)
 
     override def toString: String = s"FMap[${TypeUtils.Show(src)}, ${TypeUtils.Show(tgt)}]($expr)"
+    def short: String = s".map(_${expr.short})"
   }
   object FMap {
     def tpe[F[_]](implicit F: cats.Functor[F], fTag: ru.TypeTag[F[_]]): Builder[F] = new Builder[F]
@@ -254,6 +268,7 @@ object ScalaExpr {
     val tgt: ru.TypeTag[expr.Target] = expr.tgt
 
     override def toString: String = s"MBind[${TypeUtils.Show(src)}, ${TypeUtils.Show(tgt)}]($expr)"
+    def short: String = s".flatMap(_${expr.short})"
   }
   object MBind {
     def tpe[F[_]](implicit M: cats.Monad[F], fTag: ru.TypeTag[F[_]]): Builder[F] = new Builder[F]
@@ -297,6 +312,7 @@ object ScalaExpr {
     val tgt: ru.TypeTag[Target] = src
 
     override def toString: String = s"IterableFilter[${TypeUtils.Show(src)}]($expr)"
+    def short: String = s".filter(_${expr.short})"
   }
 
   object OrderBy {
@@ -317,6 +333,7 @@ object ScalaExpr {
     val tgt: ru.TypeTag[Target] = src
 
     override def toString: String = s"IterableOrderBy[${TypeUtils.Show(src)}]($expr, $dir)"
+    def short: String = s".${if (dir == OrderBy.Ascending) "orderBy" else "orderBy[Inv]"}(_${expr.short})"
   }
 
   case class IterableSlice[I](range: Ior[Int, Int])(implicit iterable: I <:< Iterable[_], tag: ru.TypeTag[I]) extends ScalaExpr {
@@ -329,6 +346,11 @@ object ScalaExpr {
     def to: Option[Int] = range.right
 
     override def toString: String = s"IterableSlice[${TypeUtils.Show(src)}]($range)"
+    def short: String = s".slice(${range.fold(
+      from => s"$from..",
+      to => s"..$to",
+      (from, to) => s"$from..$to"
+    )})"
   }
   object IterableSlice {
     def range[I](from: Int, to: Int)(implicit iterable: I <:< Iterable[_], tag: ru.TypeTag[I]): IterableSlice[I] = {
@@ -353,13 +375,21 @@ object ScalaExpr {
     val tgt: ru.TypeTag[List[A]] = appliedTypeTag(ru.typeTag[List[_]], aTag)
 
     override def toString: String = s"IterableToList[${TypeUtils.Show(src)}, ${TypeUtils.Show(tgt)}]"
+
+    def short: String = ".toList"
   }
 
 
   sealed trait Compare[A, B] extends ScalaExpr { type Source = (A, B); type Target = Boolean; val tgt = ru.TypeTag.Boolean }
   object Compare {
-    case class Eq [A, B]()(implicit val src: ru.TypeTag[(A, B)]) extends Compare[A, B] { override def toString: String = s"Eq[${TypeUtils.Show(src)}]" }
-    case class Neq[A, B]()(implicit val src: ru.TypeTag[(A, B)]) extends Compare[A, B] { override def toString: String = s"Neq[${TypeUtils.Show(src)}]" }
+    case class Eq [A, B]()(implicit val src: ru.TypeTag[(A, B)]) extends Compare[A, B] {
+      override def toString: String = s"Eq[${TypeUtils.Show(src)}]"
+      def short: String = "=="
+    }
+    case class Neq[A, B]()(implicit val src: ru.TypeTag[(A, B)]) extends Compare[A, B] {
+      override def toString: String = s"Neq[${TypeUtils.Show(src)}]"
+      def short: String = "!="
+    }
     // TODO: more
 
     trait CreateInstance[Cmp[_, _] <: Compare[_, _]] { def apply[L, R](implicit tag: ru.TypeTag[(L, R)]): Cmp[L, R] }
@@ -513,6 +543,8 @@ object ScalaExpr {
       private def mk(l: List[ScalaExpr]) =
         if (l.nonEmpty) copy(l, l.head.src.asInstanceOf[ru.TypeTag[Any]], l.last.tgt.asInstanceOf[ru.TypeTag[Any]])
         else UnchainedRev(Nil, ru.TypeTag.Nothing.asInstanceOf[ru.TypeTag[Any]], ru.TypeTag.Nothing.asInstanceOf[ru.TypeTag[Any]])
+
+      def short: String = toList.map(_.short).mkString(".")
     }
   }
 }

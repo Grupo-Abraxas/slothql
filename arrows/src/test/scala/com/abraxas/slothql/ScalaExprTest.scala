@@ -49,6 +49,7 @@ object ScalaExprTest {
         ∘ ScalaExpr.SelectField[Book, meta, Meta]("meta")
     )
   )
+  assert(splitBook.short == ".split(_.title, _.author.map(_.name), _.meta.isbn)")
 
 
   val chooseBookReview = ScalaExpr[Book].reviews.map(_.choose(
@@ -130,6 +131,18 @@ object ScalaExprTest {
       )
     ) ∘ ScalaExpr.SelectField[Book, reviews, List[Review]]("reviews")
   ))
+  assert(chooseBookReview.short == List(
+    ".reviews.map(_.choose(",
+      "_.on[UserReview].split(_.user, _.text, _.vote), ",
+      "_.on[AnonReview].text, ",
+      "_.on[CustomReview].choose(",
+        "_.on[Reviews].reviews.map(_.choose(",
+          "_.on[AnonReview].text",
+        ")), ",
+        "_.on[ImageReviewAttachment].split(_.review.split(_.user, _.text), _.url)",
+      ")",
+    "))"
+  ).mkString)
 
   val chooseReview = ScalaExpr[Review].choose(
     _.on[UserReview].split(_.user, _.text, _.vote),
@@ -157,7 +170,7 @@ object ScalaExprTest {
       ScalaExpr.SelectField[AnonReview, text, String]("text")
     )
   )
-
+  assert(chooseReview.short == ".choose(_.on[UserReview].split(_.user, _.text, _.vote), _.on[AnonReview].text)")
 
   shapeless.test.illTyped(
     """ScalaExpr[Review].choose(
@@ -183,6 +196,7 @@ object ScalaExprTest {
       ScalaExpr.Binary.PartialApplyRight(ScalaExpr.Compare.Eq[String, String](), ScalaExpr.Literal("abc"))
     ∘ ScalaExpr.SelectField[Page, text, String]("text")
   ))
+  assert(filterPage1.short == ".text == \"abc\"")
 
 
   val filterPage2 = ScalaExpr[Page].text =!= "cba"
@@ -199,6 +213,7 @@ object ScalaExprTest {
       ScalaExpr.Binary.PartialApplyRight(ScalaExpr.Compare.Neq[String, String](), ScalaExpr.Literal("cba"))
     ∘ ScalaExpr.SelectField[Page, text, String]("text")
   ))
+  assert(filterPage2.short == ".text != \"cba\"")
 
 
 
@@ -216,6 +231,7 @@ object ScalaExprTest {
       ScalaExpr.IterableSlice[List[Page]](Ior.both(1, 10))
     ∘ ScalaExpr.SelectField[Book, pages, List[Page]]("pages")
   ))
+  assert(slicePages.short == ".pages.slice(1..10)")
 
 
   val filterPages = selPages.filter(_.text === "")
@@ -243,6 +259,7 @@ object ScalaExprTest {
       ∘ ScalaExpr.SelectField[Book, pages, List[Page]]("pages")
     )
   })
+  assert(filterPages.short == ".pages.filter(_.text == \"\")")
 
 
   val filterPages2 = selPages.filter(x => x.text === x.text)
@@ -270,6 +287,7 @@ object ScalaExprTest {
       ∘ ScalaExpr.SelectField[Book, pages, List[Page]]("pages")
     )
   })
+  assert(filterPages2.short == ".pages.filter(_.text == .text)")
 
 
   type OrderByPageExpr =
@@ -288,8 +306,10 @@ object ScalaExprTest {
   val orderPagesA = selPages.orderBy(_.text)
   implicitly[orderPagesA.type <:< OrderByPageExpr]
   assert(orderPagesA == OrderByPageExpr(ScalaExpr.OrderBy.Ascending))
+  assert(orderPagesA.short == ".pages.orderBy(_.text)")
 
   val orderPagesD = selPages.orderBy(_.text, _.Descending)
   implicitly[orderPagesD.type <:< OrderByPageExpr]
   assert(orderPagesD == OrderByPageExpr(ScalaExpr.OrderBy.Descending))
+  assert(orderPagesD.short == ".pages.orderBy[Inv](_.text)")
 }
