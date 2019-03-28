@@ -567,7 +567,7 @@ package object syntax extends LowPriorityImplicits {
 
   def `with`[R](ops: ReturnOps[Any] => ReturnOps[Any])(res: Match.Result[R]): Match.Result.With[R] =
     new Match.Result.With[R] {
-      protected[syntax] def ret: Known[Return[R]] = ops(ReturnOps(Return.All)).copy(_ret = Return.All.as[R]).ret
+      protected[syntax] def ret: Known[Return[R]] = ops(ReturnOps(Return.Wildcard)).copy(_ret = Return.Wildcard.as[R]).ret
       protected[syntax] def query: Known[Query.Query0[R]] = res.result
     }
 

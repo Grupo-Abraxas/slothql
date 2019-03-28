@@ -469,30 +469,39 @@ object CypherFragment {
       }
     }
 
-    case object All extends Return1[Any] {
+    case object Wildcard extends Return1[Any] {
       def as[A]: Return1[A] = this.asInstanceOf[Return1[A]]
     }
-    type All = All.type
+    type Wildcard = Wildcard.type
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A] with ReturnE[A] {
       val expressions: List[Known[Expr[_]]] = this.known :: Nil
     }
 
-    /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
     sealed trait Untyped extends Return0[scala.List[Any]] {
       val expressions: scala.List[Known[Expr[_]]]
+      val wildcard: Boolean
 
       override def toString: String = s"Untyped(${expressions.mkString(", ")})"
     }
     object Untyped {
-      def apply(exprs: Iterable[Known[CypherFragment.Expr[_]]]): Untyped = new Untyped {
-        val expressions: scala.List[Known[Expr[_]]] = exprs.toList.map(Return.Expr[Any](_, as = None).known)
+      def apply(exprs: Iterable[Known[CypherFragment.Expr[_]]], wildcard: Boolean = false): Untyped = {
+        def all = wildcard
+        new Untyped {
+          val expressions: scala.List[Known[Expr[_]]] = exprs.toList.map(Return.Expr[Any](_, as = None).known)
+          val wildcard: Boolean = all
+        }
       }
-      def returns(exprs: Known[Return.Expr[_]]*): Untyped = new Untyped {
-        val expressions: scala.List[Known[Expr[_]]] = exprs.toList
+      def returns(exprs: Known[Return.Expr[_]]*): Untyped = returns(wildcard = false, exprs: _*)
+      def returns(wildcard: Boolean, exprs: Known[Return.Expr[_]]*): Untyped = {
+        def all = wildcard
+        new Untyped {
+          val expressions: scala.List[Known[Expr[_]]] = exprs.toList
+          val wildcard: Boolean = all
+        }
       }
 
-      def unapply(arg: Untyped): Option[scala.List[Known[Expr[_]]]] = Some(arg.expressions)
+      def unapply(arg: Untyped): Option[(scala.List[Known[Expr[_]]], Boolean)] = Some(arg.expressions -> arg.wildcard)
     }
 
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
@@ -562,12 +571,10 @@ object CypherFragment {
 
     implicit def fragment[A]: CypherFragment[Return[A]] = instance.asInstanceOf[CypherFragment[Return[A]]]
     private lazy val instance = define[Return[Any]] {
-      case All => "*"
+      case Wildcard | Untyped(Nil, true) => "*"
       case Expr(expr, as) => expr.toCypher + asStr(as)
-      case Tuple(head :: Nil) => head.toCypher
-      case Tuple(head :: tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
-      case Untyped(head :: Nil) => head.toCypher
-      case Untyped(head :: tail) => s"${head.toCypher}, ${tail.map(_.toCypher).mkString(", ")}"
+      case Tuple(exprs) if exprs.nonEmpty => s"${exprs.map(_.toCypher).mkString(", ")}"
+      case Untyped(exprs, w) if exprs.nonEmpty => s"${withWildcard(w)}${exprs.map(_.toCypher).mkString(", ")}"
       case Options(expr, distinct, order, skip, limit) =>
         val distinctFrag = if (distinct) "DISTINCT " else ""
         val orderFrag =
@@ -583,6 +590,7 @@ object CypherFragment {
         val limitFrag = limit map (" LIMIT " + _) getOrElse ""
         s"$distinctFrag${expr.toCypher}$orderFrag$skipFrag$limitFrag"
     }
+    private def withWildcard(wildcard: Boolean): String = if (wildcard) "*, " else ""
   }
 
   sealed trait Clause

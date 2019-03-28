@@ -48,7 +48,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
           optional = false,
           where = None
         ),
-        Query.Return(Return.All)
+        Query.Return(Return.Wildcard)
       )
       test[Any](tx.read(query), allVertices)
     }
