@@ -565,11 +565,35 @@ package object syntax extends LowPriorityImplicits {
   def unwind[A, R](expr: Known[Expr[Seq[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result.Unwind[A, R] =
     macro Match.Result.Unwind.instanceImpl[A, R]
 
-  def `with`[R](ops: ReturnOps[Any] => ReturnOps[Any])(res: Match.Result[R]): Match.Result.With[R] =
-    new Match.Result.With[R] {
-      protected[syntax] def ret: Known[Return[R]] = ops(ReturnOps(Return.Wildcard)).copy(_ret = Return.Wildcard.as[R]).ret
-      protected[syntax] def query: Known[Query.Query0[R]] = res.result
-    }
+  object `with` {
+    def apply[R](wildcard: Boolean, ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
+                (res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implWOV[R]
+
+    def apply[R](wildcard: Boolean, vars: Match.Result.With.Var*)(res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implWV[R]
+
+    /** wildcard = false */
+    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
+                (res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implFOV[R]
+
+    /** wildcard = false */
+    def apply[R](vars: Match.Result.With.Var*)(res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implFV[R]
+  }
+
+  object withWildcard {
+    /** wildcard = true */
+    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
+                (res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implTOV[R]
+
+    /** wildcard = true */
+    def apply[R](vars: Match.Result.With.Var*)(res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implTV[R]
+  }
+
 
   final case class ReturnOps[A] protected (
       private val _ret: Known[Return.Return0[A]],

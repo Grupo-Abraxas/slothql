@@ -125,6 +125,32 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`length`(`ps`)"
     ).returns[(List[Map[String, Any]], List[Map[String, Any]], Long)]
 
+
+    "support `with` expression" in test(
+      Match {
+        case x - _ > y =>
+          `with`(_.orderBy(x.prop("name")), x, y.prop("data") as "data", "something else", Seq("more!")) {
+            (x.props, CypherFragment.Expr.Var[String]("data"))
+          }
+      },
+      "MATCH (`x`) -[]-> (`y`) " +
+      "WITH `x`, `y`.`data` AS `data`, `something else`, `more!` " +
+        "ORDER BY `x`.`name` " +
+      "RETURN `x`, `data`"
+    ).returns[(Map[String, Any], String)]
+
+    "not allow to use unbound variables in `with` clause [experimental]" in
+      shapeless.test.illTyped(
+        """
+          Match { case x - _ > y =>
+            `with`(x) {
+              (x, y)
+            }
+          }
+        """,
+        "Variable unbound by `with`: value y"
+      )
+
     "build function calls" in test(
       Match {
         case Vertex("Group") < _ *:(_, Edge("parent")) - (g@Vertex("Group")) =>
@@ -605,7 +631,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     "slice collected lists" in test(
       Match {
         case u@Vertex("User") =>
-          `with`(_.orderBy(u.prop[String]("name")).limit(5)) {
+        withWildcard(_.orderBy(u.prop[String]("name")).limit(5)) {
             // TODO: syntax: reuse `u` in second pattern ===================================================================
             Match.optional {
               case (u0@Vertex("User")) <(role)- Vertex("Members") `<-` (g@Vertex("Group")) if u === u0 =>
