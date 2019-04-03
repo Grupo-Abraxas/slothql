@@ -5,6 +5,8 @@ import scala.reflect.runtime.{ universe => ru }
 import shapeless.tag.@@
 import shapeless._
 
+import com.abraxas.slothql.Traced
+
 /** Evidence that `Obj` has field `K` of type `V`. */
 @annotation.implicitNotFound(msg = "${Obj} doesn't have field ${K}")
 trait HasField[Obj, K <: String] {
@@ -16,8 +18,8 @@ object HasField {
   type Aux[Obj, K <: String, V] = HasField[Obj, K] { type Value = V }
   implicit def evidence[Obj, K <: String, V, Repr <: HList](
     implicit
-    generic: Cached[LabelledGeneric.Aux[Obj, Repr]],
-    select:  Cached[ops.record.Selector.Aux[Repr, Symbol @@ K, V]],
+    generic: Traced[LabelledGeneric.Aux[Obj, Repr]],
+    select:  Traced[ops.record.Selector.Aux[Repr, Symbol @@ K, V]],
     t: ru.TypeTag[V]
   ): HasField.Aux[Obj, K, V] =
     new HasField[Obj, K] {

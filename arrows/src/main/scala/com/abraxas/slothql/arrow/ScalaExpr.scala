@@ -7,6 +7,7 @@ import scala.reflect.runtime.{ universe => ru }
 import cats.data.Ior
 import shapeless._
 
+import com.abraxas.slothql.Traced
 import com.abraxas.slothql.arrow.util.{ ArrowToDot, ShowT }
 import com.abraxas.slothql.util.{ HasField, ShapelessUtils, TypeUtils }
 
@@ -46,7 +47,7 @@ object ScalaExpr {
     trait PartialApplyRight[E <: ScalaExpr, R <: ScalaExpr] extends DepFn2[E, R] { type Out <: ScalaExpr }
     object PartialApplyRight {
       type Aux[E <: ScalaExpr, R <: ScalaExpr, Applied <: ScalaExpr] = PartialApplyRight[E, R] { type Out = Applied }
-      def apply[E <: ScalaExpr, R <: ScalaExpr](expr: E, right: R)(implicit papply: PartialApplyRight[E, R]): papply.Out = papply(expr, right)
+      def apply[E <: ScalaExpr, R <: ScalaExpr](expr: E, right: R)(implicit papply: Traced[PartialApplyRight[E, R]]): papply.value.Out = papply.value(expr, right)
 
       implicit def partialApplyBinaryRight[E <: ScalaExpr, R <: ScalaExpr, SL, SR](
         implicit
@@ -109,7 +110,7 @@ object ScalaExpr {
 
   implicit def composeScalaExprs[F <: ScalaExpr, G <: ScalaExpr, S, T](
     implicit
-    typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
+    typesCorrespond: Traced[Arrow.Compose.TypesCorrespond.Aux[F, G, S, T]],
     fNotId: F <:!< Arrow.Id[_],
     gNotId: G <:!< Arrow.Id[_]
   ): Arrow.Compose.Aux[F, G, Composition.Aux[F, G, S, T]] = composeInstance.asInstanceOf[Arrow.Compose.Aux[F, G, Composition.Aux[F, G, S, T]]]
@@ -149,8 +150,8 @@ object ScalaExpr {
 
   implicit def splitScalaExprAsHList[Arrows <: HList, S, Ts <: HList](
     implicit
-    areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
-    canSplit: Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, Ts],
+    areScalaExprs: Traced[LUBConstraint[Arrows, ScalaExpr]],
+    canSplit: Traced[Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, Ts]],
     sourceTag: ru.TypeTag[S],
     targetTag: ru.TypeTag[Ts]
   ): Arrow.Split.Splitter0.Aux[Arrows, HList, Split.Aux[Arrows, S, Ts]] = Split.mkSplitter
@@ -158,9 +159,9 @@ object ScalaExpr {
 
   implicit def splitScalaExprAsProduct[Arrows <: HList, Ts <: HList, S, T](
     implicit
-    areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
-    canSplit: Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, Ts],
-    tupler: ops.hlist.Tupler.Aux[Ts, T],
+    areScalaExprs: Traced[LUBConstraint[Arrows, ScalaExpr]],
+    canSplit: Traced[Arrow.Split.Splitter.CanSplit.Aux[Arrows, S, Ts]],
+    tupler: Traced[ops.hlist.Tupler.Aux[Ts, T]],
     sourceTag: ru.TypeTag[S],
     targetTag: ru.TypeTag[T]
   ): Arrow.Split.Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]] = Split.mkSplitter
@@ -179,8 +180,8 @@ object ScalaExpr {
 
   implicit def chooseScalaExpr[Arrows <: HList, S, C <: Coproduct](
     implicit
-    areScalaExprs: LUBConstraint[Arrows, ScalaExpr],
-    canChoose: Arrow.Choose.CanChoose.Aux[S, Arrows, C],
+    areScalaExprs: Traced[LUBConstraint[Arrows, ScalaExpr]],
+    canChoose: Traced[Arrow.Choose.CanChoose.Aux[S, Arrows, C]],
     sourceTag: ru.TypeTag[S]
   ): Arrow.Choose.Chooser.Aux[S, Arrows, Choose.Aux[S, Arrows, C]] =
     new Arrow.Choose.Chooser[S, Arrows] {
@@ -420,8 +421,8 @@ object ScalaExpr {
     fTag: ru.TypeTag[F[_]]
   ) {
 
-    def map[B <: ScalaExpr](b: B)           (implicit compose: Arrow.Compose[FMap[F, B], A]                   ): compose.Out = compose(new FMap[F, B](b), a)
-    def map[B <: ScalaExpr](fb: Id[S0] => B)(implicit compose: Arrow.Compose[FMap[F, B], A], t: ru.TypeTag[S0]): compose.Out = compose(new FMap[F, B](fb(Id[S0])), a)
+    def map[B <: ScalaExpr](b: B)           (implicit compose: Traced[Arrow.Compose[FMap[F, B], A]]                   ): compose.value.Out = compose.value(new FMap[F, B](b), a)
+    def map[B <: ScalaExpr](fb: Id[S0] => B)(implicit compose: Traced[Arrow.Compose[FMap[F, B], A]], t: ru.TypeTag[S0]): compose.value.Out = compose.value(new FMap[F, B](fb(Id[S0])), a)
   }
 
   implicit class ScalaExprMBindOps[A <: ScalaExpr, F[_], S0](a: A)(
@@ -431,8 +432,8 @@ object ScalaExpr {
     fTag: ru.TypeTag[F[_]]
   ) {
 
-    def flatMap[B <: ScalaExpr.Aux[_, F[_]]](b: B)           (implicit compose: Arrow.Compose[MBind[F, B], A]                   ): compose.Out = compose(new MBind[F, B](b), a)
-    def flatMap[B <: ScalaExpr.Aux[_, F[_]]](fb: Id[S0] => B)(implicit compose: Arrow.Compose[MBind[F, B], A], t: ru.TypeTag[S0]): compose.Out = compose(new MBind[F, B](fb(Id[S0])), a)
+    def flatMap[B <: ScalaExpr.Aux[_, F[_]]](b: B)           (implicit compose: Traced[Arrow.Compose[MBind[F, B], A]]                   ): compose.value.Out = compose.value(new MBind[F, B](b), a)
+    def flatMap[B <: ScalaExpr.Aux[_, F[_]]](fb: Id[S0] => B)(implicit compose: Traced[Arrow.Compose[MBind[F, B], A]], t: ru.TypeTag[S0]): compose.value.Out = compose.value(new MBind[F, B](fb(Id[S0])), a)
   }
 
   implicit class ScalaExprIterableOps[A <: ScalaExpr, S0, F[_]](a: A)(
@@ -444,32 +445,32 @@ object ScalaExpr {
   ) {
     private implicit def aTargetTypeTag = a.tgt.asInstanceOf[ru.TypeTag[A#Target]]
 
-    def toList(implicit compose: Arrow.Compose[IterableToList[A#Target, S0], A], t: ru.TypeTag[S0]): compose.Out = compose(new IterableToList[A#Target, S0], a)
+    def toList(implicit compose: Traced[Arrow.Compose[IterableToList[A#Target, S0], A]], t: ru.TypeTag[S0]): compose.value.Out = compose.value(new IterableToList[A#Target, S0], a)
 
-    def drop(n: Int)(implicit compose: Arrow.Compose[IterableSlice[A#Target], A]): compose.Out = compose(IterableSlice.from(n), a)
-    def take(n: Int)(implicit compose: Arrow.Compose[IterableSlice[A#Target], A]): compose.Out = compose(IterableSlice.to(n), a)
-    def slice(from: Int, to: Int)(implicit compose: Arrow.Compose[IterableSlice[A#Target], A]): compose.Out = compose(IterableSlice.range(from, to), a)
+    def drop(n: Int)(implicit compose: Traced[Arrow.Compose[IterableSlice[A#Target], A]]): compose.value.Out = compose.value(IterableSlice.from(n), a)
+    def take(n: Int)(implicit compose: Traced[Arrow.Compose[IterableSlice[A#Target], A]]): compose.value.Out = compose.value(IterableSlice.to(n), a)
+    def slice(from: Int, to: Int)(implicit compose: Traced[Arrow.Compose[IterableSlice[A#Target], A]]): compose.value.Out = compose.value(IterableSlice.range(from, to), a)
 
-    def filter[B <: ScalaExpr](expr: B)            (implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: B#Target =:= Boolean                   ): compose.Out = compose(IterableFilter[F, B](expr), a)
-    def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Arrow.Compose[IterableFilter[F, B], A], filterArrow: B#Target =:= Boolean, t: ru.TypeTag[S0]): compose.Out = compose(IterableFilter[F, B](mkExpr(Id[S0])), a)
+    def filter[B <: ScalaExpr](expr: B)            (implicit compose: Traced[Arrow.Compose[IterableFilter[F, B], A]], filterArrow: B#Target =:= Boolean                   ): compose.value.Out = compose.value(IterableFilter[F, B](expr), a)
+    def filter[B <: ScalaExpr](mkExpr: Id[S0] => B)(implicit compose: Traced[Arrow.Compose[IterableFilter[F, B], A]], filterArrow: B#Target =:= Boolean, t: ru.TypeTag[S0]): compose.value.Out = compose.value(IterableFilter[F, B](mkExpr(Id[S0])), a)
 
     def orderBy[B <: ScalaExpr](mkExpr: Id[S0] => B, dir: OrderBy.type => OrderBy.Direction = null)
-                               (implicit targetOrdering: Ordering[B#Target], compose: Strict[Arrow.Compose[IterableOrderBy[F, B], A]], t: ru.TypeTag[S0]): compose.value.Out =
+                               (implicit targetOrdering: Ordering[B#Target], compose: Traced[Arrow.Compose[IterableOrderBy[F, B], A]], t: ru.TypeTag[S0]): compose.value.Out =
       compose.value(IterableOrderBy(mkExpr(Id[S0]), Option(dir).map(_(OrderBy)).getOrElse(OrderBy.Ascending)), a)
   }
 
   implicit class CompareOps[L <: ScalaExpr](left: L) {
-    def ===[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, R]): build.Out = build(left, right)
-    def ===[R: ru.TypeTag] (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]): build.Out = build(left, Literal(right))
+    def ===[R <: ScalaExpr](right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Eq, R]]): build.value.Out = build.value(left, right)
+    def ===[R: ru.TypeTag] (right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]]): build.value.Out = build.value(left, Literal(right))
 
-    def =!=[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, R]): build.Out = build(left, right)
-    def =!=[R: ru.TypeTag] (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]): build.Out = build(left, Literal(right))
+    def =!=[R <: ScalaExpr](right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Neq, R]]): build.value.Out = build.value(left, right)
+    def =!=[R: ru.TypeTag] (right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]]): build.value.Out = build.value(left, Literal(right))
 
-    def exprEq[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, R]): build.Out = build(left, right)
-    def exprEq[R: ru.TypeTag] (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]): build.Out = build(left, Literal(right))
+    def exprEq[R <: ScalaExpr](right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Eq, R]]): build.value.Out = build.value(left, right)
+    def exprEq[R: ru.TypeTag] (right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Eq, Literal[R]]]): build.value.Out = build.value(left, Literal(right))
 
-    def exprNeq[R <: ScalaExpr](right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, R]): build.Out = build(left, right)
-    def exprNeq[R: ru.TypeTag] (right: R)(implicit build: CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]): build.Out = build(left, Literal(right))
+    def exprNeq[R <: ScalaExpr](right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Neq, R]]): build.value.Out = build.value(left, right)
+    def exprNeq[R: ru.TypeTag] (right: R)(implicit build: Traced[CompareOps.BuildCmpRight[L, Compare.Neq, Literal[R]]]): build.value.Out = build.value(left, Literal(right))
   }
   object CompareOps {
     @implicitNotFound("Cannot build compare expression: ${L} ${Cmp} ${R}")
@@ -482,19 +483,19 @@ object ScalaExpr {
 
       implicit def buildCmpRight[L <: ScalaExpr, Cmp[_, _] <: Compare[_, _], R <: ScalaExpr, PAR <: ScalaExpr, Out <: ScalaExpr](
         implicit
-        papplyR: Binary.PartialApplyRight.Aux[Cmp[L#Target, R#Target], R, PAR],
-        cmpInstance: Compare.CreateInstance[Cmp],
-        compose: Arrow.Compose.Aux[PAR, L, Out]
+        papplyR: Traced[Binary.PartialApplyRight.Aux[Cmp[L#Target, R#Target], R, PAR]],
+        cmpInstance: Traced[Compare.CreateInstance[Cmp]],
+        compose: Traced[Arrow.Compose.Aux[PAR, L, Out]]
       ): BuildCmpRight.Aux[L, Cmp, R, Out] =
         new BuildCmpRight[L, Cmp, R] {
-          type Out = compose.Out
-          def apply(left: L, right: R): compose.Out = {
-            val cmp = cmpInstance(appliedTypeTag(
+          type Out = compose.value.Out
+          def apply(left: L, right: R): compose.value.Out = {
+            val cmp = cmpInstance.value(appliedTypeTag(
               Tuple2TypeTag,
               left.tgt.asInstanceOf[ru.TypeTag[L#Target]],
               right.tgt.asInstanceOf[ru.TypeTag[R#Target]]
             ))
-            compose(papplyR(cmp, right), left)
+            compose.value(papplyR.value(cmp, right), left)
           }
         }
       private lazy val Tuple2TypeTag = ru.typeTag[(_, _)]
@@ -506,10 +507,10 @@ object ScalaExpr {
 
     def selectDynamic[V, A <: Arrow](k: String)(
       implicit
-      ev0: HasField.Aux[Target, k.type, V],
+      ev0: Traced[HasField.Aux[Target, k.type, V]],
       ev1: expr.type <:< A, // using `expr.type` directly in `compose` would require _existential types_
-      compose: Arrow.Compose[SelectField[Target, k.type, V], A]
-    ): compose.Out = compose(SelectField[Target, k.type, V](k)(tgt, ev0.tag), expr)
+      compose: Traced[Arrow.Compose[SelectField[Target, k.type, V], A]]
+    ): compose.value.Out = compose.value(SelectField[Target, k.type, V](k)(tgt, ev0.value.tag), expr)
   }
 
 

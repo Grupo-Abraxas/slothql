@@ -6,6 +6,7 @@ import scala.reflect.macros.whitebox
 
 import shapeless._
 
+import com.abraxas.slothql.Traced
 import com.abraxas.slothql.util.ShapelessUtils
 
 trait Arrow {
@@ -60,7 +61,7 @@ object Arrow {
   object Split extends ProductArgs {
     type Aux[Arrows <: HList, S, T] = Split[Arrows] { type Source = S; type Target = T }
 
-    def applyProduct[Arrows <: HList](arrows: Arrows)(implicit split: Splitter[Arrows]): split.Out = split(arrows)
+    def applyProduct[Arrows <: HList](arrows: Arrows)(implicit split: Traced[Splitter[Arrows]]): split.value.Out = split.value(arrows)
 
     def unapply(arr: Arrow): Option[List[Arrow]] = PartialFunction.condOpt(arr) { case split: Split[_] => split.toList }
 
@@ -77,8 +78,8 @@ object Arrow {
 
         implicit def proveCanSplit[Arrows <: HList, S, Ts <: HList](
           implicit
-          source: CommonSource.Aux[Arrows, S],
-          targets: Targets.Aux[Arrows, Ts]
+          source: Traced[CommonSource.Aux[Arrows, S]],
+          targets: Traced[Targets.Aux[Arrows, Ts]]
         ): CanSplit.Aux[Arrows, S, Ts] = instance.asInstanceOf[CanSplit.Aux[Arrows, S, Ts]]
 
         private lazy val instance = new CanSplit[HList] {}
@@ -91,15 +92,15 @@ object Arrow {
 
       implicit def arrowAsHListSplitter[Arrows <: HList, S, Ts <: HList](
         implicit
-        canSplit: Splitter.CanSplit.Aux[Arrows, S, Ts],
+        canSplit: Traced[Splitter.CanSplit.Aux[Arrows, S, Ts]],
         lowPriority: LowPriority
       ): Splitter0.Aux[Arrows, HList, Split.Aux[Arrows, S, Ts]] =
         instance.asInstanceOf[Splitter0.Aux[Arrows, HList, Split.Aux[Arrows, S, Ts]]]
 
       implicit def arrowAsTupleSplitter[Arrows <: HList, S, Ts <: HList, T <: Product](
         implicit
-        canSplit: Splitter.CanSplit.Aux[Arrows, S, Ts],
-        tupler: ops.hlist.Tupler.Aux[Ts, T],
+        canSplit: Traced[Splitter.CanSplit.Aux[Arrows, S, Ts]],
+        tupler: Traced[ops.hlist.Tupler.Aux[Ts, T]],
         lowPriority: LowPriority
       ): Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]] =
         instance.asInstanceOf[Splitter0.Aux[Arrows, Product, Split.Aux[Arrows, S, T]]]
@@ -164,9 +165,9 @@ object Arrow {
     protected class ChooseBuilder[From] extends ProductArgs {
       def fromProduct[Arrows <: HList](arrows: Arrows)(
         implicit
-        sourcesAreDistinct: CanChoose.SourcesAreDistinct[Arrows],
-        chooser: Chooser[From, Arrows]
-      ): chooser.Out = chooser(arrows)
+        sourcesAreDistinct: Traced[CanChoose.SourcesAreDistinct[Arrows]],
+        chooser: Traced[Chooser[From, Arrows]]
+      ): chooser.value.Out = chooser.value(arrows)
     }
     private object ChooseBuilder extends ChooseBuilder[Any]
 
@@ -187,8 +188,8 @@ object Arrow {
       object SourcesAreDistinct {
         implicit def impl[Arrows <: HList, Ss <: HList](
           implicit
-          sources: Sources.Aux[Arrows, Ss],
-          sourcesAreDistinct: ShapelessUtils.HListElementAreUnique[Ss]
+          sources: Traced[Sources.Aux[Arrows, Ss]],
+          sourcesAreDistinct: Traced[ShapelessUtils.HListElementAreUnique[Ss]]
         ): SourcesAreDistinct[Arrows] = instance.asInstanceOf[SourcesAreDistinct[Arrows]]
 
         private lazy val instance = new SourcesAreDistinct[HList] {}
@@ -196,12 +197,12 @@ object Arrow {
 
       implicit def proveCanChoose[From, Arrows <: HList, Ss <: HList, Ts <: HList](
         implicit
-        sources: Sources.Aux[Arrows, Ss],
-        sourcesAreFrom: LUBConstraint[Ss, From],
-        sourcesAreDistinct: SourcesAreDistinct[Arrows], // TODO: remove? already checked at `ChooseBuilder`
-        targets: Targets.Aux[Arrows, Ts],
-        toCoproduct: ops.hlist.ToCoproduct[Ts]
-      ): CanChoose.Aux[From, Arrows, toCoproduct.Out] = instance.asInstanceOf[CanChoose.Aux[From, Arrows, toCoproduct.Out]]
+        sources: Traced[Sources.Aux[Arrows, Ss]],
+        sourcesAreFrom: Traced[LUBConstraint[Ss, From]],
+        sourcesAreDistinct: Traced[SourcesAreDistinct[Arrows]], // TODO: remove? already checked at `ChooseBuilder`
+        targets: Traced[Targets.Aux[Arrows, Ts]],
+        toCoproduct: Traced[ops.hlist.ToCoproduct[Ts]]
+      ): CanChoose.Aux[From, Arrows, toCoproduct.value.Out] = instance.asInstanceOf[CanChoose.Aux[From, Arrows, toCoproduct.value.Out]]
 
       private lazy val instance = new CanChoose[Any, HList] {}
     }
@@ -210,7 +211,7 @@ object Arrow {
   // Had to move it from `Chooser` companion object because it was causing ambiguity even with `LowPriority`
   implicit def arrowChooser[Arrows <: HList, S, C <: Coproduct](
     implicit
-    canChoose: Choose.CanChoose.Aux[S, Arrows, C]
+    canChoose: Traced[Choose.CanChoose.Aux[S, Arrows, C]]
   ): Choose.Chooser.Aux[S, Arrows, Choose.Aux[S, Arrows, C]] =
     arrowChooserInstance.asInstanceOf[Choose.Chooser.Aux[S, Arrows, Choose.Aux[S, Arrows, C]]]
 
@@ -275,30 +276,30 @@ object Arrow {
   }
   object Composition {
     type Aux[F <: Arrow, G <: Arrow, S, T] = Composition[F, G] { type Source = S; type Target = T }
-    def apply[F <: Arrow, G <: Arrow](f: F, g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
+    def apply[F <: Arrow, G <: Arrow](f: F, g: G)(implicit compose: Traced[Compose[F, G]]): compose.value.Out = compose.value(f, g)
     def unapply(arr: Arrow): Option[(Arrow, Arrow)] = PartialFunction.condOpt(arr) { case c: Composition[_, _] => c.F -> c.G }
   }
 
   /** Syntax sugar for arrows composition. */
   implicit class ComposeOps[F <: Arrow](f: F) {
-    def compose[G <: Arrow](g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
-    def ∘      [G <: Arrow](g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
-    def <<<    [G <: Arrow](g: G)(implicit compose: Compose[F, G]): compose.Out = compose(f, g)
+    def compose[G <: Arrow](g: G)(implicit compose: Traced[Compose[F, G]]): compose.value.Out = compose.value(f, g)
+    def ∘      [G <: Arrow](g: G)(implicit compose: Traced[Compose[F, G]]): compose.value.Out = compose.value(f, g)
+    def <<<    [G <: Arrow](g: G)(implicit compose: Traced[Compose[F, G]]): compose.value.Out = compose.value(f, g)
 
-    def andThen[G <: Arrow](g: G)(implicit compose: Compose[G, F]): compose.Out = compose(g, f)
-    def >>>    [G <: Arrow](g: G)(implicit compose: Compose[G, F]): compose.Out = compose(g, f)
+    def andThen[G <: Arrow](g: G)(implicit compose: Traced[Compose[G, F]]): compose.value.Out = compose.value(g, f)
+    def >>>    [G <: Arrow](g: G)(implicit compose: Traced[Compose[G, F]]): compose.value.Out = compose.value(g, f)
   }
 
   /** Syntax sugar for arrows composition. */
   implicit class ComposeOpsIdArr[F <: Arrow, IdArr <: Arrow](f: F)(implicit idArr: Id.Builder.Aux[F, F#Target, IdArr]) {
-    def andThenF[G <: Arrow](fg: IdArr => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(idArr()), f)
-    def >^>     [G <: Arrow](fg: IdArr => G)(implicit compose: Compose[G, F]): compose.Out = compose(fg(idArr()), f)
+    def andThenF[G <: Arrow](fg: IdArr => G)(implicit compose: Traced[Compose[G, F]]): compose.value.Out = compose.value(fg(idArr()), f)
+    def >^>     [G <: Arrow](fg: IdArr => G)(implicit compose: Traced[Compose[G, F]]): compose.value.Out = compose.value(fg(idArr()), f)
   }
 
   /** Syntax sugar for unchaining composed arrows. */
   implicit class UnchainOps[F <: Arrow](f: F) {
-    def unchain(implicit ev: Unchain[F]): ev.Out = ev(f)
-    def unchainRev[L <: HList](implicit ev: Unchain.Aux[F, L], reverse: ops.hlist.Reverse[L]): reverse.Out = reverse(ev(f))
+    def unchain(implicit ev: Traced[Unchain[F]]): ev.value.Out = ev.value(f)
+    def unchainRev[L <: HList](implicit ev: Traced[Unchain.Aux[F, L]], reverse: Traced[ops.hlist.Reverse[L]]): reverse.value.Out = reverse.value(ev.value(f))
   }
 
 
@@ -306,7 +307,7 @@ object Arrow {
   trait Compose[F <: Arrow, G <: Arrow] extends DepFn2[F, G] { type Out <: Arrow }
   object Compose {
     type Aux[F <: Arrow, G <: Arrow, Composition <: Arrow] = Compose[F, G] { type Out = Composition }
-    def apply[F <: Arrow, G <: Arrow](implicit compose: Compose[F, G]): Aux[F, G, compose.Out] = compose
+    def apply[F <: Arrow, G <: Arrow](implicit compose: Traced[Compose[F, G]]): Aux[F, G, compose.value.Out] = compose.value
 
     implicit def composeIdLeft[F <: Arrow, G <: Arrow, T](
       implicit
@@ -335,7 +336,7 @@ object Arrow {
 
     implicit def canCompose[F <: Arrow, G <: Arrow, S, T](
       implicit
-      typesCorrespond: TypesCorrespond.Aux[F, G, S, T],
+      typesCorrespond: Traced[TypesCorrespond.Aux[F, G, S, T]],
       lowPriority: LowPriority
     ): Compose.Aux[F, G, Composition.Aux[F, G, S, T]] = instance.asInstanceOf[Aux[F, G, Composition.Aux[F, G, S, T]]]
     private lazy val instance = new Compose[Arrow, Arrow] {
@@ -364,7 +365,7 @@ object Arrow {
   trait Unchain[F <: Arrow] extends DepFn1[F] { type Out <: HList }
   object Unchain {
     type Aux[F <: Arrow, Arrows <: HList] = Unchain[F] { type Out = Arrows }
-    def apply[F <: Arrow](implicit unchain: Unchain[F]): Aux[F, unchain.Out] = unchain
+    def apply[F <: Arrow](implicit unchain: Traced[Unchain[F]]): Aux[F, unchain.value.Out] = unchain.value
     def apply(arr: Arrow): List[Arrow] = arr match {
       case c: Composition[_, _] => apply(c.F) ::: apply(c.G)
       case _ => arr :: Nil
@@ -372,15 +373,15 @@ object Arrow {
 
     implicit def unchainComposition[C <: Composition[_, _], F <: Arrow, G <: Arrow, ChF <: HList, ChG <: HList](
       implicit
-      ev: C <:< Composition[F, G],
-      unchainF: Lazy[Unchain.Aux[F, ChF]],
-      unchainG: Lazy[Unchain.Aux[G, ChG]],
-      concat: ops.hlist.Prepend[ChF, ChG]
-    ): Unchain.Aux[C, concat.Out] =
+      ev: Traced[C <:< Composition[F, G]],
+      unchainF: Traced[Lazy[Unchain.Aux[F, ChF]]],
+      unchainG: Traced[Lazy[Unchain.Aux[G, ChG]]],
+      concat: Traced[ops.hlist.Prepend[ChF, ChG]]
+    ): Unchain.Aux[C, concat.value.Out] =
       new Unchain[C] {
-        type Out = concat.Out
+        type Out = concat.value.Out
         def apply(c: C): Out =
-          concat(unchainF.value(c.F.asInstanceOf[F]), unchainG.value(c.G.asInstanceOf[G]))
+          concat.value(unchainF.value.value(c.F.asInstanceOf[F]), unchainG.value.value(c.G.asInstanceOf[G]))
       }
 
     implicit def notChained[F <: Arrow](implicit ev: F <:!< Composition[_, _]): Unchain.Aux[F, F :: HNil] =
@@ -395,7 +396,7 @@ object Arrow {
   trait CommonSource[Arrows <: HList] { type Source }
   object CommonSource {
     type Aux[Arrows <: HList, S] = CommonSource[Arrows] { type Source = S }
-    def apply[Arrows <: HList](implicit cs: CommonSource[Arrows]): Aux[Arrows, cs.Source] = cs
+    def apply[Arrows <: HList](implicit cs: Traced[CommonSource[Arrows]]): Aux[Arrows, cs.value.Source] = cs.value
 
     implicit def singleCommonSource[H <: Arrow]: CommonSource.Aux[H :: HNil, H#Source] =
       instance.asInstanceOf[CommonSource.Aux[H :: HNil, H#Source]]
@@ -403,8 +404,8 @@ object Arrow {
     implicit def multipleCommonSource[H <: Arrow, T <: HList, TS, S](
       implicit
       notSingle: T <:!< HNil,
-      tSource: CommonSource.Aux[T, TS],
-      lub: Lub[H#Source, TS, S]
+      tSource: Traced[CommonSource.Aux[T, TS]],
+      lub: Lub[H#Source, TS, S] // TODO: can't trace
     ): CommonSource.Aux[H :: T, S] = instance.asInstanceOf[CommonSource.Aux[H :: T, S]]
 
     private lazy val instance = new CommonSource[HList]{}
@@ -413,15 +414,15 @@ object Arrow {
   trait Sources[Arrows <: HList] { type Sources <: HList }
   object Sources {
     type Aux[Arrows <: HList, Ts <: HList] = Sources[Arrows] { type Sources = Ts }
-    def apply[Arrows <: HList](implicit t: Sources[Arrows]): Aux[Arrows, t.Sources] = t
+    def apply[Arrows <: HList](implicit t: Traced[Sources[Arrows]]): Aux[Arrows, t.value.Sources] = t.value
 
     implicit def singleSource[H <: Arrow]: Sources.Aux[H :: HNil, H#Source :: HNil] =
       instance.asInstanceOf[Sources.Aux[H :: HNil, H#Source :: HNil]]
     implicit def multipleSources[H <: Arrow, T <: HList](
       implicit
       notSingle: T =:!= HNil,
-      t: Sources[T]
-    ): Sources.Aux[H :: T, H#Source :: t.Sources] = instance.asInstanceOf[Sources.Aux[H :: T, H#Source :: t.Sources]]
+      t: Traced[Sources[T]]
+    ): Sources.Aux[H :: T, H#Source :: t.value.Sources] = instance.asInstanceOf[Sources.Aux[H :: T, H#Source :: t.value.Sources]]
 
     private lazy val instance = new Sources[HList] {}
   }
@@ -429,15 +430,15 @@ object Arrow {
   trait Targets[Arrows <: HList] { type Targets <: HList }
   object Targets {
     type Aux[Arrows <: HList, Ts <: HList] = Targets[Arrows] { type Targets = Ts }
-    def apply[Arrows <: HList](implicit t: Targets[Arrows]): Aux[Arrows, t.Targets] = t
+    def apply[Arrows <: HList](implicit t: Traced[Targets[Arrows]]): Aux[Arrows, t.value.Targets] = t.value
 
     implicit def singleTarget[H <: Arrow]: Targets.Aux[H :: HNil, H#Target :: HNil] =
       instance.asInstanceOf[Targets.Aux[H :: HNil, H#Target :: HNil]]
     implicit def multipleTargets[H <: Arrow, T <: HList](
       implicit
       notSingle: T =:!= HNil,
-      t: Targets[T]
-    ): Targets.Aux[H :: T, H#Target :: t.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, H#Target :: t.Targets]]
+      t: Traced[Targets[T]]
+    ): Targets.Aux[H :: T, H#Target :: t.value.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, H#Target :: t.value.Targets]]
 
     private lazy val instance = new Targets[HList] {}
   }

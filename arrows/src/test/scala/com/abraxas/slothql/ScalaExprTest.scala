@@ -178,7 +178,8 @@ object ScalaExprTest {
          _.on[UserReview].split(_.text, _.vote)
        )
     """,
-    "Source types of the arrows must be distinct"
+    "could not find implicit value for parameter sourcesAreDistinct.*"
+//    "Source types of the arrows must be distinct"
   )
 
 

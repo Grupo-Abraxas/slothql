@@ -26,8 +26,21 @@ lazy val root = (project in file(".")).
     crossScalaVersions := Nil,
     name := "slothql"
   )
-  .aggregate(cypher, arrows)
+  .aggregate(macros, cypher, arrows)
 
+
+lazy val macros = (project in file("macros"))
+  .settings(
+    name := "slothql-macros",
+    libraryDependencies += scalaOrganization.value % "scala-reflect" % scalaVersion.value,
+    resolvers += "Artifactory Realm" at "http://artifactory.arkondata.com/artifactory/sbt-dev",
+    libraryDependencies ++= Seq(
+      "io.jaegertracing" % "jaeger-client" % "0.33.1",
+      "com.github.fehu" %% "opentracing-akka" % "0.1.0",
+      "org.slf4j" % "slf4j-simple" % "1.7.26",
+      Dependencies.shapeless
+    )
+  )
 
 lazy val cypher = (project in file("cypher"))
   .settings(
@@ -40,6 +53,7 @@ lazy val cypher = (project in file("cypher"))
       Dependencies.`neo4j-driver`,
       Dependencies.Test.scalatest
     ),
+    ammVersion := "1.6.5",
     initialCommands in console :=
       """
         |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
@@ -48,6 +62,7 @@ lazy val cypher = (project in file("cypher"))
       """.stripMargin
 
   )
+  .dependsOn(macros)
 
 lazy val arrows = (project in file("arrows"))
   .settings(
@@ -56,8 +71,10 @@ lazy val arrows = (project in file("arrows"))
       Dependencies.shapeless,
       Dependencies.`cats-core`,
       Dependencies.Test.scalatest
-    )
+    ),
+    ammVersion := "1.6.5"
   )
+  .dependsOn(macros)
 
 
 // // // Repository // // //
