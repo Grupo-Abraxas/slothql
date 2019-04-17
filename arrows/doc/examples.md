@@ -27,3 +27,11 @@
 ```
 
 ![Example2](examples/example-2.png)
+
+### Example 3
+
+```scala
+ScalaExpr[Book].split(_.title, _.author.map(_.name), _.meta.isbn)
+```
+
+![Example3](examples/example-3.png)
