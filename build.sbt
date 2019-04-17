@@ -26,6 +26,7 @@ lazy val root = (project in file(".")).
     crossScalaVersions := Nil,
     name := "slothql"
   )
+  .settings(ammSettings: _*)
   .aggregate(cypher, arrows)
 
 
@@ -44,10 +45,10 @@ lazy val cypher = (project in file("cypher"))
       """
         |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
         |import com.abraxas.slothql.cypher.syntax._
+        |import com.abraxas.slothql.cypher.CypherFragment
         |import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
       """.stripMargin
-
-  )
+  ).settings(ammSettings: _*)
 
 lazy val arrows = (project in file("arrows"))
   .settings(
@@ -56,8 +57,12 @@ lazy val arrows = (project in file("arrows"))
       Dependencies.shapeless,
       Dependencies.`cats-core`,
       Dependencies.Test.scalatest
-    )
-  )
+    ),
+    initialCommands in console :=
+      """
+        |import com.abraxas.slothql.arrow._
+      """.stripMargin
+  ).settings(ammSettings: _*)
 
 
 // // // Repository // // //
@@ -67,4 +72,8 @@ credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkond
 
 
 // Ammonite
-ammHome in ThisBuild := Some((baseDirectory.value / ".amm").getAbsolutePath)
+lazy val ammoniteVersion = "1.6.5"
+lazy val ammSettings = Seq(
+  ammVersion := ammoniteVersion,
+  ammHome := Some(((baseDirectory in ThisBuild).value / ".amm").getAbsolutePath) 
+)
