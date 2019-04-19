@@ -19,8 +19,8 @@ object Dependencies {
     lazy val shapeless = "2.3.3"
     lazy val kindProjector = "0.9.6"
 
-    lazy val cats = "1.5.0"
-    lazy val catsEffect = "1.1.0"
+    lazy val cats = "1.6.0"
+    lazy val catsEffect = "1.2.0"
 
     lazy val neo4jDriver = "1.7.2"
 
