@@ -37,9 +37,19 @@ object Match { MatchObj =>
       protected[syntax] def query: Known[Query.Query0[R]]
       def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = None), query)
     }
-    protected[syntax] object With {
-      sealed trait Var
-      implicit object Var {
+    object With {
+      def apply[R](wildcard: Boolean, ops: ReturnOps[Any] => ReturnOps[Any], exprs: Seq[Known[Return.Expr[_]]], res: Match.Result[R]): With[R] =
+        new With[R] {
+          private lazy val ret0 = CypherFragment.Return.Untyped.returns(wildcard = wildcard, exprs: _*).asInstanceOf[CypherFragment.Return.Return0[R]]
+
+          protected[syntax] def ret: Known[CypherFragment.Return[R]] =
+            ops(ReturnOps(CypherFragment.Return.Wildcard)).copy(ret0).ret
+          protected[syntax] def query: Known[Query.Query0[R]] =
+            res.result
+        }
+
+      protected[syntax] sealed trait Var
+      protected[syntax] implicit object Var {
         final case class Expr(expr: Known[CypherFragment.Expr[_]])       extends Var
         final case class ReturnExpr(expr: CypherFragment.Return.Expr[_]) extends Var
         final case class Name(name: String)                              extends Var
@@ -56,9 +66,12 @@ object Match { MatchObj =>
         def implFOV[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]], vars: c.Expr[Match.Result.With.Var]*)
                                      (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
           implWOV(c.universe.reify(false), ops, vars: _*)(res)
-        def implTOV[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]], vars: c.Expr[Match.Result.With.Var]*)
+        def implTOV[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]], var0: c.Expr[Match.Result.With.Var], vars: c.Expr[Match.Result.With.Var]*)
                                      (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(c.universe.reify(true), ops, vars: _*)(res)
+          implWOV(c.universe.reify(true), ops, var0 +: vars: _*)(res)
+        def implTO[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]])
+                                    (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
+          implWOV(c.universe.reify(true), ops)(res)
         def implWV[R: c.WeakTypeTag](wildcard: c.Expr[Boolean], vars: c.Expr[Match.Result.With.Var]*)
                                     (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
           implWOV(wildcard, c.universe.reify(locally[ReturnOps[Any]]), vars: _*)(res)
@@ -89,19 +102,7 @@ object Match { MatchObj =>
             }
           })
           lazy val retExprs = c.Expr[Seq[Known[CypherFragment.Return.Expr[_]]]](q"_root_.scala.Seq(..$retExprs0).flatten")
-          lazy val withExpr = reify {
-            new MatchObj.Result.With[R] {
-              private lazy val ret0 = CypherFragment.Return.Untyped.returns(
-                wildcard = wildcard.splice,
-                retExprs.splice: _*
-              ).asInstanceOf[CypherFragment.Return.Return0[R]]
-
-              protected[syntax] def ret: Known[CypherFragment.Return[R]] =
-                ops.splice(ReturnOps(CypherFragment.Return.Wildcard)).copy(ret0).ret
-              protected[syntax] def query: Known[Query.Query0[R]] =
-                res.splice.result
-            }
-          }
+          lazy val withExpr = reify { MatchObj.Result.With[R](wildcard.splice, ops.splice, retExprs.splice, res.splice) }
 
           // // // check for unbound usage // // //
           lazy val wrapExprSymbol = typeOf[MatchObj.Result.With.Var.type].decl(TermName("wrapExpr"))

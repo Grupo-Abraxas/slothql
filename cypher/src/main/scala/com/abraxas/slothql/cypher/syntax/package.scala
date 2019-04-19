@@ -585,7 +585,12 @@ package object syntax extends LowPriorityImplicits {
 
   object withWildcard {
     /** wildcard = true */
-    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
+    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any])
+                (res: Match.Result[R]): Match.Result[R] =
+      macro Match.Result.With.WithMacros.implTO[R]
+
+    /** wildcard = true */
+    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], var0: Match.Result.With.Var, vars: Match.Result.With.Var*)
                 (res: Match.Result[R]): Match.Result[R] =
       macro Match.Result.With.WithMacros.implTOV[R]
 
