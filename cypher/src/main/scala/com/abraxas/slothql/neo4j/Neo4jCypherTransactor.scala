@@ -16,7 +16,7 @@ import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBu
 import com.abraxas.slothql.neo4j.util.JavaExt._
 
 
-class Neo4jCypherTransactor(protected val session: () => Session) extends CypherTransactor {
+class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTransactor {
   tx0 =>
 
   type TxBuilder = Neo4jCypherTransactor.type
@@ -25,12 +25,12 @@ class Neo4jCypherTransactor(protected val session: () => Session) extends Cypher
   import Neo4jCypherTransactor._
 
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]] =
-    IO {
-      session().readTransaction(new TransactionWork[Seq[A]] {
-        def execute(transaction: Transaction): Seq[A] =
-          tx.foldMap(Neo4jCypherTransactor.syncInterpreter[Vector](tx0, transaction))
-      })
-    }
+    session.bracket(s => IO {
+      s.readTransaction((transaction: Transaction) =>
+        tx.foldMap(Neo4jCypherTransactor.syncInterpreter[Vector](tx0, transaction))
+      )
+    })(s => IO { s.close() })
+
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
 }
 
@@ -40,7 +40,7 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
 
   type Cell = Value
 
-  def apply(session: => Session): Neo4jCypherTransactor = new Neo4jCypherTransactor(() => session)
+  def apply(driver: Driver): Neo4jCypherTransactor = new Neo4jCypherTransactor(IO{ driver.session() })
 
   trait RecordReader[A] extends CypherTransactor.Reader[Record, A]
   object RecordReader {
