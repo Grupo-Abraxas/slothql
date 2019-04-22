@@ -6,6 +6,7 @@ import scala.reflect.macros.whitebox
 
 import shapeless._
 
+import com.abraxas.slothql.arrow.util.NotId
 import com.abraxas.slothql.util.ShapelessUtils
 
 trait Arrow {
@@ -311,7 +312,7 @@ object Arrow {
     implicit def composeIdLeft[F <: Arrow, G <: Arrow, T](
       implicit
       idF: F <:< Arrow.Id[G#Target],
-      notIdG: G <:!< Arrow.Id[_]
+      notIdG: NotId[G]
     ): Compose.Aux[F, G, G] =
       composeIdL.asInstanceOf[Compose.Aux[F, G, G]]
     private lazy val composeIdL = new Compose[Arrow.Id[Any], Arrow] {
@@ -322,7 +323,7 @@ object Arrow {
     implicit def composeIdRight[F <: Arrow, G <: Arrow, S](
       implicit
       idG: G <:< Arrow.Id[F#Source],
-      notIdF: F <:!< Arrow.Id[_]
+      notIdF: NotId[F]
     ): Compose.Aux[F, G, F] =
       composeIdR.asInstanceOf[Compose.Aux[F, G, F]]
     private lazy val composeIdR = new Compose[Arrow, Arrow.Id[Any]] {

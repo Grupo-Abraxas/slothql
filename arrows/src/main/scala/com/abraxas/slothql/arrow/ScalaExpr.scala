@@ -7,7 +7,7 @@ import scala.reflect.runtime.{ universe => ru }
 import cats.data.Ior
 import shapeless._
 
-import com.abraxas.slothql.arrow.util.{ ArrowToDot, ShowT }
+import com.abraxas.slothql.arrow.util.{ ArrowToDot, NotId, ShowT }
 import com.abraxas.slothql.util.{ HasField, ShapelessUtils, TypeUtils }
 
 
@@ -110,8 +110,8 @@ object ScalaExpr {
   implicit def composeScalaExprs[F <: ScalaExpr, G <: ScalaExpr, S, T](
     implicit
     typesCorrespond: Arrow.Compose.TypesCorrespond.Aux[F, G, S, T],
-    fNotId: F <:!< Arrow.Id[_],
-    gNotId: G <:!< Arrow.Id[_]
+    fNotId: NotId[F],
+    gNotId: NotId[G]
   ): Arrow.Compose.Aux[F, G, Composition.Aux[F, G, S, T]] = composeInstance.asInstanceOf[Arrow.Compose.Aux[F, G, Composition.Aux[F, G, S, T]]]
 
   private lazy val composeInstance = new Arrow.Compose[ScalaExpr, ScalaExpr] {
