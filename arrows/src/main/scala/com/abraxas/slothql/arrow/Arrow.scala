@@ -405,7 +405,7 @@ object Arrow {
 
     implicit def multipleCommonSource[H <: Arrow, T <: HList, TS, S](
       implicit
-      notSingle: T <:!< HNil,
+      notSingle: ops.hlist.IsHCons[T],
       tSource: CommonSource.Aux[T, TS],
       lub: Lub[H#Source, TS, S]
     ): CommonSource.Aux[H :: T, S] = instance.asInstanceOf[CommonSource.Aux[H :: T, S]]
@@ -422,7 +422,7 @@ object Arrow {
       instance.asInstanceOf[Sources.Aux[H :: HNil, H#Source :: HNil]]
     implicit def multipleSources[H <: Arrow, T <: HList](
       implicit
-      notSingle: T =:!= HNil,
+      notSingle: ops.hlist.IsHCons[T],
       t: Sources[T]
     ): Sources.Aux[H :: T, H#Source :: t.Sources] = instance.asInstanceOf[Sources.Aux[H :: T, H#Source :: t.Sources]]
 
@@ -438,7 +438,7 @@ object Arrow {
       instance.asInstanceOf[Targets.Aux[H :: HNil, H#Target :: HNil]]
     implicit def multipleTargets[H <: Arrow, T <: HList](
       implicit
-      notSingle: T =:!= HNil,
+      notSingle: ops.hlist.IsHCons[T],
       t: Targets[T]
     ): Targets.Aux[H :: T, H#Target :: t.Targets] = instance.asInstanceOf[Targets.Aux[H :: T, H#Target :: t.Targets]]
 
