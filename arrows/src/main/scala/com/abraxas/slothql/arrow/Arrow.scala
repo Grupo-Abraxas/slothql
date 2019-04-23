@@ -333,7 +333,7 @@ object Arrow {
       def apply(f: Arrow, g: Arrow.Id[Any]): Arrow = f
     }
 
-    implicit def composeIdBoth[F <: Arrow, G <: Arrow, S](implicit idF: F <:< Arrow.Id[S], idEq: F =:= G): Compose.Aux[F, G, F] =
+    implicit def composeIdBoth[F <: Arrow, G <: Arrow](implicit idF: IsId[F], idG: IsId[G], idEq: F#Source =:= G#Source): Compose.Aux[F, G, F] =
       composeIdR.asInstanceOf[Compose.Aux[F, G, F]]
 
     implicit def canCompose[F <: Arrow, G <: Arrow, S, T](
