@@ -552,12 +552,10 @@ object ScalaExpr {
 
 
   object Unsafe {
-    def unchainRev(expr0: ScalaExpr): UnchainedRev = {
-      def inner(expr: ScalaExpr): List[ScalaExpr] = expr match {
-        case c: Composition[_, _] => inner(c.G) ::: inner(c.F)
-        case _ => expr :: Nil
-      }
-      unchainedRev(inner(expr0): _*)
+    def unchainRev(expr0: ScalaExpr): UnchainedRev = unchainedRev(unchainRevInner(expr0): _*)
+    private def unchainRevInner(expr: ScalaExpr): List[ScalaExpr] = expr match {
+      case c: Composition[_, _] => unchainRevInner(c.G) ::: unchainRevInner(c.F)
+      case _ => expr :: Nil
     }
 
     def unchainedRev(unchained: ScalaExpr*): UnchainedRev =
@@ -583,6 +581,13 @@ object ScalaExpr {
         else UnchainedRev(Nil, ru.TypeTag.Nothing.asInstanceOf[ru.TypeTag[Any]], ru.TypeTag.Nothing.asInstanceOf[ru.TypeTag[Any]])
 
       def short: String = toList.map(_.short).mkString(".")
+    }
+
+    object UnchainedRev {
+      def unapply(expr: ScalaExpr): Option[List[ScalaExpr]] = PartialFunction.condOpt(expr) {
+        case UnchainedRev(rev)   => rev
+        case c@Composition(_, _) => unchainRevInner(c)
+      }
     }
   }
 }
