@@ -6,7 +6,7 @@ import scala.util.Random
 import shapeless._
 
 import com.abraxas.slothql.arrow.Arrow
-import com.abraxas.slothql.util.{ ClassUtils, TypeUtils }
+import com.abraxas.slothql.util.{ ClassUtils, LiftAllCachedCoproduct, LiftAllCachedHList, TypeUtils }
 
 
 trait ShowT[T] {
@@ -31,7 +31,7 @@ object ShowT extends ShowTLowPriorityImplicits {
     implicit
     gen: Generic.Aux[P, Repr],
     isTuple: ops.hlist.Tupler.Aux[Repr, P],
-    showEach: ops.hlist.LiftAll.Aux[ShowT, Repr, ShowRepr],
+    showEach: LiftAllCachedHList.Aux[ShowT, Repr, ShowRepr],
     toList: ops.hlist.ToTraversable.Aux[ShowRepr, List, ShowT[_]],
     tag: ru.TypeTag[P],
     low: LowPriority
@@ -46,14 +46,14 @@ object ShowT extends ShowTLowPriorityImplicits {
 
   implicit def defaultHListShowT[L <: HList, ShowL <: HList](
     implicit
-    showEach: ops.hlist.LiftAll.Aux[ShowT, L, ShowL],
+    showEach: LiftAllCachedHList.Aux[ShowT, L, ShowL],
     toList: ops.hlist.ToTraversable.Aux[ShowL, List, ShowT[_]],
     low: LowPriority
   ): ShowT[L] = showCons("HList", "HNil", "::", showEach.instances.toList)
 
   implicit def defaultCoproductShowT[C <: Coproduct, ShowL <: HList](
     implicit
-    showEach: ops.coproduct.LiftAll.Aux[ShowT, C, ShowL],
+    showEach: LiftAllCachedCoproduct.Aux[ShowT, C, ShowL],
     toList: ops.hlist.ToTraversable.Aux[ShowL, List, ShowT[_]],
     low: LowPriority
   ): ShowT[C] = showCons("Coproduct", "CNil", ":+:", showEach.instances.toList)
@@ -167,7 +167,7 @@ object ArrowToDot {
     toDot: ops.hlist.ZipWith.Aux[Arrs, SourceNodeIds, ArrowToDotPoly2.type, ArrsDot],
     dotToList: ops.hlist.ToTraversable.Aux[ArrsDot, List, (String, TargetNodeId)],
     arrSourceTypes: Arrow.Sources.Aux[Arrs, SourceTypes],
-    showSourceTypes: ops.hlist.LiftAll.Aux[ShowT, SourceTypes, ShowSourceTypes],
+    showSourceTypes: LiftAllCachedHList.Aux[ShowT, SourceTypes, ShowSourceTypes],
     showSourceTypesToList: ops.hlist.ToTraversable.Aux[ShowSourceTypes, List, ShowT[_]],
     showTargetType: ShowT[A#Target]
   ): ArrowToDot[A] = define {
