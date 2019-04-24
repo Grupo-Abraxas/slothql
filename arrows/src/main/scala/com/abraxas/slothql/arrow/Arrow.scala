@@ -43,9 +43,16 @@ object Arrow {
     }
   }
 
+  trait Const[S, A <: Arrow] extends Arrow {
+    val arrow: A
+    type Source = S
+    type Target = A#Target
 
-  // case class Obj[A ](get: A) extends Arrow { type Source = A;    type Target =  A }
-  // case class Lit[+A](get: A) extends Arrow { type Source = Unit; type Target <: A }
+    override def toString: String = s"Const($arrow)"
+  }
+  object Const {
+    def apply[S, A <: Arrow](a: A)(implicit unitSrc: A#Source =:= Unit): Const[S, A] = new Const[S, A] { val arrow: A = a }
+  }
 
   /** A bundle of arrows with common source. Its target is product of arrows' targets. */
   trait Split[Arrows <: HList] extends Arrow {

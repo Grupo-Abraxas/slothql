@@ -312,4 +312,11 @@ object ScalaExprTest {
   implicitly[orderPagesD.type <:< OrderByPageExpr]
   assert(orderPagesD == OrderByPageExpr(ScalaExpr.OrderBy.Descending))
   assert(orderPagesD.short == ".pages.orderBy[Inv](_.text)")
+
+
+  val bookConst0 = ScalaExpr[Book].const(0)
+  implicitly[bookConst0.type <:< ScalaExpr.Const[Book, ScalaExpr.Literal[Int]]]
+  assert(bookConst0 == ScalaExpr.Const[Book](ScalaExpr.Literal(0)))
+  assert(bookConst0.short == "0")
+
 }

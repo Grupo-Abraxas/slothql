@@ -72,6 +72,8 @@ object ScalaExpr {
   /** Identity arrow. (self selection) */
   sealed trait Id[A] extends ScalaExpr with Arrow.Id[A] {
     override def toString: String = s"Id[${TypeUtils.Show(src)}]"
+
+    def const[B: ru.TypeTag](b: B): Const[A, Literal[B]] = Const[A](Literal(b))(implicitly[Unit =:= Unit], this.src)
   }
   object Id {
     def apply[A: ru.TypeTag]: Id[A] =
@@ -88,6 +90,32 @@ object ScalaExpr {
       type Out = Id[T]
       def apply(): Id[T] = Id[T]
     }
+
+  sealed trait Const[S, E <: ScalaExpr] extends ScalaExpr with Arrow.Const[S, E] {
+    override val arrow: E
+
+    override def hashCode(): Int = src.hashCode() + arrow.hashCode()
+    override def equals(obj: Any): Boolean = PartialFunction.cond(obj) {
+      case that: Const[_, _] => that.arrow == this.arrow && that.src.tpe =:= this.src.tpe
+    }
+  }
+
+  object Const {
+    def apply[S]: Builder[S] = Builder.asInstanceOf[Builder[S]]
+    protected class Builder[S] {
+      def apply[E <: ScalaExpr](expr: E)(implicit unitSrc: E#Source =:= Unit, tagS: ru.TypeTag[S]): Const[S, E] =
+        new Const[S, E] {
+          val src: ru.TypeTag[S] = ru.typeTag[S]
+          val tgt: ru.TypeTag[Target] = expr.tgt.asInstanceOf[ru.TypeTag[Target]]
+          val arrow: E = expr
+          def short: String = arrow.short
+        }
+    }
+    private object Builder extends Builder[Any]
+
+    implicit def constShowT[A <: Arrow, S, E <: ScalaExpr](implicit isConst: A <:< Const[S, E], show: ShowT[E]): ShowT[A] =
+      ShowT.define(s"Const${show()}", s"Const${show.simple}", "Const", infix = false)
+  }
 
   sealed trait Composition[F <: ScalaExpr, G <: ScalaExpr] extends ScalaExpr with Arrow.Composition[F, G]
   object Composition {
