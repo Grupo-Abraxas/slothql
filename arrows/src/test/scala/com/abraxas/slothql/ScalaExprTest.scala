@@ -317,7 +317,27 @@ object ScalaExprTest {
   val bookConst0 = ScalaExpr[Book].const(0)
   implicitly[bookConst0.type <:< ScalaExpr.Const[Book, ScalaExpr.Literal[Int]]]
   assert(bookConst0 == ScalaExpr.Const[Book](ScalaExpr.Literal(0)))
-  assert(bookConst0.short == "0")
+  assert(bookConst0.short == "=> 0")
+
+
+  val bookIsbnConst0 = ScalaExpr[Book].meta.isbn.split(_.const(0))
+  implicitly[bookIsbnConst0.type <:<
+    ScalaExpr.Composition[
+      ScalaExpr.Split[
+        ScalaExpr.Const[String, ScalaExpr.Literal[Int]] :: HNil
+        ]{type Source = String;type Target = Tuple1[Int]},
+      ScalaExpr.Composition[
+        ScalaExpr.SelectField[Meta, isbn, String],
+        ScalaExpr.SelectField[Book, meta, Meta]
+        ]{ type Source = Book; type Target = String }
+      ]{ type Source = Book; type Target = Tuple1[Int] }
+    ]
+  assert(bookIsbnConst0 == (
+    Arrow.Split(ScalaExpr.Const[String](ScalaExpr.Literal(0)))
+    ∘ ScalaExpr.SelectField[Meta, isbn, String]("isbn")
+    ∘ ScalaExpr.SelectField[Book, meta, Meta]("meta")
+  ))
+  assert(bookIsbnConst0.short == ".meta.isbn.split(_=> 0)")
 
 
   val bookSplitSelf = ScalaExpr[Book].split(

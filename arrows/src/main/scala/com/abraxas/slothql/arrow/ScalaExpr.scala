@@ -114,7 +114,7 @@ object ScalaExpr {
           val src: ru.TypeTag[S] = ru.typeTag[S]
           val tgt: ru.TypeTag[Target] = expr.tgt.asInstanceOf[ru.TypeTag[Target]]
           val arrow: E = expr
-          def short: String = arrow.short
+          def short: String = s"=> ${arrow.short}"
         }
     }
     private object Builder extends Builder[Any]

@@ -1,0 +1,30 @@
+digraph {
+    Book_997733114 [label="Book",]
+    Meta_412473356 [label="Meta",]
+
+    edge [label="meta",];
+    Book_997733114 -> Meta_412473356;
+
+
+    String_1933001685 [label="String",]
+
+    edge [label="isbn",];
+    Meta_412473356 -> String_1933001685;
+
+
+    split_tuple_122690759 [label="(Int)"];
+
+    Int_1689575102 [label="Int",]
+
+    edge [label="ConstLit",];
+    String_1933001685 -> Int_1689575102;
+
+
+    edge[style=bold];
+
+    edge [label="_1",];
+    Int_1689575102 -> split_tuple_122690759;
+
+    edge[style=solid]; // reset
+
+}
