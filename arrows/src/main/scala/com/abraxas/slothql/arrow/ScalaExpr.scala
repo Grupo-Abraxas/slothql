@@ -73,6 +73,12 @@ object ScalaExpr {
   sealed trait Id[A] extends ScalaExpr with Arrow.Id[A] {
     override def toString: String = s"Id[${TypeUtils.Show(src)}]"
 
+    override def hashCode(): Int = src.##
+    override def equals(obj: Any): Boolean = PartialFunction.cond(obj) {
+      case that: Id[_] => this.src.tpe =:= that.src.tpe
+    }
+
+    def self: Id[A] = this
     def const[B: ru.TypeTag](b: B): Const[A, Literal[B]] = Const[A](Literal(b))(implicitly[Unit =:= Unit], this.src)
   }
   object Id {
@@ -230,11 +236,15 @@ object ScalaExpr {
     val src: ru.TypeTag[Unit] = ru.TypeTag.Unit
     val tgt: ru.TypeTag[A] = tag
 
-    override def toString: String = s"Literal[${TypeUtils.Show(src)}]($lit)"
+    override def toString: String = s"Literal[${TypeUtils.Show(tgt)}]($lit)"
     def short: String = lit match {
       case s: String => s""""$s""""
       case _ => lit.toString
     }
+  }
+  object Literal {
+    implicit def literalShowT[A: ru.TypeTag]: ShowT[Literal[A]] =
+      ShowT.define(s"Lit[${TypeUtils.Show(ru.typeTag[A])}]", "Lit", infix = false)
   }
 
 
