@@ -12,7 +12,6 @@ import qq.droste.data.{ :<, Attr, Coattr }
 import qq.droste.{ CVAlgebra, CVCoalgebra, Gather }
 
 import com.abraxas.slothql.arrow.ScalaExpr
-import com.abraxas.slothql.util.TypeUtils
 
 
 object ScalaExprToDot {
@@ -78,8 +77,48 @@ object ScalaExprToDot {
       }
     }
 
-    private def showType(tag: ru.TypeTag[_]): String = showType(tag.tpe)
-    private def showType(tpe: ru.Type): String = TypeUtils.Show(tpe) // TODO: custom show for Tuple, HList and Coproduct
+    private def showType(tag: ru.TypeTag[_]): String = showType(tag.tpe, parentIsInfix = false)
+    private def showType(tpe0: ru.Type, parentIsInfix: Boolean): String = {
+      def wrap(str: String) = if (parentIsInfix) s"($str)" else str
+      tpe0 match {
+        case ShowType.Tuple(tpes)  => tpes.map(showType(_, parentIsInfix = false)).mkString("(", ", ", ")")
+        case ShowType.HList(tpes)  => wrap(tpes.foldLeft("HNil") { case (acc, t) => s"${showType(t, parentIsInfix = true)} :: $acc" })
+        case ShowType.Coprod(tpes) => wrap(tpes.foldLeft("CNil") { case (acc, t) => s"${showType(t, parentIsInfix = true)} :+: $acc" })
+        case _ =>
+          val tpe = tpe0.dealias
+          val args = if (tpe.typeArgs.nonEmpty) tpe.typeArgs.map(showType(_, parentIsInfix = false)).mkString("[", ", ", "]") else ""
+          tpe.typeSymbol.name.toString + args
+      }
+    }
+    private object ShowType {
+      object Tuple {
+        def unapply(tpe: ru.Type): Option[List[ru.Type]] =
+          if (tpe.typeSymbol.fullName matches """^scala\.Tuple\d+$""") Some(tpe.typeArgs)
+          else None
+      }
+      object HList {
+        def unapply(tpe: ru.Type): Option[List[ru.Type]] = inner(tpe, Nil)
+
+        def inner(tpe: ru.Type, accRev: List[ru.Type]): Option[List[ru.Type]] = tpe match {
+          case ru.TypeRef(_, HConsSymb, List(h, t)) => inner(t, h :: accRev)
+          case ru.TypeRef(_, HNilSymb, Nil)         => Some(accRev.reverse)
+          case _                                    => None
+        }
+        private val HConsSymb = ru.symbolOf[shapeless.::[_, _]]
+        private val HNilSymb  = ru.symbolOf[shapeless.HNil]
+      }
+      object Coprod {
+        def unapply(tpe: ru.Type): Option[List[ru.Type]] = inner(tpe, Nil)
+
+        def inner(tpe: ru.Type, accRev: List[ru.Type]): Option[List[ru.Type]] = tpe match {
+          case ru.TypeRef(_, CConsSymb, List(h, t)) => inner(t, h :: accRev)
+          case ru.TypeRef(_, CNilSymb, Nil)         => Some(accRev.reverse)
+          case _                                    => None
+        }
+        private val CConsSymb = ru.symbolOf[shapeless.:+:[_, _]]
+        private val CNilSymb  = ru.symbolOf[shapeless.CNil]
+      }
+    }
 
     val exprDotToString: CVAlgebra[ExprDot, List[String]] = CVAlgebra {
       case RootLike(_, label, nextDot :< nextDotExpr, id) =>
