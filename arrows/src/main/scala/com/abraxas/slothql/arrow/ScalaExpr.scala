@@ -587,7 +587,7 @@ object ScalaExpr {
 
     object UnchainedRev {
       def unapply(expr: ScalaExpr): Option[List[ScalaExpr]] = PartialFunction.condOpt(expr) {
-        case UnchainedRev(rev)   => rev
+        case rev: UnchainedRev   => rev.toList
         case c@Composition(_, _) => unchainRevInner(c)
       }
     }
