@@ -108,6 +108,8 @@ object ScalaExpr {
 
   object Const {
     def apply[S]: Builder[S] = Builder.asInstanceOf[Builder[S]]
+    def unapply[S, E <: ScalaExpr](const: Const[S, E]): Option[E] = Some(const.arrow)
+
     protected class Builder[S] {
       def apply[E <: ScalaExpr](expr: E)(implicit unitSrc: E#Source =:= Unit, tagS: ru.TypeTag[S]): Const[S, E] =
         new Const[S, E] {
