@@ -22,7 +22,7 @@ object ScalaExprToDot {
       ExprDot.wrappedScalaExprToExprDot.scatter(DrosteExtra.Scatter.futu)
     ).apply(RootScalaExpr(expr))
     s"""digraph {
-       |$dot
+       |${dot.map("\t" + _).mkString("\n")}
        |}""".stripMargin
   }
 
@@ -81,51 +81,36 @@ object ScalaExprToDot {
     private def showType(tag: ru.TypeTag[_]): String = showType(tag.tpe)
     private def showType(tpe: ru.Type): String = TypeUtils.Show(tpe) // TODO: custom show for Tuple, HList and Coproduct
 
-    // TODO: make it `List[String]` for better indentation
-    val exprDotToString: CVAlgebra[ExprDot, String] = CVAlgebra {
+    val exprDotToString: CVAlgebra[ExprDot, List[String]] = CVAlgebra {
       case RootLike(_, label, nextDot :< nextDotExpr, id) =>
-        s"""${Make.node(id, Make.Opt.label(label))}
-           |$nextDot
-           |${connect(id, nextDotExpr)}
-         """.stripMargin
+        Make.node(id, Make.Opt.label(label)) :: nextDot ::: connect(id, nextDotExpr)
       case Node(_, label, id) =>
-        Make.node(id, Make.Opt.label(label))
+        Make.node(id, Make.Opt.label(label)) :: Nil
       case Compose(prevDot :< prevDotExpr, nextDot :< nextDotExpr) =>
-        s"""$prevDot
-           |$nextDot
-           |${connect(getLastId(prevDotExpr), nextDotExpr)}""".stripMargin
+        prevDot ::: nextDot ::: connect(getLastId(prevDotExpr), nextDotExpr)
       case Branching(Branching.Split, branches, label, id) =>
-        val branchesDot = branches.zipWithIndex.map{
-          case (dot0 :< exprDot, i) =>
-            s"""$dot0
-               |${Make.edge(s"_${i + 1}", getLastId(exprDot), id)}""".stripMargin
-        }.mkString("\n")
-        s"""${Make.node(id, Make.Opt.label(label))}
-           |$branchesDot""".stripMargin
+        Make.node(id, Make.Opt.label(label)) :: branches.zipWithIndex.flatMap{
+          case (dot0 :< exprDot, i) => dot0 ::: Make.edge(s"_${i + 1}", getLastId(exprDot), id)
+        }
       case Branching(Branching.Choose, branches, label, id) =>
-        val branchesDot = branches.map{
-          case dot0 :< exprDot =>
-            s"""$dot0
-               |${Make.edge("", getLastId(exprDot), id)}""".stripMargin
-        }.mkString("\n")
-        s"""${Make.node(id, Make.Opt.label(label))}
-           |$branchesDot""".stripMargin
+        Make.node(id, Make.Opt.label(label)) :: branches.flatMap{
+          case dot0 :< exprDot => dot0 ::: Make.edge("", getLastId(exprDot), id)
+        }
       case Cluster(_, dot0 :< dotExpr, label, id) =>
-        s"""subgraph "cluster_${randomId()}" {
-           |$dot0
-           |}
-           |${Make.node(id, Make.Opt.label(label))}
-           |${Make.edge("", getLastId(dotExpr), id)}
-         """.stripMargin
+        val openCluster = s"""subgraph "cluster_${randomId()}" {"""
+        val closeCluster = "}"
+        val tgtNode = Make.node(id, Make.Opt.label(label))
+        val tgtEdge = Make.edge("", getLastId(dotExpr), id)
+        "" :: openCluster :: dot0.map("\t" + _) ::: closeCluster :: tgtNode :: tgtEdge
     }
 
-    private def connect(parent: Id, next: ExprDot[Attr[ExprDot, String]]): String =
-      firstEdgeLabelsAndIds(next, None).map {
+    private def connect(parent: Id, next: ExprDot[Attr[ExprDot, List[String]]]): List[String] =
+      firstEdgeLabelsAndIds(next, None).flatMap {
         case (edgeLabel, id) => Make.edge(edgeLabel, parent, id)
-      }.mkString("\n")
+      }
 
 
-    @tailrec private def getLastId(exprDot: ExprDot[Attr[ExprDot, String]]): Id = exprDot match {
+    @tailrec private def getLastId(exprDot: ExprDot[Attr[ExprDot, List[String]]]): Id = exprDot match {
       case Node(_, _, id)               => id
       case Branching(_, _, _, id)       => id
       case Cluster(_, _, _, id)         => id
@@ -134,7 +119,7 @@ object ScalaExprToDot {
     }
 
     // TODO: not tailrec because of `flatMap`
-    private def firstEdgeLabelsAndIds(exprDot: ExprDot[Attr[ExprDot, String]], otherEdge: Option[String]): List[(String, Id)] = exprDot match {
+    private def firstEdgeLabelsAndIds(exprDot: ExprDot[Attr[ExprDot, List[String]]], otherEdge: Option[String]): List[(String, Id)] = exprDot match {
       case Node(edge, _, id)           => List(edge -> id)
       case RootLike(edgeOpt, _, _, id) => List(edgeOpt.orElse(otherEdge).getOrElse("") -> id)
       case Cluster(edge, _ :< e, _, _) => firstEdgeLabelsAndIds(e, otherEdge = otherEdge orElse Some(edge))
@@ -148,11 +133,8 @@ object ScalaExprToDot {
 
       def nodeId(id: String): String = s""""$id""""
 
-      def edge(label: String, from: String, to: String, options: String*): String = {
-        val opts = Opt.label(label) +: options
-        s"""edge [${opts.mkString(",")}];
-           |${connection(from, to)}""".stripMargin
-      }
+      def edge(label: String, from: String, to: String, options: String*): List[String] =
+        s"edge [${(Opt.label(label) +: options).mkString(",")}]" :: connection(from, to) :: Nil
       private def connection(from: String, to: String): String = s"${Make.nodeId(from)} -> ${Make.nodeId(to)};"
 
       object Opt {
