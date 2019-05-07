@@ -27,7 +27,7 @@ lazy val root = (project in file(".")).
     name := "slothql"
   )
   .settings(ammSettings: _*)
-  .aggregate(cypher, arrows)
+  .aggregate(cypher, arrows, arrowsShow)
 
 
 lazy val cypher = (project in file("cypher"))
@@ -64,6 +64,17 @@ lazy val arrows = (project in file("arrows"))
       """.stripMargin
   ).settings(ammSettings: _*)
 
+
+lazy val arrowsShow = (project in file("arrows-show"))
+  .settings(
+    name := "slothql-arrows-show",
+    libraryDependencies += Dependencies.`droste-core`,
+    initialCommands in console := (initialCommands in (arrows, console)).value +
+      """
+        |import com.abraxas.slothql.arrow.show._
+      """.stripMargin
+  )
+  .dependsOn(arrows % "compile->compile;test->test")
 
 // // // Repository // // //
 
