@@ -122,30 +122,36 @@ object ScalaExprToDot {
 
     val exprDotToString: CVAlgebra[ExprDot, List[String]] = CVAlgebra {
       case RootLike(_, label, nextDot :< nextDotExpr, id) =>
-        Make.node(id, Make.Opt.label(label)) :: nextDot ::: connect(id, nextDotExpr)
+        Make.node(id, label) :: nextDot ::: connect(id, nextDotExpr)
       case Node(_, label, id) =>
-        Make.node(id, Make.Opt.label(label)) :: Nil
+        Make.node(id, label) :: Nil
       case Compose(prevDot :< prevDotExpr, nextDot :< nextDotExpr) =>
         prevDot ::: nextDot ::: connect(getLastId(prevDotExpr), nextDotExpr)
       case Branching(Branching.Split, branches, label, id) =>
-        Make.node(id, Make.Opt.label(label)) :: branches.zipWithIndex.flatMap{
-          case (dot0 :< exprDot, i) => dot0 ::: Make.edge(s"_${i + 1}", getLastId(exprDot), id)
+        Make.node(id, label) :: branches.zipWithIndex.flatMap{
+          case (dot0 :< exprDot, i) => dot0 ::: Make.edge(getLastId(exprDot), id, s"_${i + 1}", style = Make.Style.Bold)
         }
       case Branching(Branching.Choose, branches, label, id) =>
-        Make.node(id, Make.Opt.label(label)) :: branches.flatMap{
-          case dot0 :< exprDot => dot0 ::: Make.edge("", getLastId(exprDot), id)
+        Make.node(id, label) :: branches.flatMap{
+          case dot0 :< exprDot => dot0 ::: Make.edge(getLastId(exprDot), id, "", style = Make.Style.Dashed)
         }
       case Cluster(_, dot0 :< dotExpr, label, id) =>
         val openCluster = s"""subgraph "cluster_${randomId()}" {"""
         val closeCluster = "}"
-        val tgtNode = Make.node(id, Make.Opt.label(label))
-        val tgtEdge = Make.edge("", getLastId(dotExpr), id)
+        val tgtNode = Make.node(id, label)
+        val tgtEdge = Make.edge(getLastId(dotExpr), id, "", style = Make.Style.Dotted)
         "" :: openCluster :: dot0.map("\t" + _) ::: closeCluster :: tgtNode :: tgtEdge
     }
 
     private def connect(parent: Id, next: ExprDot[Attr[ExprDot, List[String]]]): List[String] =
       firstEdgeLabelsAndIds(next, None).flatMap {
-        case (edgeLabel, id) => Make.edge(edgeLabel, parent, id)
+        case ((edgeLabel, style0), id) =>
+          val (style, tips) = style0 match {
+            case EdgeStyle.Default => Make.Style.Solid  -> Make.ArrowTips.Default
+            case EdgeStyle.Choose  => Make.Style.Dashed -> Make.ArrowTips.Back(Make.ArrowTip.EmptyDot)
+            case EdgeStyle.Cluster => Make.Style.Bold   -> Make.ArrowTips.Both(head = Make.ArrowTip.Normal, tail = Make.ArrowTip.Inverse)
+          }
+          Make.edge(parent, id, edgeLabel, style = style, tips = tips)
       }
 
 
@@ -157,29 +163,88 @@ object ScalaExprToDot {
       case Compose(_, _ :< next)        => getLastId(next)
     }
 
+    private sealed trait EdgeStyle
+    private object EdgeStyle {
+      case object Default extends EdgeStyle
+      case object Choose  extends EdgeStyle
+      case object Cluster extends EdgeStyle
+    }
+
     // TODO: not tailrec because of `flatMap`
-    private def firstEdgeLabelsAndIds(exprDot: ExprDot[Attr[ExprDot, List[String]]], otherEdge: Option[String]): List[(String, Id)] = exprDot match {
-      case Node(edge, _, id)           => List(edge -> id)
-      case RootLike(edgeOpt, _, _, id) => List(edgeOpt.orElse(otherEdge).getOrElse("") -> id)
-      case Cluster(edge, _ :< e, _, _) => firstEdgeLabelsAndIds(e, otherEdge = otherEdge orElse Some(edge))
+    private def firstEdgeLabelsAndIds(exprDot: ExprDot[Attr[ExprDot, List[String]]], otherEdge: Option[(String, EdgeStyle)]): List[((String, EdgeStyle), Id)] = exprDot match {
+      case Node(edge, _, id)           => List((edge, EdgeStyle.Default) -> id)
+      case RootLike(edgeOpt, _, _, id) => List(edgeOpt.map(_ -> EdgeStyle.Default).orElse(otherEdge).getOrElse("" -> EdgeStyle.Default) -> id)
+      case Cluster(edge, _ :< e, _, _) => firstEdgeLabelsAndIds(e, otherEdge = otherEdge orElse Some(edge -> EdgeStyle.Cluster))
       case Compose(_ :< prev, _)       => firstEdgeLabelsAndIds(prev, otherEdge)
-      case Branching(_, bs, _, _)      => bs.flatMap{ case _ :< branch => firstEdgeLabelsAndIds(branch, otherEdge orElse Some("on")) } // TODO: flatMap
+      case Branching(_, bs, _, _)      => bs.flatMap{ case _ :< branch => firstEdgeLabelsAndIds(branch, otherEdge orElse Some("on" -> EdgeStyle.Choose)) } // TODO: flatMap
     }
 
     object Make {
-      def node(id: String, options: String*): String =
-        s"${nodeId(id)} [${options.mkString(",")}];"
-
-      def nodeId(id: String): String = s""""$id""""
-
-      def edge(label: String, from: String, to: String, options: String*): List[String] =
-        s"edge [${(Opt.label(label) +: options).mkString(",")}]" :: connection(from, to) :: Nil
-      private def connection(from: String, to: String): String = s"${Make.nodeId(from)} -> ${Make.nodeId(to)};"
-
-      object Opt {
-        def label(s: String): String = s"""label="$s""""
-        def htmlLabel(html: String): String = s"label=<$html>"
+      def node(
+        id: Id,
+        label: String,
+        isHtml: Boolean = false,
+        style: Style = Style.Solid,
+        options: List[String] = Nil
+      ): String = {
+        val opts = mkLabel(label, isHtml) :: style.setting :: options
+        s"${nodeId(id)} [${opts.mkString(",")}];"
       }
+
+      def edge(
+        from: Id,
+        to: Id,
+        label: String,
+        isHtml: Boolean = false,
+        style: Style = Style.Solid,
+        tips: ArrowTips = ArrowTips.Default,
+        options: List[String] = Nil
+      ): List[String] = {
+        val opts = mkLabel(label, isHtml) :: style.setting :: tips.setting :: options
+        s"edge [${opts.mkString(",")}]" :: s"${nodeId(from)} -> ${nodeId(to)};" :: Nil
+      }
+
+      class Style protected (val value: String) extends AnyVal{
+        def setting: String = s"style=$value"
+      }
+      object Style {
+        lazy val Solid  = new Style("solid")
+        lazy val Dashed = new Style("dashed")
+        lazy val Dotted = new Style("dotted")
+        lazy val Bold   = new Style("bold")
+      }
+
+      sealed trait ArrowTips {
+        def setting: String
+      }
+      object ArrowTips {
+        lazy val Default = Forward()
+
+        case class Forward(tip: ArrowTip = ArrowTip.Normal) extends ArrowTips {
+          def setting: String = s"dir=forward,arrowhead=${tip.value}"
+        }
+        case class Back(tip: ArrowTip) extends ArrowTips {
+          def setting: String = s"dir=back,arrowtail=${tip.value}"
+        }
+        case class Both(head: ArrowTip, tail: ArrowTip) extends ArrowTips {
+          def setting: String = s"dir=back,arrowhead=${head.value},arrowtail=${tail.value}"
+        }
+        case object None extends ArrowTips {
+          def setting: String = "dir=none"
+        }
+      }
+
+      class ArrowTip protected(val value: String) extends AnyVal
+      object ArrowTip {
+        lazy val Normal    = new ArrowTip("normal")
+        lazy val Inverse   = new ArrowTip("inv")
+        lazy val FilledDot = new ArrowTip("dot")
+        lazy val EmptyDot  = new ArrowTip("odot")
+        lazy val None      = new ArrowTip("none")
+      }
+
+      private def nodeId(id: String): String = s""""$id""""
+      private def mkLabel(s: String, html: Boolean): String = if (html) s"label=<$s>" else s"""label="$s""""
     }
 
     private def randomId() = UUID.randomUUID().toString
