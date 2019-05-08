@@ -73,7 +73,15 @@ object ScalaExprToDot {
         case ScalaExpr.Id(tag)             => Node("id", showType(tag))
         case ScalaExpr.Literal(lit)        => Node("literal", lit.toString)
         case e@ScalaExpr.SelectField(name) => Node(name, showType(e.tgt))
+        case e: ScalaExpr.Unsafe.UnchainedRev => sys.error("`Unsafe.UnchainedRev` utility arrow encountered")
+        case e@ScalaExpr.IterableFilter(expr)       => Cluster("filter",                                root(expr), showType(e.tgt))
+        case e@ScalaExpr.IterableOrderBy(expr, dir) => Cluster(s"order\\\n${dir.toString.toLowerCase}", root(expr), showType(e.tgt))
+        case e@ScalaExpr.IterableSlice(_)           => Node("slice", showType(e.tgt))
+        case e@ScalaExpr.IterableToList()           => Node("toList", showType(e.tgt))
         // TODO: more cases
+        // ScalaExpr.Binary.PartiallyAppliedRight
+        // ScalaExpr.Compare.Eq
+        // ScalaExpr.Compare.Neq
       }
     }
 
