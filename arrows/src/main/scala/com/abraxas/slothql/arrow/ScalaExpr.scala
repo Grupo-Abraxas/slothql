@@ -560,6 +560,8 @@ object ScalaExpr {
       case _ => expr :: Nil
     }
 
+    def composition(f: ScalaExpr, g: ScalaExpr): Composition[ScalaExpr, ScalaExpr] = Composition.mkComposition(f, g)
+
     def unchainedRev(unchained: ScalaExpr*): UnchainedRev =
       UnchainedRev(unchained.toList, unchained.head.src.asInstanceOf[ru.TypeTag[Any]], unchained.last.tgt.asInstanceOf[ru.TypeTag[Any]])
 
