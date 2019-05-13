@@ -184,7 +184,7 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
         lazy val secondTArgReader = apply(tpe.typeArgs(1))
         tpe match {
           case _ if tpe <:< OptionType    => ValueReader.option(firstTArgReader)
-          case _ if tpe <:< ListType      => ValueReader.list(firstTArgReader)
+          case _ if tpe <:< SeqType       => ValueReader.list(firstTArgReader)
           case _ if tpe <:< StringMapType => ValueReader.map(secondTArgReader)
           case _ =>
             val readers = atomicReaders.withFilter(_._1 <:< tpe).map(_._2)
@@ -209,7 +209,7 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
       )
 
       private val OptionType    = ru.typeOf[Option[_]]
-      private val ListType      = ru.typeOf[List[_]]
+      private val SeqType       = ru.typeOf[Seq[_]]
       private val StringMapType = ru.typeOf[Map[String, _]]
     }
   }
