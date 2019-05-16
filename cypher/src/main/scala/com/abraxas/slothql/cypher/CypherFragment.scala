@@ -443,7 +443,7 @@ object CypherFragment {
     sealed trait ReturnE[+A] extends Return0[A] { val expressions: List[Known[Expr[_]]] }
 
     type Ascending = Boolean
-    type Order = Map[Known[CypherFragment.Expr[_]], Ascending]
+    type Order = List[(Known[CypherFragment.Expr[_]], Ascending)]
 
     trait Options[+A] extends Return[A] {
       val ret: Known[Return0[A]]

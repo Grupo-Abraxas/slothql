@@ -603,7 +603,7 @@ package object syntax extends LowPriorityImplicits {
   final case class ReturnOps[A] protected (
       private val _ret: Known[Return.Return0[A]],
       private val _distinct: Boolean    = false,
-      private val _order: Return.Order  = Map(),
+      private val _order: Return.Order  = Nil,
       private val _skip: Option[Long]   = None,
       private val _limit: Option[Long]  = None
   ) extends Match.Result.Ret[A]
