@@ -15,6 +15,7 @@ import com.abraxas.slothql.util.raiseCompilationError
 object Match { MatchObj =>
   def apply[R]   (f: Graph => Match.Result[R]): Query[R] = macro implApply[R]
   def optional[R](f: Graph => Match.Result[R]): Query[R] = macro implOptional[R]
+  def maybeOptional[R](opt: Boolean)(f: Graph => Match.Result[R]): Query[R] = macro implMaybeOptional[R]
 
   sealed trait Result[R] { def result: Query.Query0[R] }
   object Result{
@@ -179,9 +180,14 @@ object Match { MatchObj =>
     @inline def graph: Graph = Graph()
   }
 
-  def implApply[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = false, c)(f)
-  def implOptional[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] = impl[R](optional = true, c)(f)
-  def impl[R: c.WeakTypeTag](optional: Boolean, c: whitebox.Context)(f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
+  def implApply[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] =
+    impl[R](c)(optional = c.universe.reify(false), f)
+  def implOptional[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] =
+    impl[R](c)(optional = c.universe.reify(true), f)
+  def implMaybeOptional[R: c.WeakTypeTag](c: whitebox.Context)(opt: c.Expr[Boolean])(f: c.Expr[Graph => Match.Result[R]]): c.Expr[Query[R]] =
+    impl[R](c)(optional = opt, f)
+
+  def impl[R: c.WeakTypeTag](c: whitebox.Context)(optional: c.Expr[Boolean], f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
     import c.universe._
 
     val `syntax pkg` = c.typeOf[com.abraxas.slothql.cypher.syntax.`package`.type]
@@ -544,7 +550,7 @@ object Match { MatchObj =>
           Query.Clause(
             Clause.Match(
               NonEmptyList(pattern.splice, Nil),
-              optional = c.Expr[Boolean](Literal(Constant(optional))).splice,
+              optional = optional.splice,
               where = whereIdentExpr.splice
             ),
             retExpr.splice.result.known
