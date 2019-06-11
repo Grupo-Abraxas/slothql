@@ -49,8 +49,8 @@ object Match { MatchObj =>
             res.result
         }
 
-      protected[syntax] sealed trait Var
-      protected[syntax] implicit object Var {
+      sealed trait Var
+      implicit object Var {
         final case class Expr(expr: Known[CypherFragment.Expr[_]])       extends Var
         final case class ReturnExpr(expr: CypherFragment.Return.Expr[_]) extends Var
         final case class Name(name: String)                              extends Var

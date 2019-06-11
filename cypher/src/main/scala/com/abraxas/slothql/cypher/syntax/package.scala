@@ -569,6 +569,13 @@ package object syntax extends LowPriorityImplicits {
   def unwind[A, R](expr: Known[Expr[Seq[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result.Unwind[A, R] =
     macro Match.Result.Unwind.instanceImpl[A, R]
 
+  /** Generates {{{ WITH * WHERE ... }}} */
+  def filter[R](f: Known[Expr[Boolean]])(res: Match.Result[R]): Match.Result[R] =
+    new Match.Result.With[R] {
+      protected[syntax] def ret: Known[Return[R]] = Return.Wildcard.as[R]
+      protected[syntax] def query: Known[Query.Query0[R]] = res.result
+    }
+
   object `with` {
     def apply[R](wildcard: Boolean, ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
                 (res: Match.Result[R]): Match.Result[R] =
