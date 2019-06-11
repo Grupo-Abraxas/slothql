@@ -496,6 +496,10 @@ package object syntax extends LowPriorityImplicits {
     def as(alias: String): Return.Expr[A] = Return.Expr(expr.known.widen[Expr[A]], as = Option(alias))
   }
 
+  implicit class ReturnAsKnownOps[A](expr: Known[Expr[A]]) {
+    def as(alias: String): Return.Expr[A] = Return.Expr(expr, as = Option(alias))
+  }
+
   sealed trait QueryReturn[T]{
     type Ret
     type Out <: Return[Ret]
