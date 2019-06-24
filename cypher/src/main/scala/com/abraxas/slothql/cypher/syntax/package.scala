@@ -574,6 +574,7 @@ package object syntax extends LowPriorityImplicits {
     new Match.Result.With[R] {
       protected[syntax] def ret: Known[Return[R]] = Return.Wildcard.as[R]
       protected[syntax] def query: Known[Query.Query0[R]] = res.result
+      protected[syntax] def where: Option[Known[Expr[Boolean]]] = Some(f)
     }
 
   object `with` {

@@ -36,7 +36,8 @@ object Match { MatchObj =>
     protected[syntax] trait With[R] extends Result[R] {
       protected[syntax] def ret: Known[Return[R]]
       protected[syntax] def query: Known[Query.Query0[R]]
-      def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = None), query)
+      protected[syntax] def where: Option[Known[Expr[Boolean]]]
+      def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = where), query)
     }
     object With {
       def apply[R](wildcard: Boolean, ops: ReturnOps[Any] => ReturnOps[Any], exprs: Seq[Known[Return.Expr[_]]], res: Match.Result[R]): With[R] =
@@ -47,6 +48,7 @@ object Match { MatchObj =>
             ops(ReturnOps(CypherFragment.Return.Wildcard)).copy(ret0).ret
           protected[syntax] def query: Known[Query.Query0[R]] =
             res.result
+          protected[syntax] def where: Option[Known[Expr[Boolean]]] = None
         }
 
       sealed trait Var
