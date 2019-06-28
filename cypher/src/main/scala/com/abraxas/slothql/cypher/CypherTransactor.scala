@@ -67,17 +67,16 @@ trait CypherTxBuilder {
   sealed trait Read[R] extends Operation[Seq[R]]
   sealed trait ReadWrite[R] extends Read[R]
 
-  protected[cypher] case class ReadQuery[A, R](query: Known[Query[A]], reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
+  case class ReadQuery[A, R](query: Known[Query[A]], reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
 
-  protected[cypher] case class Gather[F[_] <: Iterable[_], R]
-                                     (read: Read[R])
-                                     (protected [slothql] val fromIterable: Iterable[R] => F[R]) extends Read[F[R]] { type CC[_] = F[_] }
-  protected[cypher] object Gather {
+  case class Gather[F[_] <: Iterable[_], R](read: Read[R])
+                                           (val fromIterable: Iterable[R] => F[R]) extends Read[F[R]] { type CC[_] = F[_] }
+  object Gather {
     def apply[F[_] <: Iterable[_], R](read: Read[R])
                                      (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Gather[F, R] =
       new Gather(read)(xs => (cbf.apply() ++= xs).result().asInstanceOf[F[R]])
   }
-  protected[cypher] case class Unwind[R](values: Iterable[R]) extends Read[R]
+  case class Unwind[R](values: Iterable[R]) extends Read[R]
 
   object Read {
     def apply[A](q: Known[Query[A]])(implicit r: Reader[A]): ReadQuery[A, r.Out] = ReadQuery(q, r)

@@ -19,6 +19,8 @@ import com.abraxas.slothql.neo4j.util.JavaExt._
 class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTransactor {
   tx0 =>
 
+  def this(driver: Driver) = this(IO{ driver.session() })
+
   type TxBuilder = Neo4jCypherTransactor.type
   val txBuilder = Neo4jCypherTransactor
 
@@ -27,11 +29,26 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]] =
     session.bracket(s => IO {
       s.readTransaction((transaction: Transaction) =>
-        tx.foldMap(Neo4jCypherTransactor.syncInterpreter[Vector](tx0, transaction))
+        tx.foldMap(syncInterpreter[Vector](transaction))
       )
     })(s => IO { s.close() })
 
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
+
+  protected def syncInterpreter[F[_] <: Iterable[_]](tx: Transaction)
+                                                    (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Read ~> F =
+    λ[Read ~> F]{
+      case    txBuilder.Unwind(i)       => fromIterable(i)
+      case g@ txBuilder.Gather(r)       => fromIterable(Seq(g.fromIterable(syncInterpreter(tx)(cbf)(r))))
+      case rq@txBuilder.ReadQuery(_, _) => fromIterable(runReadQueryTxSync(tx, rq))
+    }
+
+  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Iterable[R] =
+    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala // TODO: issue #8
+
+
+  protected def fromIterable[F[_], A](a: Iterable[A])(implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): F[A] =
+    (cbf.apply() ++= a).result().asInstanceOf[F[A]]
 }
 
 object Neo4jCypherTransactor extends CypherTxBuilder {
@@ -39,8 +56,6 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
   type Reader[A] = RecordReader[A]
 
   type Cell = Value
-
-  def apply(driver: Driver): Neo4jCypherTransactor = new Neo4jCypherTransactor(IO{ driver.session() })
 
   trait RecordReader[A] extends CypherTransactor.Reader[Record, A]
   object RecordReader {
@@ -218,18 +233,4 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     def toCells: CypherFragment.Return.Return0[List[Cell]] = ul.asInstanceOf[CypherFragment.Return.Return0[List[Cell]]]
   }
 
-  protected def syncInterpreter[F[_] <: Iterable[_]](t: Neo4jCypherTransactor, tx: Transaction)
-                                                    (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): t.Read ~> F =
-    λ[t.Read ~> F]{
-      case    t.txBuilder.Unwind(i)       => fromIterable(i)
-      case g@ t.txBuilder.Gather(r)       => fromIterable(Seq(g.fromIterable(syncInterpreter(t, tx)(cbf)(r))))
-      case rq@t.txBuilder.ReadQuery(_, _) => fromIterable(runReadQueryTxSync(tx, rq))
-    }
-
-  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Iterable[R] =
-    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala // TODO: issue #8
-
-
-  private def fromIterable[F[_], A](a: Iterable[A])(implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): F[A] =
-    (cbf.apply() ++= a).result().asInstanceOf[F[A]]
-  }
+}

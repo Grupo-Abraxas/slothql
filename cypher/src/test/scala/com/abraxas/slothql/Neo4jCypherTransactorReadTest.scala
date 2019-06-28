@@ -13,7 +13,7 @@ import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
 
 // DB should contain `populate-1.cypher`
 class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAndAfterAll {
-  val tx = Neo4jCypherTransactor(Connection.driver)
+  val tx = new Neo4jCypherTransactor(Connection.driver)
 
   private def test[R](read: tx.txBuilder.ReadTx[R], expected: Seq[R])(implicit pos: Position): Assertion =
     tx.runRead(read).unsafeRunSync() should contain theSameElementsAs expected
