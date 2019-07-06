@@ -171,7 +171,7 @@ object CypherFragment {
     object Call {
       implicit def fragment[A]: CypherFragment[Call[A]] = instance.asInstanceOf[CypherFragment[Call[A]]]
       private lazy val instance = define[Call[_]] {
-        case Call(func, params) => s"${escapeName(func)}(${params.map(_.toCypher).mkString(", ")})"
+        case Call(func, params) => s"${func.split('.').map(escapeName).mkString(".")}(${params.map(_.toCypher).mkString(", ")})"
       }
     }
 
