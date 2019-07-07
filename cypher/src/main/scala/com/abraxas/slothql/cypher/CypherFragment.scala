@@ -10,7 +10,6 @@ import shapeless.{ :: => #:, _ }
 
 
 trait CypherFragment[-A] {
-  // TODO: (String, Params)
   def toCypher(f: A): String
 }
 
@@ -78,6 +77,22 @@ object CypherFragment {
       def toCypher(f: A): String = toCypher0(f)
     }
 
+  case class Statement(template: String, params: Map[String, Any])
+
+  sealed trait Parameterized[Params <: HList, A] {
+    def fragment: CypherFragment[A]
+    def apply(a: A): Parameterized.Prepared[Params, A] = new Parameterized.Prepared(fragment.toCypher(a))
+  }
+  object Parameterized {
+    def apply[Params <: HList, A](implicit frag: CypherFragment[A]): Parameterized[Params, A] = // TODO: some param types should probably be mapped to java
+      new Parameterized[Params, A] { def fragment: CypherFragment[A] = frag }
+
+    final class Prepared[Params <: HList, +A](template: String) extends RecordArgs {
+      def applyRecord(params: Params)(implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): Statement =
+        Statement(template, toMap(params).map{ case (k, v) => k.name -> v })
+    }
+  }
+
   implicit lazy val CypherFragmentIsContravariant: Contravariant[CypherFragment] =
     new Contravariant[CypherFragment] {
       def contramap[A, B](fa: CypherFragment[A])(f: B => A): CypherFragment[B] =
@@ -126,6 +141,7 @@ object CypherFragment {
     type Inv[T] = Expr[T]
 
     // // // Values and Variables // // //
+    case class Param[+A](name: String) extends Expr[A]
     case class Lit[+A](value: A) extends Expr[A]
     sealed trait Null[+A] extends Expr[A]
     trait Var[+A] extends Expr[A] {
@@ -139,6 +155,10 @@ object CypherFragment {
     }
     case class Call[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
+    object Param {
+      implicit def fragment[A]: CypherFragment[Param[A]] = instance.asInstanceOf[CypherFragment[Param[A]]]
+      private lazy val instance = define[Param[_]](p => s"$$${escapeName(p.name)}")
+    }
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
         case Lit(str) => "\"" + str.replaceAll("\"", "\\\"") + "\""

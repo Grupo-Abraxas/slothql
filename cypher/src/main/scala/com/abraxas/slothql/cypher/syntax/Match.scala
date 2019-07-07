@@ -6,6 +6,7 @@ import scala.reflect.ClassTag
 import scala.reflect.macros.{ blackbox, whitebox }
 
 import cats.data.NonEmptyList
+import shapeless.{ CaseClassMacros, HList }
 
 import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel
@@ -170,6 +171,43 @@ object Match { MatchObj =>
     }
     // TODO =========================================================
     // TODO: rename clause's aliases to avoid collision!?
+  }
+
+  type ParameterizedQuery[Params <: HList, R] = Parameterized.Prepared[Params, Query.Query0[R]]
+
+  object ParameterizedQuery {
+    def impl(c: whitebox.Context)(f: c.Tree): c.Tree = {
+      lazy val c0: c.type = c
+      val helper = new CaseClassMacros { val c: c0.type = c0 }
+
+      import c.universe._
+
+      val ParamSymbol = symbolOf[Param[_]]
+      val QueryClauseSymbol = symbolOf[CypherFragment.Query.Clause[_]]
+
+      f match {
+        case Function(params, body) =>
+          val retType = body.tpe match {
+            case TypeRef(_, QueryClauseSymbol, List(t)) => t
+            case other => c.abort(body.pos, s"Not a query: $other")
+          }
+          val (paramTrees, recTpes) = params.map{ p =>
+            val tpe = p.tpt.tpe match {
+              case TypeRef(_, ParamSymbol, List(t)) => t
+              case other => c.abort(p.pos, s"`parameterized` arguments must be of type `Param[?]`, got $other")
+            }
+            val argTree = q"_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Param[$tpe](${p.name.decodedName.toString})"
+            val recEntry = helper.mkFieldTpe(p.name, tpe)
+            argTree -> recEntry
+          }.unzip
+          val recTpe = helper.mkHListTpe(recTpes)
+          val outTypeTree = tq"_root_.com.abraxas.slothql.cypher.CypherFragment.Query.Query0[$retType]"
+
+          q"_root_.com.abraxas.slothql.cypher.CypherFragment.Parameterized[$recTpe, $outTypeTree].apply($f(..$paramTrees))"
+        case other =>
+          c.abort(c.enclosingPosition, "Expecting a function (Param[A1], Param[A2], ...) => CypherFragment.Query.Clause[R]")
+      }
+    }
   }
 
   private type VE = Vertex - Edge

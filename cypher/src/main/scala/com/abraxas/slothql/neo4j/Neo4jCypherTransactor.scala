@@ -1,6 +1,6 @@
 package com.abraxas.slothql.neo4j
 
-import scala.collection.convert.decorateAsScala._
+import scala.collection.JavaConverters._
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 import scala.reflect.runtime.{ universe => ru }
@@ -38,14 +38,19 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
   protected def syncInterpreter[F[_] <: Iterable[_]](tx: Transaction)
                                                     (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Read ~> F =
     λ[Read ~> F]{
-      case    txBuilder.Unwind(i)       => fromIterable(i)
-      case g@ txBuilder.Gather(r)       => fromIterable(Seq(g.fromIterable(syncInterpreter(tx)(cbf)(r))))
-      case rq@txBuilder.ReadQuery(_, _) => fromIterable(runReadQueryTxSync(tx, rq))
+      case    txBuilder.Unwind(i)               => fromIterable(i)
+      case g@ txBuilder.Gather(r)               => fromIterable(Seq(g.fromIterable(syncInterpreter(tx)(cbf)(r))))
+      case rq@txBuilder.ReadQuery(_, _)         => fromIterable(runReadQueryTxSync(tx, rq))
+      case pq@txBuilder.PreparedReadQuery(_, _) => fromIterable(runReadQueryTxSync(tx, pq))
     }
 
   protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Iterable[R] =
-    tx.run(new Statement(r.query.toCypher)).list(r.reader(_: Record)).asScala // TODO: issue #8
+    tx.run(new Statement(r.query.toCypher))
+      .list(r.reader(_: Record)).asScala
 
+  protected def runReadQueryTxSync[R](tx: Transaction, r: PreparedReadQuery[_, R]): Iterable[R] =
+    tx.run(new Statement(r.statement.template, r.statement.params.asInstanceOf[Map[String, AnyRef]].asJava))
+      .list(r.reader(_: Record)).asScala
 
   protected def fromIterable[F[_], A](a: Iterable[A])(implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): F[A] =
     (cbf.apply() ++= a).result().asInstanceOf[F[A]]

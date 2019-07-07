@@ -612,6 +612,9 @@ package object syntax extends LowPriorityImplicits {
   }
 
 
+  type Param[+A] = Expr.Param[A]
+  def parameterized(f: Any): Match.ParameterizedQuery[_, _] = macro Match.ParameterizedQuery.impl
+
   final case class ReturnOps[A] protected (
       private val _ret: Known[Return.Return0[A]],
       private val _distinct: Boolean    = false,

@@ -11,9 +11,9 @@ import cats.instances.vector._
 import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.traverse._
-import shapeless.{ DepFn1, |∨| }
+import shapeless.{ ops, DepFn1, HList, RecordArgs, |∨| }
 
-import com.abraxas.slothql.cypher.CypherFragment.{ Known, Query }
+import com.abraxas.slothql.cypher.CypherFragment.{ Known, Parameterized, Query }
 import com.abraxas.slothql.util.MoreZip
 
 trait CypherTransactor {
@@ -28,6 +28,9 @@ trait CypherTransactor {
   final lazy val Read   = txBuilder.Read
 
   final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
+  final def read[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
+                                    (implicit read: Reader[A]): ParameterizedReadQueryBuilder[Params, A] =
+    txBuilder.read(query)
 
   def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]] =
     runRead(read(query))
@@ -68,6 +71,7 @@ trait CypherTxBuilder {
   sealed trait ReadWrite[R] extends Read[R]
 
   case class ReadQuery[A, R](query: Known[Query[A]], reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
+  case class PreparedReadQuery[A, R](statement: CypherFragment.Statement, reader: CypherTransactor.Reader.Aux[Result, A, R]) extends Read[R]
 
   case class Gather[F[_] <: Iterable[_], R](read: Read[R])
                                            (val fromIterable: Iterable[R] => F[R]) extends Read[F[R]] { type CC[_] = F[_] }
@@ -177,4 +181,14 @@ trait CypherTxBuilder {
 
   def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] =
     liftF[Read, read.Out](Read[A](query))
+
+  def read[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])(implicit read: Reader[A]): ParameterizedReadQueryBuilder[Params, A] =
+    new ParameterizedReadQueryBuilder[Params, A](query)
+
+  final class ParameterizedReadQueryBuilder[Params <: HList, A](q: Parameterized.Prepared[Params, Query[A]])
+                                                               (implicit val reader: Reader[A]) extends RecordArgs {
+    def withParamsRecord(params: Params)(implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ReadTx[reader.Out] =
+      liftF[Read, reader.Out](PreparedReadQuery(q.applyRecord(params), reader))
+  }
+
 }
