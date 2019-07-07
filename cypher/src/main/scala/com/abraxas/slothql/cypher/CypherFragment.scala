@@ -90,6 +90,9 @@ object CypherFragment {
     final class Prepared[Params <: HList, +A](template: String) extends RecordArgs {
       def applyRecord(params: Params)(implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): Statement =
         Statement(template, toMap(params).map{ case (k, v) => k.name -> v })
+
+      protected[cypher] def changeParams[PF <: Poly1](implicit mapper: ops.record.MapValues[PF, Params]): Prepared[mapper.Out, A] =
+        this.asInstanceOf[Prepared[mapper.Out, A]]
     }
   }
 

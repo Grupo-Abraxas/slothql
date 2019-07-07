@@ -1,5 +1,6 @@
 package com.abraxas.slothql.cypher
 
+import scala.collection.JavaConverters._
 import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 
@@ -11,7 +12,8 @@ import cats.instances.vector._
 import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.traverse._
-import shapeless.{ ops, DepFn1, HList, RecordArgs, |∨| }
+import shapeless.ops.record.{ MapValues, ToMap }
+import shapeless.{ DepFn1, HList, Poly1, RecordArgs, ops, |∨| }
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Known, Parameterized, Query }
 import com.abraxas.slothql.util.MoreZip
@@ -29,7 +31,7 @@ trait CypherTransactor {
 
   final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
   final def read[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
-                                    (implicit read: Reader[A]): ParameterizedReadQueryBuilder[Params, A] =
+                                    (implicit read: Reader[A], supported: SupportedParams[Params]): ParameterizedReadQueryBuilder[Params, A] =
     txBuilder.read(query)
 
   def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]] =
@@ -182,13 +184,66 @@ trait CypherTxBuilder {
   def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] =
     liftF[Read, read.Out](Read[A](query))
 
-  def read[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])(implicit read: Reader[A]): ParameterizedReadQueryBuilder[Params, A] =
+  def read[Params <: HList: SupportedParams, A: Reader](query: Parameterized.Prepared[Params, Query[A]]): ParameterizedReadQueryBuilder[Params, A] =
     new ParameterizedReadQueryBuilder[Params, A](query)
 
   final class ParameterizedReadQueryBuilder[Params <: HList, A](q: Parameterized.Prepared[Params, Query[A]])
-                                                               (implicit val reader: Reader[A]) extends RecordArgs {
-    def withParamsRecord(params: Params)(implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ReadTx[reader.Out] =
-      liftF[Read, reader.Out](PreparedReadQuery(q.applyRecord(params), reader))
+                                                               (implicit val reader: Reader[A], supported: SupportedParams[Params]) extends RecordArgs {
+    def withParamsRecord(params: Params): ReadTx[reader.Out] = {
+      import supported._
+      val statement = q.changeParams[Poly](mapper)
+                       .applyRecord(mapper(params))(toMap)
+      liftF[Read, reader.Out](PreparedReadQuery(statement, reader))
+    }
+  }
+
+  sealed trait SupportedParams[Params0 <: HList] {
+    type Params <: HList
+
+    type Poly = SupportedParams.Poly.type
+
+    def mapper: ops.record.MapValues.Aux[Poly, Params0, Params]
+    def toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]
+  }
+  object SupportedParams {
+    type Aux[Params0 <: HList, Params1 <: HList] = SupportedParams[Params0] { type Params = Params1 }
+
+    object Poly extends Poly1 {
+      implicit def impl[A](implicit supported: SupportedParam[A]): Case.Aux[A, supported.Out] = at[A](supported(_))
+    }
+
+    implicit def supportedParams[Params0 <: HList, Params1 <: HList](
+      implicit
+      mapper0: ops.record.MapValues.Aux[Poly.type, Params0, Params1],
+      toMap0: ops.record.ToMap.Aux[Params1, _ <: Symbol, _ <: Any]
+    ): SupportedParams.Aux[Params0, Params1] =
+      new SupportedParams[Params0] {
+        type Params = Params1
+        def mapper: MapValues.Aux[Poly.type, Params0, Params1] = mapper0
+        def toMap: ToMap.Aux[Params1, _ <: Symbol, _] = toMap0
+      }
+  }
+
+  trait SupportedParam[A] extends DepFn1[A]
+  object SupportedParam {
+    type Aux[A, R] = SupportedParam[A] { type Out = R }
+
+    def define[A, R](f: A => R): SupportedParam.Aux[A, R] =
+      new SupportedParam[A] {
+        type Out = R
+        def apply(t: A): R = f(t)
+      }
+
+    implicit def intParamIsSupported: SupportedParam.Aux[Int, Int] = define(locally)
+    implicit def longParamIsSupported: SupportedParam.Aux[Long, Long] = define(locally)
+    implicit def stringParamIsSupported: SupportedParam.Aux[String, String] = define(locally)
+    implicit def booleanParamIsSupported: SupportedParam.Aux[Boolean, Boolean] = define(locally)
+
+    implicit def seqParamIsSupported[A0, A](implicit isSeq: A0 <:< Seq[A], underlying: SupportedParam[A]): SupportedParam.Aux[A0, java.util.List[underlying.Out]] =
+      define(_.map(underlying(_)).asJava)
+
+    implicit def mapParamIsSupported[A](implicit underlying: SupportedParam[A]): SupportedParam.Aux[Map[String, A], java.util.Map[String, underlying.Out]] =
+      define(_.mapValues(underlying(_)).asJava)
   }
 
 }
