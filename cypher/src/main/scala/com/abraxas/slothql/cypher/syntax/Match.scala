@@ -184,11 +184,15 @@ object Match { MatchObj =>
 
       val ParamSymbol = symbolOf[Param[_]]
       val QueryClauseSymbol = symbolOf[CypherFragment.Query.Clause[_]]
+      val MatchUnwindSymbol = symbolOf[MatchObj.Result.Unwind[_, _]]
+      val MatchResultType   = typeOf[MatchObj.Result[_]]
 
       f match {
         case Function(params, body) =>
-          val retType = body.tpe match {
-            case TypeRef(_, QueryClauseSymbol, List(t)) => t
+          val (retType, isMatchResult) = body.tpe match {
+            case TypeRef(_, QueryClauseSymbol, List(t)) => t -> false
+            case TypeRef(_, MatchUnwindSymbol, List(_, t)) => t -> true
+            case tpe@TypeRef(_, _, List(t)) if tpe <:< MatchResultType => t -> true
             case other => c.abort(body.pos, s"Not a query: $other")
           }
           val (paramTrees, recTpes) = params.map{ p =>
@@ -203,7 +207,9 @@ object Match { MatchObj =>
           val recTpe = helper.mkHListTpe(recTpes)
           val outTypeTree = tq"_root_.com.abraxas.slothql.cypher.CypherFragment.Query.Query0[$retType]"
 
-          q"_root_.com.abraxas.slothql.cypher.CypherFragment.Parameterized[$recTpe, $outTypeTree].apply($f(..$paramTrees))"
+          val query0 = q"$f(..$paramTrees)"
+          val query = if (isMatchResult) q"$query0.result" else query0
+          q"_root_.com.abraxas.slothql.cypher.CypherFragment.Parameterized[$recTpe, $outTypeTree].apply($query)"
         case other =>
           c.abort(c.enclosingPosition, "Expecting a function (Param[A1], Param[A2], ...) => CypherFragment.Query.Clause[R]")
       }
