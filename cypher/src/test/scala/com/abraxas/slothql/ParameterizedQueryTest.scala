@@ -17,10 +17,11 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
   }
 
   lazy val query1 = parameterized {
-    (x: Param[Int], y: Param[String], z: Param[Seq[String]]) =>
+    (x: Param[Long], y: Param[String], z: Param[Seq[String]]) =>
       unwind(z) { i =>
-        Match.optional { case v@Vertex("i" := `i`, "x" := `x`) =>
+        Match.optional { case v@Vertex("i" := `i`) =>
           (i, v.prop[String]("foo"), y)
+            .limit(x)
         }
       }
   }
@@ -28,18 +29,18 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
 
   "Parameterized Query API" should {
     "build cypher parameterized statements" in {
-      val x = Random.nextInt()
+      val x = Random.nextInt(100).toLong
       val y = Random.alphanumeric.take(10).mkString
       val z = List.fill(5){ Random.alphanumeric.take(5).mkString }
 
       query1(x = x, y = y, z = z) shouldBe Statement(
-        "UNWIND $`z` AS `i` OPTIONAL MATCH (`v`{ `i`: `i`, `x`: $`x` }) RETURN `i`, `v`.`foo`, $`y`",
+        "UNWIND $`z` AS `i` OPTIONAL MATCH (`v`{ `i`: `i` }) RETURN `i`, `v`.`foo`, $`y` LIMIT $`x`",
         Map("x" -> x, "y" -> y, "z" -> z)
       )
     }
 
     "support reading parameterized queries" in {
-      val x = Random.nextInt()
+      val x = 3 + Random.nextInt(100).toLong
       val y = Random.alphanumeric.take(10).mkString
       val z = (1 to 3).map(_.toString)
 

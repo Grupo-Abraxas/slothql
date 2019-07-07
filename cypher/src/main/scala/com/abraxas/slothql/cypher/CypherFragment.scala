@@ -144,8 +144,10 @@ object CypherFragment {
     type Inv[T] = Expr[T]
 
     // // // Values and Variables // // //
-    case class Param[+A](name: String) extends Expr[A]
-    case class Lit[+A](value: A) extends Expr[A]
+    sealed trait Input[+A] extends Expr[A]
+    case class Param[+A](name: String) extends Input[A]
+    case class Lit[+A](value: A) extends Input[A]
+
     sealed trait Null[+A] extends Expr[A]
     trait Var[+A] extends Expr[A] {
       val name: String
@@ -472,22 +474,22 @@ object CypherFragment {
       val ret: Known[Return0[A]]
       val distinct: Boolean
       val order: Order
-      val skip: Option[Long]
-      val limit: Option[Long]
+      val skip: Option[Known[CypherFragment.Expr.Input[Long]]]
+      val limit: Option[Known[CypherFragment.Expr.Input[Long]]]
     }
     object Options {
       type Inv[A] = Options[A]
 
-      def apply[A](ret0: Known[Return0[A]], distinct0: Boolean, order0: Order, skip0: Option[Long], limit0: Option[Long]): Options[A] =
+      def apply[A](ret0: Known[Return0[A]], distinct0: Boolean, order0: Order, skip0: Option[Known[CypherFragment.Expr.Input[Long]]], limit0: Option[Known[CypherFragment.Expr.Input[Long]]]): Options[A] =
         new Options[A] {
           val ret: Known[Return0[A]] = ret0
           val distinct: Boolean = distinct0
           val order: Order = order0
-          val skip: Option[Long] = skip0
-          val limit: Option[Long] = limit0
+          val skip: Option[Known[CypherFragment.Expr.Input[Long]]] = skip0
+          val limit: Option[Known[CypherFragment.Expr.Input[Long]]] = limit0
         }
 
-      def unapply[A](ret: Return[A]): Option[(Known[Return0[A]], Boolean, Order, Option[Long], Option[Long])] = PartialFunction.condOpt(ret) {
+      def unapply[A](ret: Return[A]): Option[(Known[Return0[A]], Boolean, Order, Option[Known[CypherFragment.Expr.Input[Long]]], Option[Known[CypherFragment.Expr.Input[Long]]])] = PartialFunction.condOpt(ret) {
         case ops: Options[A @unchecked] => (ops.ret, ops.distinct, ops.order, ops.skip, ops.limit)
       }
     }
@@ -609,8 +611,8 @@ object CypherFragment {
             }
             " ORDER BY " + by.mkString(", ")
           }
-        val skipFrag = skip map (" SKIP " + _) getOrElse ""
-        val limitFrag = limit map (" LIMIT " + _) getOrElse ""
+        val skipFrag = skip map (" SKIP " + _.toCypher) getOrElse ""
+        val limitFrag = limit map (" LIMIT " + _.toCypher) getOrElse ""
         s"$distinctFrag${expr.toCypher}$orderFrag$skipFrag$limitFrag"
     }
     private def withWildcard(wildcard: Boolean): String = if (wildcard) "*, " else ""

@@ -619,17 +619,19 @@ package object syntax extends LowPriorityImplicits {
       private val _ret: Known[Return.Return0[A]],
       private val _distinct: Boolean    = false,
       private val _order: Return.Order  = Nil,
-      private val _skip: Option[Long]   = None,
-      private val _limit: Option[Long]  = None
+      private val _skip: Option[Known[CypherFragment.Expr.Input[Long]]]   = None,
+      private val _limit: Option[Known[CypherFragment.Expr.Input[Long]]]  = None
   ) extends Match.Result.Ret[A]
   {
     protected[syntax] def ret: Known[Return[A]] = Return.Options(_ret, _distinct, _order, _skip, _limit).known
 
     def orderBy(by: ReturnOps.OrderBy*): ReturnOps[A] = copy(_order = _order ++ by.map(_.asPair).toMap)
     def skip(n: Long): ReturnOps[A] = copy(_skip = Some(n))
-    def skip(n: Option[Long]): ReturnOps[A] = copy(_skip = n)
+    def skip(n: Option[Long]): ReturnOps[A] = copy(_skip = n.map(Expr.Lit(_)))
+    def skip(n: Param[Long]): ReturnOps[A] = copy(_skip = Some(n))
     def limit(n: Long): ReturnOps[A] = copy(_limit = Some(n))
-    def limit(n: Option[Long]): ReturnOps[A] = copy(_limit = n)
+    def limit(n: Option[Long]): ReturnOps[A] = copy(_limit = n.map(Expr.Lit(_)))
+    def limit(n: Param[Long]): ReturnOps[A] = copy(_limit = Some(n))
     def distinct: ReturnOps[A] = copy(_distinct = true)
     def distinct(b: Boolean): ReturnOps[A] = copy(_distinct = b)
   }
