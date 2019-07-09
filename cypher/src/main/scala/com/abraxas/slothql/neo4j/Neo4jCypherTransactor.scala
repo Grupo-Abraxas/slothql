@@ -6,7 +6,6 @@ import scala.language.higherKinds
 import scala.reflect.runtime.{ universe => ru }
 
 import cats.effect.IO
-import cats.instances.vector._
 import cats.{ Functor, ~> }
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
@@ -14,6 +13,7 @@ import shapeless.{ :: => #:, _ }
 
 import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
 import com.abraxas.slothql.neo4j.util.JavaExt._
+import com.abraxas.slothql.neo4j.util.IOVectorMonad
 
 
 class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTransactor {
@@ -29,28 +29,32 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]] =
     session.bracket(s => IO {
       s.readTransaction((transaction: Transaction) =>
-        tx.foldMap(syncInterpreter[Vector](transaction))
+        tx.foldMap[λ[A => IO[Vector[A]]]](syncInterpreter[Vector](transaction))
+          .unsafeRunSync()
       )
     })(s => IO { s.close() })
 
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
 
   protected def syncInterpreter[F[_] <: Iterable[_]](tx: Transaction)
-                                                    (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Read ~> F =
-    λ[Read ~> F]{
-      case    txBuilder.Unwind(i)               => fromIterable(i)
-      case g@ txBuilder.Gather(r)               => fromIterable(Seq(g.fromIterable(syncInterpreter(tx)(cbf)(r))))
-      case rq@txBuilder.ReadQuery(_, _)         => fromIterable(runReadQueryTxSync(tx, rq))
-      case pq@txBuilder.PreparedReadQuery(_, _) => fromIterable(runReadQueryTxSync(tx, pq))
+                                                    (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Read ~> λ[A => IO[F[A]]] =
+    λ[Read ~> λ[A => IO[F[A]]]]{
+      case    txBuilder.LiftIO(io)              => io.flatMap(syncInterpreter(tx)(cbf)(_))
+      case    txBuilder.Unwind(i)               => IO { fromIterable(i) }
+      case g@ txBuilder.Gather(r)               => syncInterpreter(tx)(cbf)(r) map (fa => fromIterable(Seq(g.fromIterable(fa))))
+      case rq@txBuilder.ReadQuery(_, _)         => runReadQueryTxSync(tx, rq).map(fromIterable(_)(cbf))
+      case pq@txBuilder.PreparedReadQuery(_, _) => runReadQueryTxSync(tx, pq).map(fromIterable(_)(cbf))
     }
 
-  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): Iterable[R] =
+  protected def runReadQueryTxSync[R](tx: Transaction, r: ReadQuery[_, R]): IO[Iterable[R]] = IO {
     tx.run(new Statement(r.query.toCypher))
       .list(r.reader(_: Record)).asScala
+  }
 
-  protected def runReadQueryTxSync[R](tx: Transaction, r: PreparedReadQuery[_, R]): Iterable[R] =
+  protected def runReadQueryTxSync[R](tx: Transaction, r: PreparedReadQuery[_, R]): IO[Iterable[R]] = IO {
     tx.run(new Statement(r.statement.template, r.statement.params.asInstanceOf[Map[String, AnyRef]].asJava))
       .list(r.reader(_: Record)).asScala
+  }
 
   protected def fromIterable[F[_], A](a: Iterable[A])(implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): F[A] =
     (cbf.apply() ++= a).result().asInstanceOf[F[A]]
