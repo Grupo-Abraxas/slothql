@@ -317,13 +317,20 @@ package object syntax extends LowPriorityImplicits {
     ): Expr.AtRange[A] =
       Expr.AtRange(listExpr, range.bimap(_.known.asInstanceOf[Known[Expr[Long]]], _.known.asInstanceOf[Known[Expr[Long]]]))
 
+    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](range: Ior[Known[Expr[I1]], Known[Expr[I2]]]): Expr.AtRange[A] =
+      Expr.AtRange(listExpr, range.bimap(_.asInstanceOf[Known[Expr[Long]]], _.asInstanceOf[Known[Expr[Long]]]))
+
     def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](l: E1[I1], r: E2[I2])(
       implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
     ): Expr.AtRange[A] = at(Ior.Both(l, r))
 
+    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](l: Known[Expr[I1]], r: Known[Expr[I2]]): Expr.AtRange[A] = at(Ior.Both(l, r))
+
     def from[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[I]]): Expr.AtRange[A] = at[I, I, E1, E1](Ior.Left(i))
+    def from[I: (Int |∨| Long)#λ](known: Known[Expr[I]]): Expr.AtRange[A] = at[I, I](Ior.Left(known))
 
     def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[I]]): Expr.AtRange[A] = at[I, I, E1, E1](Ior.Right(i))
+    def to[I: (Int |∨| Long)#λ](i: Known[Expr[I]]): Expr.AtRange[A] = at[I, I](Ior.Right(i))
 
     def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](
       rangeOpt: Option[Ior[E1[I1], E2[I2]]]
