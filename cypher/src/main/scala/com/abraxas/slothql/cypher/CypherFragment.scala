@@ -93,6 +93,8 @@ object CypherFragment {
 
       protected[cypher] def changeParams[PF <: Poly1](implicit mapper: ops.record.MapValues[PF, Params]): Prepared[mapper.Out, A] =
         this.asInstanceOf[Prepared[mapper.Out, A]]
+
+      override def toString: String = s"Prepared($template)"
     }
   }
 
