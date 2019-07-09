@@ -173,13 +173,13 @@ object Match { MatchObj =>
     // TODO: rename clause's aliases to avoid collision!?
   }
 
-  final class ParameterizedQuery[Params <: HList, +R](val prepared: Parameterized.Prepared[Params, Query.Query0[R]]) extends AnyVal {
+  final class ParameterizedQuery[Params <: HList, +R](val prepared: Parameterized.Prepared[Params, Query[R]]) extends AnyVal {
     override def toString: String = prepared.toString
   }
 
 
   object ParameterizedQuery {
-    implicit def extractPrepared[Params <: HList, R](pq: ParameterizedQuery[Params, R]): Parameterized.Prepared[Params, Query.Query0[R]] = pq.prepared
+    implicit def extractPrepared[Params <: HList, R](pq: ParameterizedQuery[Params, R]): Parameterized.Prepared[Params, Query[R]] = pq.prepared
 
     def impl(c: whitebox.Context)(f: c.Tree): c.Tree = {
       lazy val c0: c.type = c
@@ -189,6 +189,7 @@ object Match { MatchObj =>
 
       val ParamSymbol = symbolOf[Param[_]]
       val QueryClauseSymbol = symbolOf[CypherFragment.Query.Clause[_]]
+      val QuerySymbol       = symbolOf[CypherFragment.Query[_]]
       val MatchUnwindSymbol = symbolOf[MatchObj.Result.Unwind[_, _]]
       val MatchResultType   = typeOf[MatchObj.Result[_]]
 
@@ -196,6 +197,7 @@ object Match { MatchObj =>
         case Function(params, body) =>
           val (retType, isMatchResult) = body.tpe match {
             case TypeRef(_, QueryClauseSymbol, List(t)) => t -> false
+            case TypeRef(_, QuerySymbol, List(t))       => t -> false
             case TypeRef(_, MatchUnwindSymbol, List(_, t)) => t -> true
             case tpe@TypeRef(_, _, List(t)) if tpe <:< MatchResultType => t -> true
             case other => c.abort(body.pos, s"Not a query: $other")
@@ -210,7 +212,7 @@ object Match { MatchObj =>
             argTree -> recEntry
           }.unzip
           val recTpe = helper.mkHListTpe(recTpes)
-          val outTypeTree = tq"_root_.com.abraxas.slothql.cypher.CypherFragment.Query.Query0[$retType]"
+          val outTypeTree = tq"_root_.com.abraxas.slothql.cypher.CypherFragment.Query[$retType]"
 
           val query0 = q"$f(..$paramTrees)"
           val query = if (isMatchResult) q"$query0.result" else query0
