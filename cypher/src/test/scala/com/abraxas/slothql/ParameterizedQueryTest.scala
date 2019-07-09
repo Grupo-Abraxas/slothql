@@ -33,7 +33,7 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
       val y = Random.alphanumeric.take(10).mkString
       val z = List.fill(5){ Random.alphanumeric.take(5).mkString }
 
-      query1(x = x, y = y, z = z) shouldBe Statement(
+      query1.prepared(x = x, y = y, z = z) shouldBe Statement(
         "UNWIND $`z` AS `i` OPTIONAL MATCH (`v`{ `i`: `i` }) RETURN `i`, `v`.`foo`, $`y` LIMIT $`x`",
         Map("x" -> x, "y" -> y, "z" -> z)
       )
@@ -46,7 +46,7 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
 
       val readTx = tx
         .read(query1)
-        .withParams(x = x, y = y, z = z)
+        .withParamsTx(x = x, y = y, z = z)
 
       val res = tx.runRead(readTx).unsafeRunSync()
       res shouldBe z.map((_, "null", y))

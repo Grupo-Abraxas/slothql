@@ -173,9 +173,14 @@ object Match { MatchObj =>
     // TODO: rename clause's aliases to avoid collision!?
   }
 
-  type ParameterizedQuery[Params <: HList, R] = Parameterized.Prepared[Params, Query.Query0[R]]
+  final class ParameterizedQuery[Params <: HList, +R](val prepared: Parameterized.Prepared[Params, Query.Query0[R]]) extends AnyVal {
+    override def toString: String = prepared.toString
+  }
+
 
   object ParameterizedQuery {
+    implicit def extractPrepared[Params <: HList, R](pq: ParameterizedQuery[Params, R]): Parameterized.Prepared[Params, Query.Query0[R]] = pq.prepared
+
     def impl(c: whitebox.Context)(f: c.Tree): c.Tree = {
       lazy val c0: c.type = c
       val helper = new CaseClassMacros { val c: c0.type = c0 }
@@ -209,8 +214,12 @@ object Match { MatchObj =>
 
           val query0 = q"$f(..$paramTrees)"
           val query = if (isMatchResult) q"$query0.result" else query0
-          q"_root_.com.abraxas.slothql.cypher.CypherFragment.Parameterized[$recTpe, $outTypeTree].apply($query)"
-        case other =>
+          q"""
+            new _root_.com.abraxas.slothql.cypher.syntax.Match.ParameterizedQuery(
+              _root_.com.abraxas.slothql.cypher.CypherFragment.Parameterized[$recTpe, $outTypeTree].apply($query)
+            )
+           """
+        case _ =>
           c.abort(c.enclosingPosition, "Expecting a function (Param[A1], Param[A2], ...) => CypherFragment.Query.Clause[R]")
       }
     }

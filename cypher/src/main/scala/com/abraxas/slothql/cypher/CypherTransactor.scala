@@ -189,12 +189,14 @@ trait CypherTxBuilder {
 
   final class ParameterizedReadQueryBuilder[Params <: HList, A](q: Parameterized.Prepared[Params, Query[A]])
                                                                (implicit val reader: Reader[A], supported: SupportedParams[Params]) extends RecordArgs {
-    def withParamsRecord(params: Params): ReadTx[reader.Out] = {
+    def withParamsRecord(params: Params): Read[reader.Out] = {
       import supported._
       val statement = q.changeParams[Poly](mapper)
                        .applyRecord(mapper(params))(toMap)
-      liftF[Read, reader.Out](PreparedReadQuery(statement, reader))
+      PreparedReadQuery(statement, reader)
     }
+
+    def withParamsTxRecord(params: Params): ReadTx[reader.Out] = liftF[Read, reader.Out](withParamsRecord(params))
   }
 
   sealed trait SupportedParams[Params0 <: HList] {
