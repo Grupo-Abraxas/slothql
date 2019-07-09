@@ -31,7 +31,7 @@ trait CypherTransactor {
 
   final def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] = txBuilder.read(query)
   final def read[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
-                                    (implicit read: Reader[A], supported: SupportedParams[Params]): ParameterizedReadQueryBuilder[Params, A] =
+                                    (implicit read: Reader[A], supported: SupportedParams[Params]): ParameterizedReadQueryBuilder[Params, A, read.Out] =
     txBuilder.read(query)
 
   def readIO[A](query: Known[Query[A]])(implicit r: Reader[A]): IO[Seq[r.Out]] =
@@ -188,19 +188,20 @@ trait CypherTxBuilder {
   def read[A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[read.Out] =
     liftF[Read, read.Out](Read[A](query))
 
-  def read[Params <: HList: SupportedParams, A: Reader](query: Parameterized.Prepared[Params, Query[A]]): ParameterizedReadQueryBuilder[Params, A] =
-    new ParameterizedReadQueryBuilder[Params, A](query)
+  def read[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
+                              (implicit reader: Reader[A], supported: SupportedParams[Params]): ParameterizedReadQueryBuilder[Params, A, reader.Out] =
+    new ParameterizedReadQueryBuilder(query)(reader, supported)
 
-  final class ParameterizedReadQueryBuilder[Params <: HList, A](q: Parameterized.Prepared[Params, Query[A]])
-                                                               (implicit val reader: Reader[A], supported: SupportedParams[Params]) extends RecordArgs {
-    def withParamsRecord(params: Params): Read[reader.Out] = {
+  final class ParameterizedReadQueryBuilder[Params <: HList, A, R](q: Parameterized.Prepared[Params, Query[A]])
+                                                                  (implicit val reader: ReaderAux[A, R], supported: SupportedParams[Params]) extends RecordArgs {
+    def withParamsRecord(params: Params): Read[R] = {
       import supported._
       val statement = q.changeParams[Poly](mapper)
                        .applyRecord(mapper(params))(toMap)
       PreparedReadQuery(statement, reader)
     }
 
-    def withParamsTxRecord(params: Params): ReadTx[reader.Out] = liftF[Read, reader.Out](withParamsRecord(params))
+    def withParamsTxRecord(params: Params): ReadTx[R] = liftF[Read, R](withParamsRecord(params))
   }
 
   sealed trait SupportedParams[Params0 <: HList] {
