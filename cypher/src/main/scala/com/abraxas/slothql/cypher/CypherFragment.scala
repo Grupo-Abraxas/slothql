@@ -87,7 +87,7 @@ object CypherFragment {
     def apply[Params <: HList, A](implicit frag: CypherFragment[A]): Parameterized[Params, A] = // TODO: some param types should probably be mapped to java
       new Parameterized[Params, A] { def fragment: CypherFragment[A] = frag }
 
-    final class Prepared[Params <: HList, +A](template: String) extends RecordArgs {
+    final class Prepared[Params <: HList, +A](val template: String) extends RecordArgs {
       def applyRecord(params: Params)(implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): Statement =
         Statement(template, toMap(params).map{ case (k, v) => k.name -> v })
 
