@@ -5,14 +5,16 @@ import scala.collection.generic.CanBuildFrom
 import scala.language.higherKinds
 import scala.reflect.runtime.{ universe => ru }
 
+import cats.{ Applicative, Functor, Monad, ~> }
 import cats.effect.IO
-import cats.{ Functor, ~> }
+import cats.free.FreeT
+import cats.instances.vector._
+import cats.syntax.applicative._
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
 import shapeless.{ :: => #:, _ }
 
 import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
-import com.abraxas.slothql.neo4j.util.JavaExt._
 import com.abraxas.slothql.neo4j.util.IOVectorMonad
 
 
@@ -29,17 +31,44 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
   def runRead[A](tx: ReadTx[A]): IO[Seq[A]] =
     session.bracket(s => IO {
       s.readTransaction((transaction: Transaction) =>
-        tx.foldMap[λ[A => IO[Vector[A]]]](syncInterpreter[Vector](transaction))
+        tx.foldMap(toReadTxTF[Vector])
+          .foldMap(syncInterpreter(transaction))
           .unsafeRunSync()
       )
     })(s => IO { s.close() })
 
   def runWrite[A](tx: WriteTx[A]): IO[Seq[A]] = ??? // TODO
 
+  protected type ReadTxTF[F[_], R] = FreeT[Read, λ[A => IO[F[A]]], R]
+  object ReadTxTF {
+    implicit def ioFApplicative[F[_]: Applicative]: Applicative[λ[A => IO[F[A]]]] = Applicative[IO] compose Applicative[F]
+
+    def liftT[F[_]: Applicative, A](iof: IO[F[A]]): ReadTxTF[F, A] = FreeT.liftT[Read, λ[X => IO[F[X]]], A](iof)
+    def liftF[F[_]: Applicative, A](read: Read[A]): ReadTxTF[F, A] = FreeT.liftF[Read, λ[X => IO[F[X]]], A](read)
+  }
+
+  implicit def ReadTxTFMonad[F[_]: Applicative]: Monad[ReadTxTF[F, ?]] = new Monad[ReadTxTF[F, ?]] {
+    import ReadTxTF.ioFApplicative
+
+    def pure[A](x: A): ReadTxTF[F, A] = ReadTxTF.liftT(IO.pure(x.pure[F]))
+    def flatMap[A, B](tfa: ReadTxTF[F, A])(f: A => ReadTxTF[F, B]): ReadTxTF[F, B] = tfa.flatMap(f)
+    def tailRecM[A, B](a0: A)(f: A => ReadTxTF[F, Either[A, B]]): ReadTxTF[F, B] = FreeT.tailRecM[Read, λ[A => IO[F[A]]], A, B](a0)(f)
+  }
+
+  protected def toReadTxTF[F[_] <: Iterable[_]](implicit FA: Applicative[F]): Read ~> ReadTxTF[F, ?] = {
+    def go: Read ~> ReadTxTF[F, ?] = λ[Read ~> ReadTxTF[F, ?]] {
+      case txBuilder.LiftIoTx(io) => ReadTxTF.liftT{ io.map(_.foldMap[ReadTxTF[F, ?]](go)).map(_.pure[F]) }
+                                             .flatMap(locally)
+      case read                   => ReadTxTF.liftF(read)
+    }
+    go
+  }
+
+
   protected def syncInterpreter[F[_] <: Iterable[_]](tx: Transaction)
                                                     (implicit cbf: CanBuildFrom[Nothing, Any, F[_]]): Read ~> λ[A => IO[F[A]]] =
     λ[Read ~> λ[A => IO[F[A]]]]{
-      case    txBuilder.LiftIO(io)              => io.flatMap(syncInterpreter(tx)(cbf)(_))
+      case    txBuilder.LiftIoTx(_)             => sys.error("`LiftIoTx` must have been resolved at `toIoInterpreter` natural transformation.")
       case    txBuilder.Unwind(i)               => IO { fromIterable(i) }
       case g@ txBuilder.Gather(r)               => syncInterpreter(tx)(cbf)(r) map (fa => fromIterable(Seq(g.fromIterable(fa))))
       case rq@txBuilder.ReadQuery(_, _)         => runReadQueryTxSync(tx, rq).map(fromIterable(_)(cbf))

@@ -84,14 +84,15 @@ trait CypherTxBuilder {
   }
   case class Unwind[R](values: Iterable[R]) extends Read[R]
 
-  case class LiftIO[R](io: IO[Read[R]]) extends Read[R]
+  case class LiftIoTx[R](io: IO[ReadTx[R]]) extends Read[R]
 
   object Read {
     def apply[A](q: Known[Query[A]])(implicit r: Reader[A]): ReadQuery[A, r.Out] = ReadQuery(q, r)
 
     def const[A](a: A): ReadTx[A] = Free.pure(a)
 
-    def lift[R](io: IO[Read[R]]): ReadTx[R] = liftF(LiftIO(io))
+    def liftIo  [R](io: IO[Read[R]]  ): ReadTx[R] = liftF(LiftIoTx(io.map(liftF)))
+    def liftIoTx[R](io: IO[ReadTx[R]]): ReadTx[R] = liftF(LiftIoTx(io))
 
     def product[A, B](txA: ReadTx[A], txB: ReadTx[B]): ReadTx[(A, B)] = (txA, txB).tupled
 
