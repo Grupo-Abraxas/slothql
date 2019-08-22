@@ -416,11 +416,15 @@ object Match { MatchObj =>
       def symbol: Symbol
       def name: Option[Name]
       def expr: c.Expr[Known[A]]
+      def underlying: List[KnownPattern]
     }
     sealed trait KnownPattern extends KnownExpr[Pattern]
-    case class NodeKP(symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Node]]) extends KnownPattern with KnownExpr[Pattern.Node]
-    case class RelKP (symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Rel]])  extends KnownPattern with KnownExpr[Pattern.Rel]
-    case class LetKP (symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Let]])  extends KnownPattern with KnownExpr[Pattern.Let]
+    case class NodeKP(symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Node]])
+        extends KnownPattern with KnownExpr[Pattern.Node] { def underlying: List[KnownPattern] = Nil }
+    case class RelKP(symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Rel]])
+        extends KnownPattern with KnownExpr[Pattern.Rel] { def underlying: List[KnownPattern] = Nil }
+    case class LetKP(symbol: Symbol, name: Option[Name], expr: c.Expr[Known[Pattern.Let]], underlying: List[KnownPattern])
+        extends KnownPattern with KnownExpr[Pattern.Let]
 
     object V1 {
       def unapply(tree: Tree): Option[KnownPattern] = PartialFunction.condOpt(tree) {
@@ -487,7 +491,8 @@ object Match { MatchObj =>
               case List(V(v),                VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: v
               case List(l,                   VOrDashEV(revHead))  if arrow.tpe =:= `syntax <`  => revHead  ::: extractPatternRev(l)
               case List(b@Bind(name, _), pat)                     if arrow.tpe =:= `syntax ::=` =>
-                LetKP(b.symbol, Some(name), knownLetExpr(name, extractPatternRev(pat))) :: Nil // TODO: handle Wildcard name
+                val patRev = extractPatternRev(pat)
+                LetKP(b.symbol, Some(name), knownLetExpr(name, patRev), patRev) :: Nil // TODO: handle Wildcard name
               case List(V(v)) if arrow.tpe <:< GraphVertexType => v
               case _ => failedToParse(ua)
             }
@@ -509,14 +514,16 @@ object Match { MatchObj =>
               toFragment0(tail, newAcc)
           }
         def toFragment(patternRev: List[KnownPattern]): Either[c.Expr[Known[Pattern.Pattern0]], c.Expr[Known[Pattern.Let]]] = (patternRev: @unchecked) match {
-          case LetKP(_, _, let) :: Nil => Right(let)
-          case NodeKP(_, _, node) :: tail => toFragment0(tail, node)
+          case LetKP(_, _, let, _) :: Nil  => Right(let)
+          case NodeKP(_, _, node)  :: tail => toFragment0(tail, node)
         }
 
         val p = extractPatternRev(pattern0)
         val pattern = toFragment(p).merge
 
-        val bindSymbols = p.map(ke => ke.symbol -> ke.name).toSet
+        def extractBindSymbols(kps: List[KnownPattern]): List[(Symbol, Option[Name])] =
+          kps.flatMap(ke => (ke.symbol, ke.name) :: extractBindSymbols(ke.underlying))
+        val bindSymbols = extractBindSymbols(p).toSet
 
         val setAliases = bindSymbols.withFilter(_._2.isDefined).map{
           case (symbol, name) =>

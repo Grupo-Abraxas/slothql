@@ -125,6 +125,26 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`length`(`ps`)"
     ).returns[(List[Map[String, Any]], List[Map[String, Any]], Long)]
 
+    "assign paths to variables (2)" in test(
+      Match {
+        case ps ::= (Vertex("Group") - e > v - _ *:(0 - _, Edge("foo", "bar")) > (g@Vertex("Group"))) =>
+          (
+            ps.nodes.map(_.props),
+            ps.edges.map(_.props),
+            ps.length,
+            e.tpe,
+            v.labels
+          )
+      },
+      "MATCH `ps` = (:`Group`) -[`e`]-> (`v`) -[:`foo`|`bar`*0..]-> (`g`:`Group`) " +
+      "RETURN " +
+        "`nodes`(`ps`), " +
+        "`relationships`(`ps`), " +
+        "`length`(`ps`), " +
+        "`type`(`e`), " +
+        "`labels`(`v`)"
+    ).returns[(List[Map[String, Any]], List[Map[String, Any]], Long, String, List[String])]
+
 
     "support `with` expression" in test(
       Match {
