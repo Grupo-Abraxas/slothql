@@ -2,6 +2,7 @@ package com.abraxas.slothql
 
 import scala.util.Random
 
+import cats.instances.list._
 import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpec }
 
 import com.abraxas.slothql.cypher.CypherFragment.Statement
@@ -45,7 +46,7 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
       val z = (1 to 3).map(_.toString)
 
       val readTx = tx
-        .read(query1)
+        .read[List](query1)
         .withParamsTx(x = x, y = y, z = z)
 
       val res = tx.runRead(readTx).unsafeRunSync()
