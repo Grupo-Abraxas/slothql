@@ -47,7 +47,7 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
 
       val readTx = tx
         .read[List](query1)
-        .withParamsTx(x = x, y = y, z = z)
+        .withParams(x = x, y = y, z = z)
 
       val res = tx.runRead(readTx).unsafeRunSync()
       res shouldBe z.map((_, "null", y))

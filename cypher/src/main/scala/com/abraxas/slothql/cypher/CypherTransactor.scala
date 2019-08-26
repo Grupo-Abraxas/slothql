@@ -26,18 +26,7 @@ trait CypherTransactor {
 
   final lazy val Read = txBuilder.Read
 
-  final def read[F[_]]: ReadBuilder[F] = ReadBuilder.asInstanceOf[ReadBuilder[F]]
-
-  protected class ReadBuilder[F[_]] {
-    def apply[A](query: Known[Query[A]])(implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], read: Reader[A]): ReadTx[F, read.Out] =
-      txBuilder.read(query)
-
-    def apply[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
-                                 (implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], read: Reader[A], supported: SupportedParams[Params])
-                                 : ParameterizedReadQueryBuilder[Params, F, A, read.Out] =
-      txBuilder.read(query)
-  }
-  private object ReadBuilder extends ReadBuilder[Id]
+  final def read[F[_]]: ReadBuilder[F] = txBuilder.read[F]
 
   def readIO[F[_]: Monad: Traverse: ReadTo, A](query: Known[Query[A]])(implicit r: Reader[A]): IO[F[r.Out]] =
     runRead(read[F](query))
@@ -94,10 +83,13 @@ trait CypherTxBuilder {
   case class Unwind[F[_], R](values: F[R]) extends Read[F, R]
 
   object Read {
-    def apply[F[_], A](q: Known[Query[A]])(implicit b: ReadTo[F], r: Reader[A]): ReadQuery[F, A, r.Out] = ReadQuery(q, b, r)
+    def apply[F[_], A](q: Known[Query[A]])         (implicit b: ReadTo[F], r: Reader[A]): ReadTx[F, r.Out] = FreeT.liftF(ReadQuery(q, b, r))
+    def apply[F[_], A](s: CypherFragment.Statement)(implicit b: ReadTo[F], r: Reader[A]): ReadTx[F, r.Out] = FreeT.liftF(PreparedReadQuery(s, b, r))
 
     def const [F[_]]: Id ~> ReadTx[F, ?] = λ[Id ~> ReadTx[F, ?]](FreeT.pure(_))
     def liftIO[F[_]]: IO ~> ReadTx[F, ?] = λ[IO ~> ReadTx[F, ?]](FreeT.liftT(_))
+    def liftTx[F[_]]: λ[A => IO[ReadTx[F, A]]] ~> ReadTx[F, ?] =
+      λ[λ[A => IO[ReadTx[F, A]]] ~> ReadTx[F, ?]]{ io => FreeT.liftT(io).flatMap(locally) }
 
     def product[F[_], A, B](txA: ReadTx[F, A], txB: ReadTx[F, B]): ReadTx[F, (A, B)] = (txA, txB).tupled
 
@@ -182,27 +174,29 @@ trait CypherTxBuilder {
   type WriteTx[F[_], R] = FreeT[ReadWrite[F, ?], IO, R]
 
 
-  def read[F[_]: ReadTo, A](query: Known[Query[A]])(implicit read: Reader[A]): ReadTx[F, read.Out] =
-    FreeT.liftF(Read[F, A](query))
+  final def read[F[_]]: ReadBuilder[F] = ReadBuilder.asInstanceOf[ReadBuilder[F]]
 
-  def read[F[_], Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
-                                    (implicit readTo: ReadTo[F], reader: Reader[A], supported: SupportedParams[Params])
-                                    : ParameterizedReadQueryBuilder[Params, F, A, reader.Out] =
-    new ParameterizedReadQueryBuilder(query)(reader, readTo, supported)
+  protected[cypher] class ReadBuilder[F[_]] {
+    def apply[A](query: Known[Query[A]])(implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], read: Reader[A]): ReadTx[F, read.Out] = Read(query)
+
+    def apply[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
+                                 (implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], reader: Reader[A], supported: SupportedParams[Params])
+                                 : ParameterizedReadQueryBuilder[Params, F, A, reader.Out] =
+      new ParameterizedReadQueryBuilder(query)(reader, readTo, supported)
+  }
+  private object ReadBuilder extends ReadBuilder[Id]
 
   final class ParameterizedReadQueryBuilder[Params <: HList, F[_], A, R]
       (q: Parameterized.Prepared[Params, Query[A]])
       (implicit val reader: ReaderAux[A, R], readTo: ReadTo[F], supported: SupportedParams[Params])
     extends RecordArgs
   {
-    def withParamsRecord(params: Params): Read[F, R] = {
+    def withParamsRecord(params: Params): ReadTx[F, R] = FreeT.liftF {
       import supported._
       val statement = q.changeParams[Poly](mapper)
                        .applyRecord(mapper(params))(toMap)
       PreparedReadQuery(statement, readTo, reader)
     }
-
-    def withParamsTxRecord(params: Params): ReadTx[F, R] = FreeT.liftF(withParamsRecord(params))
   }
 
   sealed trait SupportedParams[Params0 <: HList] {
