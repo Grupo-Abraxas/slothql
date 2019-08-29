@@ -174,7 +174,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
     "build function calls" in test(
       Match {
         case Vertex("Group") < _ *:(_, Edge("parent")) - (g@Vertex("Group")) =>
-          (g.call[Long]("id"), g.call[Map[String, Any]]("properties"), 'pi.call[Double]())
+          (g.func[Long]("id"), g.func[Map[String, Any]]("properties"), 'pi.func[Double]())
       },
       "MATCH (:`Group`) <-[:`parent`*]- (`g`:`Group`) " +
       "RETURN `id`(`g`), `properties`(`g`), `pi`()"

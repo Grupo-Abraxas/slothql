@@ -160,7 +160,7 @@ object CypherFragment {
 
       override def toString: String = s"Var($name)"
     }
-    case class Call[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
+    case class Func[+A](func: String, params: scala.List[Known[Expr[_]]]) extends Expr[A]
 
     object Param {
       implicit def fragment[A]: CypherFragment[Param[A]] = instance.asInstanceOf[CypherFragment[Param[A]]]
@@ -195,10 +195,10 @@ object CypherFragment {
       implicit def fragment[A]: CypherFragment[Var[A]] = instance.asInstanceOf[CypherFragment[Var[A]]]
       private lazy val instance = define[Var[_]](v => escapeName(v.name))
     }
-    object Call {
-      implicit def fragment[A]: CypherFragment[Call[A]] = instance.asInstanceOf[CypherFragment[Call[A]]]
-      private lazy val instance = define[Call[_]] {
-        case Call(func, params) => s"${func.split('.').map(escapeName).mkString(".")}(${params.map(_.toCypher).mkString(", ")})"
+    object Func {
+      implicit def fragment[A]: CypherFragment[Func[A]] = instance.asInstanceOf[CypherFragment[Func[A]]]
+      private lazy val instance = define[Func[_]] {
+        case Func(func, params) => s"${func.split('.').map(escapeName).mkString(".")}(${params.map(_.toCypher).mkString(", ")})"
       }
     }
 

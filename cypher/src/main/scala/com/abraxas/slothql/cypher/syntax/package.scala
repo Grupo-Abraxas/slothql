@@ -43,8 +43,8 @@ package object syntax extends LowPriorityImplicits {
 
   final implicit class GraphPatternOps(e: Expr.Var[Graph.Pattern]) {
     /** Call built-in function `func` passing `this` expression as first argument. */
-    def call[R](func: String, args: Known[Expr[_]]*): Expr.Call[R] =
-      Expr.Call(func, e.known :: args.toList)
+    def func[R](func: String, args: Known[Expr[_]]*): Expr.Func[R] =
+      Expr.Func(func, e.known :: args.toList)
   }
 
   final implicit class GraphAtomOps(e: Expr.Var[Graph.Atom]) {
@@ -62,33 +62,33 @@ package object syntax extends LowPriorityImplicits {
     def opt[A](k: String): Expr.MapKey[Option[A]] = propOpt(k)
 
     /** Call built-in `id` function. */
-    def id: Expr.Call[Long] = e.call("id")
+    def id: Expr.Func[Long] = e.func("id")
     /** Call built-in `count` function. */
-    def count: Expr.Call[Long] = e.call("count")
+    def count: Expr.Func[Long] = e.func("count")
     /** Call built-in `keys` function. */
-    def keys: Expr.Call[List[String]] = e.call("keys")
+    def keys: Expr.Func[List[String]] = e.func("keys")
 
   }
 
   final implicit class VertexOps(v: Vertex) {
     /** Call built-in `labels` function. */
-    def labels: Expr.Call[List[String]] = v.call("labels")
+    def labels: Expr.Func[List[String]] = v.func("labels")
   }
 
   final implicit class EdgeOps(e: Edge) {
     /** Call built-in `type` function. */
-    def tpe: Expr.Call[String] = e.call("type")
+    def tpe: Expr.Func[String] = e.func("type")
     /** Call built-in `type` function. */
-    def `type`: Expr.Call[String] = tpe
+    def `type`: Expr.Func[String] = tpe
   }
 
   final implicit class PathOps(e: Path) {
     /** Call built-in `nodes` function. */
-    def nodes: Expr.Call[List[Graph.Vertex]] = e.call("nodes")
+    def nodes: Expr.Func[List[Graph.Vertex]] = e.func("nodes")
     /** Call built-in `relationships` function. */
-    def edges: Expr.Call[List[Graph.Edge]] = e.call("relationships")
+    def edges: Expr.Func[List[Graph.Edge]] = e.func("relationships")
     /** Call built-in `nodes` function. */
-    def length: Expr.Call[Long] = e.call("length")
+    def length: Expr.Func[Long] = e.func("length")
   }
 
 
@@ -120,12 +120,12 @@ package object syntax extends LowPriorityImplicits {
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
   implicit class CallExprOps(func: Symbol) {
-    def call[R](args: Known[Expr[_]]*): Expr.Call[R] = Expr.Call(func.name, args.toList)
+    def func[R](args: Known[Expr[_]]*): Expr.Func[R] = Expr.Func(func.name, args.toList)
   }
 
 
   protected sealed abstract class AsStringKnownExprOps(expr: Known[Expr[_]]) {
-    def asString: Expr.Call[String] = Expr.Call("toString", List(expr))
+    def asString: Expr.Func[String] = Expr.Func("toString", List(expr))
   }
 
   implicit class NumberAsStringKnownExprOps   [A: Numeric]               (expr: Known[Expr[A]]) extends AsStringKnownExprOps(expr)
@@ -213,46 +213,46 @@ package object syntax extends LowPriorityImplicits {
     def matches[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr     = binary(expr1, Expr.StringExpr.Regex)
 
 
-    def toLower: Expr.Call[String] = 'toLower.call(expr0)
-    def toUpper: Expr.Call[String] = 'toUpper.call(expr0)
-    def size:    Expr.Call[Long]   = 'size.call(expr0)
+    def toLower: Expr.Func[String] = 'toLower.func(expr0)
+    def toUpper: Expr.Func[String] = 'toUpper.func(expr0)
+    def size:    Expr.Func[Long]   = 'size.func(expr0)
 
-    def toBoolean: Expr.Call[Boolean] = 'toBoolean.call(expr0)
-    def toDouble:  Expr.Call[Double]  = 'toFloat.call(expr0)
-    def toLong:    Expr.Call[Long]    = 'toInteger.call(expr0)
+    def toBoolean: Expr.Func[Boolean] = 'toBoolean.func(expr0)
+    def toDouble:  Expr.Func[Double]  = 'toFloat.func(expr0)
+    def toLong:    Expr.Func[Long]    = 'toInteger.func(expr0)
 
     /** Returns a string containing the specified number of leftmost characters of the original string. */
-    def takeLeft(n: Known[Expr[Long]]): Expr.Call[String]                   = 'left.call(expr0, n)
-    def takeLeft[E <: Expr[Long]: CypherFragment](n: E): Expr.Call[String]  = 'left.call(expr0, n)
+    def takeLeft(n: Known[Expr[Long]]): Expr.Func[String]                   = 'left.func(expr0, n)
+    def takeLeft[E <: Expr[Long]: CypherFragment](n: E): Expr.Func[String]  = 'left.func(expr0, n)
 
     /** Returns a string containing the specified number of rightmost characters of the original string. */
-    def takeRight(n: Known[Expr[Long]]): Expr.Call[String]                  = 'right.call(expr0, n)
-    def takeRight[E <: Expr[Long]: CypherFragment](n: E): Expr.Call[String] = 'right.call(expr0, n)
+    def takeRight(n: Known[Expr[Long]]): Expr.Func[String]                  = 'right.func(expr0, n)
+    def takeRight[E <: Expr[Long]: CypherFragment](n: E): Expr.Func[String] = 'right.func(expr0, n)
 
     /** Returns a string in which all occurrences of a specified string in the original string have been replaced by another (specified) string. */
-    def replace(search: Known[Expr[String]], replace: Known[Expr[String]]): Expr.Call[String]                                       = 'replace.call(expr0, search, replace)
-    def replace[E1 <: Expr[String]: CypherFragment, E2 <: Expr[String]: CypherFragment](search: E1, replace: E2): Expr.Call[String] = 'replace.call(expr0, search, replace)
+    def replace(search: Known[Expr[String]], replace: Known[Expr[String]]): Expr.Func[String]                                       = 'replace.func(expr0, search, replace)
+    def replace[E1 <: Expr[String]: CypherFragment, E2 <: Expr[String]: CypherFragment](search: E1, replace: E2): Expr.Func[String] = 'replace.func(expr0, search, replace)
 
-    def reverse: Expr.Call[String] = 'reverse.call(expr0)
+    def reverse: Expr.Func[String] = 'reverse.func(expr0)
 
     /** Returns a list of strings resulting from the splitting of the original string around matches of the given delimiter. */
-    def split(delimiter: Known[Expr[String]]): Expr.Call[List[String]]                  = 'split.call(expr0, delimiter)
-    def split[E <: Expr[String]: CypherFragment](delimiter: E): Expr.Call[List[String]] = 'split.call(expr0, delimiter)
+    def split(delimiter: Known[Expr[String]]): Expr.Func[List[String]]                  = 'split.func(expr0, delimiter)
+    def split[E <: Expr[String]: CypherFragment](delimiter: E): Expr.Func[List[String]] = 'split.func(expr0, delimiter)
 
     /** Returns a substring of the original string, beginning with a 0-based index start. */
-    def substring(start: Known[Expr[Long]]): Expr.Call[String]                  = 'substring.call(expr0, start)
-    def substring[E <: Expr[Long]: CypherFragment](start: E): Expr.Call[String] = 'substring.call(expr0, start)
+    def substring(start: Known[Expr[Long]]): Expr.Func[String]                  = 'substring.func(expr0, start)
+    def substring[E <: Expr[Long]: CypherFragment](start: E): Expr.Func[String] = 'substring.func(expr0, start)
 
     /** Returns a substring of the original string, beginning with a 0-based index start and length. */
-    def substring(start: Known[Expr[Long]], length: Known[Expr[Long]]): Expr.Call[String]                                       = 'substring.call(expr0, start, length)
-    def substring[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](start: E1, length: E2): Expr.Call[String] = 'substring.call(expr0, start, length)
+    def substring(start: Known[Expr[Long]], length: Known[Expr[Long]]): Expr.Func[String]                                       = 'substring.func(expr0, start, length)
+    def substring[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](start: E1, length: E2): Expr.Func[String] = 'substring.func(expr0, start, length)
 
     /** Returns the original string with leading and trailing whitespace removed. */
-    def trim: Expr.Call[String] = 'trim.call(expr0)
+    def trim: Expr.Func[String] = 'trim.func(expr0)
     /** Returns the original string with leading whitespace removed. */
-    def trimLeft: Expr.Call[String] = 'lTrim.call(expr0)
+    def trimLeft: Expr.Func[String] = 'lTrim.func(expr0)
     /** Returns the original string with trailing whitespace removed. */
-    def trimRight: Expr.Call[String] = 'rTrim.call(expr0)
+    def trimRight: Expr.Func[String] = 'rTrim.func(expr0)
 
     private def binary(expr1: Known[Expr[String]], op: Expr.StringExpr.Op) = Expr.StringExpr(expr0, expr1, op)
   }
@@ -338,7 +338,7 @@ package object syntax extends LowPriorityImplicits {
       implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
     ): Known[Expr[List[A]]] = rangeOpt.map(at(_).known) getOrElse listExpr
 
-    def size: Expr.Call[Long] = Expr.Call("size", List(expr0))
+    def size: Expr.Func[Long] = Expr.Func("size", List(expr0))
 
     def withFilter(f: Expr.Var[A] => Known[Expr[Boolean]]): ListOps.WithFilter[A] = new ListOps.WithFilter(listExpr, f)
 
@@ -486,7 +486,7 @@ package object syntax extends LowPriorityImplicits {
   def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
 
   def distinct[A](expr: Known[Expr[A]]): Known[Expr[A]] = Expr.Distinct(expr)
-  def collect[A](expr: Known[Expr[A]]): Expr.Call[List[A]] = 'collect.call[List[A]](expr)
+  def collect[A](expr: Known[Expr[A]]): Expr.Func[List[A]] = 'collect.func[List[A]](expr)
 
   def dict(entries: MapEntry[Any]*): Expr.Map[Any] = Expr.Map(entries.map(_.toPair).toMap)
   def dict(map: Map[String, Known[Expr[Any]]]): Expr.Map[Any] = Expr.Map(map)
