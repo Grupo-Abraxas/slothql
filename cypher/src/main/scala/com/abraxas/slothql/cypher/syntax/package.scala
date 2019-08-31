@@ -119,8 +119,28 @@ package object syntax extends LowPriorityImplicits {
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
-  implicit class CallExprOps(func: Symbol) {
+  implicit class FuncSymbolOps(func: Symbol) {
     def func[R](args: Known[Expr[_]]*): Expr.Func[R] = Expr.Func(func.name, args.toList)
+  }
+  implicit class FuncStringOps(func: String) {
+    def func[R](args: Known[Expr[_]]*): Expr.Func[R] = Expr.Func(func, args.toList)
+  }
+
+  type Var[+A] = Expr.Var[A]
+
+  implicit class ProcedureSymbolOps(procedure: Symbol) {
+    def call(args: Known[Expr[_]]*): ProcedureOps.CallBuilder = new ProcedureOps.CallBuilder(procedure.name, args.toList)
+  }
+  implicit class ProcedureStringOps(procedure: String) {
+    def call(args: Known[Expr[_]]*): ProcedureOps.CallBuilder = new ProcedureOps.CallBuilder(procedure, args.toList)
+  }
+  // specifying WHERE condition is not supported by this syntax helper
+  // assigning aliases to procedure outputs is not supported by this syntax helper
+  protected[syntax] object ProcedureOps {
+    class CallBuilder(procedure: String, params: List[Known[Expr[_]]]) {
+      // def void[R](res: Match.Result[R]): Match.Result[R] = ???
+      def yielding(f: Any): Match.Result[_] = macro Match.Result.Call.impl
+    }
   }
 
 

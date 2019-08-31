@@ -48,11 +48,13 @@ trait CypherFragment[-A] {
  * Queries {{{
  * query ::= query◦ | query UNION query | query UNION ALL query            unions
  * query◦ ::= RETURN ret | clause query◦                                   sequences of clauses
- * ret ::= ∗ | expr [AS a] | ret , expr [AS a]                             return lists
+ * ret0 ::=  expr [AS a] | ret0, expr [AS a]                               return lists
+ * ret  ::= ∗ | ret0                                                       return lists
  * }}}
  * Clauses {{{
  * clause ::= [OPTIONAL] MATCH pattern_tuple [WHERE expr]                  matching clauses
  *          | WITH ret [WHERE expr] | UNWIND expr AS a     where a ∈ A     relational clauses
+ *          | CALL ... [YIELD ret0]
  * pattern_tuple ::= pattern | pattern, pattern_tuple                      tuples of patterns
  * }}}
  *
@@ -198,7 +200,7 @@ object CypherFragment {
     object Func {
       implicit def fragment[A]: CypherFragment[Func[A]] = instance.asInstanceOf[CypherFragment[Func[A]]]
       private lazy val instance = define[Func[_]] {
-        case Func(func, params) => s"${func.split('.').map(escapeName).mkString(".")}(${params.map(_.toCypher).mkString(", ")})"
+        case Func(func, params) => fragFuncLike(func, params)
       }
     }
 
@@ -509,7 +511,7 @@ object CypherFragment {
       val expressions: scala.List[Known[Expr[_]]]
       val wildcard: Boolean
 
-      override def toString: String = s"Untyped(${expressions.mkString(", ")})"
+      override def toString: String = s"Untyped(${if (wildcard) "*, " else ""}${expressions.mkString(", ")})"
     }
     object Untyped {
       def apply(exprs: Iterable[Known[CypherFragment.Expr[_]]], wildcard: Boolean = false): Untyped = {
@@ -529,6 +531,25 @@ object CypherFragment {
       }
 
       def unapply(arg: Untyped): Option[(scala.List[Known[Expr[_]]], Boolean)] = Some(arg.expressions -> arg.wildcard)
+    }
+
+    sealed trait UntypedExpressions extends Untyped with ReturnE[scala.List[Any]] {
+      val expressions: scala.List[Known[Expr[_]]]
+      final val wildcard: Boolean = false
+
+      override def toString: String = s"Untyped(${expressions.mkString(", ")})"
+    }
+    object UntypedExpressions {
+      def apply(expr0: Known[CypherFragment.Expr[_]], exprs: Known[CypherFragment.Expr[_]]*): UntypedExpressions =
+        returns(Expr[Any](expr0, as = None), exprs.map(Expr[Any](_, as = None).known): _*)
+      def returns(ret0: Known[Return.Expr[_]], rets: Known[Return.Expr[_]]*): UntypedExpressions =
+        new UntypedExpressions {
+          val expressions: List[Known[Return.Expr[_]]] = ret0 :: rets.toList
+        }
+      def returnsUnsafe(rets: Iterable[Known[Return.Expr[_]]]): UntypedExpressions =
+        new UntypedExpressions {
+          val expressions: List[Known[Return.Expr[_]]] = rets.toList
+        }
     }
 
     /** Isn't completely compatible with cypher syntax since it doesn't permit to return ∗ as first element of a list. */
@@ -625,12 +646,21 @@ object CypherFragment {
     case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Clause
     case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Clause
     case class Unwind(expr: Known[Expr[Seq[_]]], as: String) extends Clause
+    case class Call(
+        procedure: String,
+        params: scala.List[Known[Expr[_]]],
+        yields: Option[Known[Return.ReturnE[_]]],
+        where: Option[Known[Expr[Boolean]]]
+    ) extends Clause
 
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
         val optionalStr = if (optional) "OPTIONAL " else ""
         val patternStr = pattern.toList.map(_.toCypher).mkString(", ")
         s"${optionalStr}MATCH $patternStr${whereStr(where)}"
+      case Call(procedure, params, yielding, where) =>
+        val yieldStr = yielding.map(ret => s" YIELD ${ret.toCypher}").getOrElse("")
+        s"CALL ${fragFuncLike(procedure, params)}$yieldStr${whereStr(where)}"
       case With(ret, where) => s"WITH ${ret.toCypher}${whereStr(where)}"
       case Unwind(expr, as) => s"UNWIND ${expr.toCypher}${asStr(Option(as))}"
     }
@@ -699,6 +729,10 @@ object CypherFragment {
         }
     }
   }
+
+  private def fragFuncLike(func: String, params: scala.List[Known[Expr[_]]]): String =
+    s"${func.split('.').map(escapeName).mkString(".")}(${params.map(_.toCypher).mkString(", ")})"
+
 
   private def escapeName(name: String) = name match {
     case "_" => "_"

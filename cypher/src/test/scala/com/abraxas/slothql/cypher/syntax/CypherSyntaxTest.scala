@@ -171,6 +171,22 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "Variable unbound by `with`: value y"
       )
 
+    "stored procedures calls (string name)" in test(
+      "apoc.nodes.get".call(lit(0)).yielding { node: Vertex =>
+        node.props
+      },
+      "CALL `apoc`.`nodes`.`get`(0) YIELD `node` " +
+      "RETURN `node`"
+    ).returns[Map[String, Any]]
+
+    "stored procedures calls (symbol name)" in test(
+      'foo.call(lit("bar")).yielding { i: Var[Int] =>
+        i + 1
+      },
+      "CALL `foo`(\"bar\") YIELD `i` " +
+      "RETURN `i` + 1"
+    ).returns[Int]
+
     "build function calls" in test(
       Match {
         case Vertex("Group") < _ *:(_, Edge("parent")) - (g@Vertex("Group")) =>
