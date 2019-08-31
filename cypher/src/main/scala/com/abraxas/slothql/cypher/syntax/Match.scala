@@ -34,23 +34,18 @@ object Match { MatchObj =>
       def result: Query.Query0[R] = clause
     }
 
-    protected[syntax] trait With[R] extends Result[R] {
-      protected[syntax] def ret: Known[Return[R]]
-      protected[syntax] def query: Known[Query.Query0[R]]
-      protected[syntax] def where: Option[Known[Expr[Boolean]]]
-      def result: Query.Query0[R] = Query.Clause(Clause.With(ret, where = where), query)
+    protected[syntax] class With[R](
+        protected[syntax] val ret: Known[Return[R]],
+        protected[syntax] val query: Known[Query.Query0[R]],
+        protected[syntax] val where: Option[Known[Expr[Boolean]]]
+    ) extends Result[R] {
+      val result: Query.Query0[R] = Query.Clause(CypherFragment.Clause.With(ret, where = where), query)
     }
     object With {
-      def apply[R](wildcard: Boolean, ops: ReturnOps[Any] => ReturnOps[Any], exprs: Seq[Known[Return.Expr[_]]], res: Match.Result[R]): With[R] =
-        new With[R] {
-          private lazy val ret0 = CypherFragment.Return.Untyped.returns(wildcard = wildcard, exprs: _*).asInstanceOf[CypherFragment.Return.Return0[R]]
-
-          protected[syntax] def ret: Known[CypherFragment.Return[R]] =
-            ops(ReturnOps(CypherFragment.Return.Wildcard)).copy(ret0).ret
-          protected[syntax] def query: Known[Query.Query0[R]] =
-            res.result
-          protected[syntax] def where: Option[Known[Expr[Boolean]]] = None
-        }
+      def apply[R](wildcard: Boolean, ops: ReturnOps[Any] => ReturnOps[Any], exprs: Seq[Known[Return.Expr[_]]], res: Match.Result[R]): With[R] = {
+        val ret0 = CypherFragment.Return.Untyped.returns(wildcard = wildcard, exprs: _*).asInstanceOf[CypherFragment.Return.Return0[R]]
+        new With[R](ret = ops(ReturnOps(CypherFragment.Return.Wildcard)).copy(ret0).ret, query = res.result, where = None)
+      }
 
       sealed trait Var
       implicit object Var {
@@ -135,19 +130,16 @@ object Match { MatchObj =>
       }
     }
 
-    protected[syntax] trait Unwind[A, R] extends Result[R] {
-      protected[syntax] def exprs: Known[Expr[Seq[A]]]
-      protected[syntax] def alias: String
-      protected[syntax] def query: Known[Query.Query0[R]]
-      def result: Query.Query0[R] = Query.Clause(Clause.Unwind(exprs, as = alias), query)
+    protected[syntax] class Unwind[A, R](
+        protected[syntax] val exprs: Known[Expr[Seq[A]]],
+        protected[syntax] val alias: String,
+        protected[syntax] val query: Known[Query.Query0[R]]
+    ) extends Result[R] {
+      val result: Query.Query0[R] = Query.Clause(CypherFragment.Clause.Unwind(exprs, as = alias), query)
     }
     object Unwind {
       def apply[A, R](expr: Known[Expr[Seq[A]]], unwindAlias: String, next: Known[Query.Query0[R]]): Unwind[A, R] =
-        new Unwind[A, R] {
-          protected[syntax] def exprs: Known[Expr[Seq[A]]] = expr
-          protected[syntax] def alias: String = unwindAlias
-          protected[syntax] def query: Known[Query.Query0[R]] = next
-        }
+        new Unwind[A, R](expr, unwindAlias, next)
 
       def instanceImpl[A: c.WeakTypeTag, R: c.WeakTypeTag]
                       (c: blackbox.Context)

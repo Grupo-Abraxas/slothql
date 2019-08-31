@@ -578,11 +578,7 @@ package object syntax extends LowPriorityImplicits {
 
   /** Generates {{{ WITH * WHERE ... }}} */
   def filter[R](f: Known[Expr[Boolean]])(res: Match.Result[R]): Match.Result[R] =
-    new Match.Result.With[R] {
-      protected[syntax] def ret: Known[Return[R]] = Return.Wildcard.as[R]
-      protected[syntax] def query: Known[Query.Query0[R]] = res.result
-      protected[syntax] def where: Option[Known[Expr[Boolean]]] = Some(f)
-    }
+    new Match.Result.With[R](Return.Wildcard.as[R], res.result, Some(f))
 
   object `with` {
     def apply[R](wildcard: Boolean, ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
