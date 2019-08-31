@@ -378,7 +378,6 @@ package object syntax extends LowPriorityImplicits {
     // predicates
     def all   (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.All, f)
     def any   (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Any, f)
-    def exists(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Exists, f)
     def none  (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.None, f)
     def single(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Single, f)
 
@@ -507,6 +506,8 @@ package object syntax extends LowPriorityImplicits {
 
   def distinct[A](expr: Known[Expr[A]]): Known[Expr[A]] = Expr.Distinct(expr)
   def collect[A](expr: Known[Expr[A]]): Expr.Func[List[A]] = 'collect.func[List[A]](expr)
+
+  def exists(pattern: syntax.Graph => Unit): Expr.Exists = macro impl.Exists.impl
 
   def dict(entries: MapEntry[Any]*): Expr.Map[Any] = Expr.Map(entries.map(_.toPair).toMap)
   def dict(map: Map[String, Known[Expr[Any]]]): Expr.Map[Any] = Expr.Map(map)
@@ -656,6 +657,8 @@ package object syntax extends LowPriorityImplicits {
     def limit(n: Param[Long]): ReturnOps[A] = copy(_limit = Some(n))
     def distinct: ReturnOps[A] = copy(_distinct = true)
     def distinct(b: Boolean): ReturnOps[A] = copy(_distinct = b)
+
+    @inline def `return`: Match.Result[A] = this
   }
 
   object ReturnOps {

@@ -417,6 +417,7 @@ object CypherFragment {
       }
     }
 
+    // // // Distinct // // //
 
     case class Distinct[A](expr: Known[Expr[A]]) extends Expr[A]
     object Distinct {
@@ -425,6 +426,17 @@ object CypherFragment {
       }
     }
 
+
+    // // // Pattern Predicate // // //
+    case class Exists(pattern: Known[Pattern]) extends Expr[Boolean]
+    object Exists {
+      implicit lazy val fragment: CypherFragment[Exists] = define {
+        case Exists(pattern) => s"EXISTS (${pattern.toCypher})"
+      }
+    }
+
+
+    // // // Cases // // //
 
     sealed trait CaseExpr[A] extends Expr[A]
     case class SimpleCaseExpr[V, A](value: Known[Expr[V]], cases: Predef.Map[Known[Expr[V]], Known[Expr[A]]], default: Option[Known[Expr[A]]]) extends CaseExpr[A]

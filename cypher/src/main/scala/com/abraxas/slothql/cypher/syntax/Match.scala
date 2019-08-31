@@ -106,7 +106,9 @@ object Match { MatchObj =>
     var CheckForUnboundUsage: Seq[(Any, Any)] = Nil
   }
 
-  class Internal(val c: whitebox.Context) {
+  class Internal(override val c: whitebox.Context) extends InternalImpl(c)
+
+  class InternalImpl[C <: whitebox.Context](val c: C) {
     import c.universe._
 
     def implApply[R: c.WeakTypeTag](f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] =

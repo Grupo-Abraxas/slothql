@@ -638,8 +638,6 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         .all(_ > lit(0L))
       val any@CypherFragment.Expr.ListPredicate(_, elem2, _, _) = testVar[List[Long]]()
         .any(_ > lit(0L))
-      val exists@CypherFragment.Expr.ListPredicate(_, elem3, _, _) = testVar[List[Long]]()
-        .exists(_ > lit(0L))
       val none@CypherFragment.Expr.ListPredicate(_, elem4, _, _) = testVar[List[Long]]()
         .none(_ > lit(0L))
       val single@CypherFragment.Expr.ListPredicate(_, elem5, _, _) = testVar[List[Long]]()
@@ -649,7 +647,6 @@ class CypherSyntaxTest extends WordSpec with Matchers {
           (
             all   .copy(list = v.prop[List[Long]]("data")),
             any   .copy(list = v.prop[List[Long]]("data")),
-            exists.copy(list = v.prop[List[Long]]("data")),
             none  .copy(list = v.prop[List[Long]]("data")),
             single.copy(list = v.prop[List[Long]]("data"))
           )
@@ -658,10 +655,9 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN " +
           s"all(`$elem1` IN `v`.`data` WHERE `$elem1` > 0), " +
           s"any(`$elem2` IN `v`.`data` WHERE `$elem2` > 0), " +
-          s"exists(`$elem3` IN `v`.`data` WHERE `$elem3` > 0), " +
           s"none(`$elem4` IN `v`.`data` WHERE `$elem4` > 0), " +
           s"single(`$elem5` IN `v`.`data` WHERE `$elem5` > 0)"
-      ).returns[(Boolean, Boolean, Boolean, Boolean, Boolean)]
+      ).returns[(Boolean, Boolean, Boolean, Boolean)]
     }
 
     "slice collected lists" in test(
@@ -842,6 +838,11 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `v`.`name`"
       ).returns[String]
     }
+
+    "support `exists` predicate" in test(
+      exists{ case v -e> x - _ > y => }.`return`,
+      "RETURN EXISTS ((`v`) -[`e`]-> (`x`) -[]-> (`y`))"
+    ).returns[Boolean]
 
     "get map value by key" in test(
       Match{ case v => v.value[String]("name") },
