@@ -139,7 +139,7 @@ package object syntax extends LowPriorityImplicits {
   protected[syntax] object ProcedureOps {
     class CallBuilder(procedure: String, params: List[Known[Expr[_]]]) {
       // def void[R](res: Match.Result[R]): Match.Result[R] = ???
-      def yielding(f: Any): Match.Result[_] = macro Match.Result.Call.impl
+      def yielding(f: Any): Match.Result[_] = macro impl.Call.impl
     }
   }
 
@@ -593,45 +593,44 @@ package object syntax extends LowPriorityImplicits {
   implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
 
 
-  def unwind[A, R](expr: Known[Expr[Seq[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result.Unwind[A, R] =
-    macro Match.Result.Unwind.instanceImpl[A, R]
+  def unwind[A, R](expr: Known[Expr[Seq[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result[R] =
+    macro impl.Unwind.instanceImpl[A, R]
 
   /** Generates {{{ WITH * WHERE ... }}} */
-  def filter[R](f: Known[Expr[Boolean]])(res: Match.Result[R]): Match.Result[R] =
-    new Match.Result.With[R](Return.Wildcard.as[R], res.result, Some(f))
+  def filter[R](f: Known[Expr[Boolean]])(res: Match.Result[R]): Match.Result[R] = impl.With.filter(f, res)
 
   object `with` {
-    def apply[R](wildcard: Boolean, ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
+    def apply[R](wildcard: Boolean, ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: impl.With.Var*)
                 (res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implWOV[R]
+      macro impl.With.WithMacros.implWOV[R]
 
-    def apply[R](wildcard: Boolean, vars: Match.Result.With.Var*)(res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implWV[R]
+    def apply[R](wildcard: Boolean, vars: impl.With.Var*)(res: Match.Result[R]): Match.Result[R] =
+      macro impl.With.WithMacros.implWV[R]
 
     /** wildcard = false */
-    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: Match.Result.With.Var*)
+    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: impl.With.Var*)
                 (res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implFOV[R]
+      macro impl.With.WithMacros.implFOV[R]
 
     /** wildcard = false */
-    def apply[R](vars: Match.Result.With.Var*)(res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implFV[R]
+    def apply[R](vars: impl.With.Var*)(res: Match.Result[R]): Match.Result[R] =
+      macro impl.With.WithMacros.implFV[R]
   }
 
   object withWildcard {
     /** wildcard = true */
     def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any])
                 (res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implTO[R]
+      macro impl.With.WithMacros.implTO[R]
 
     /** wildcard = true */
-    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], var0: Match.Result.With.Var, vars: Match.Result.With.Var*)
+    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], var0: impl.With.Var, vars: impl.With.Var*)
                 (res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implTOV[R]
+      macro impl.With.WithMacros.implTOV[R]
 
     /** wildcard = true */
-    def apply[R](vars: Match.Result.With.Var*)(res: Match.Result[R]): Match.Result[R] =
-      macro Match.Result.With.WithMacros.implTV[R]
+    def apply[R](vars: impl.With.Var*)(res: Match.Result[R]): Match.Result[R] =
+      macro impl.With.WithMacros.implTV[R]
   }
 
 

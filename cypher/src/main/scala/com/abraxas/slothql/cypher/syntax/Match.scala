@@ -22,7 +22,9 @@ object Match { MatchObj =>
   object Result{
     implicit def resultToQuery[R](result: Result[R]): Query[R] = result.result
 
-    def manually[R](res: Query.Query0[R]): Result[R] = new Result[R] { def result: Query.Query0[R] = res }
+    def manually[R](res: Query.Query0[R]): Result[R] = new Custom[R] { def result: Query.Query0[R] = res }
+
+    protected[syntax] trait Custom[R] extends Result[R]
 
     protected[syntax] trait Ret[R] extends Result[R] {
       protected[syntax] def ret: Known[Return[R]]
@@ -32,186 +34,6 @@ object Match { MatchObj =>
     protected[syntax] trait Clause[R] extends Result[R] {
       protected[syntax] def clause: Query.Clause[R]
       def result: Query.Query0[R] = clause
-    }
-
-    protected[syntax] class With[R](
-        protected[syntax] val ret: Known[Return[R]],
-        protected[syntax] val query: Known[Query.Query0[R]],
-        protected[syntax] val where: Option[Known[Expr[Boolean]]]
-    ) extends Result[R] {
-      val result: Query.Query0[R] = Query.Clause(CypherFragment.Clause.With(ret, where = where), query)
-    }
-    object With {
-      def apply[R](wildcard: Boolean, ops: ReturnOps[Any] => ReturnOps[Any], exprs: Seq[Known[Return.Expr[_]]], res: Match.Result[R]): With[R] = {
-        val ret0 = CypherFragment.Return.Untyped.returns(wildcard = wildcard, exprs: _*).asInstanceOf[CypherFragment.Return.Return0[R]]
-        new With[R](ret = ops(ReturnOps(CypherFragment.Return.Wildcard)).copy(ret0).ret, query = res.result, where = None)
-      }
-
-      sealed trait Var
-      implicit object Var {
-        final case class Expr(expr: Known[CypherFragment.Expr[_]])       extends Var
-        final case class ReturnExpr(expr: CypherFragment.Return.Expr[_]) extends Var
-        final case class Name(name: String)                              extends Var
-        final case class Names(names: Iterable[String])                  extends Var
-
-        implicit def wrapExpr[E <: CypherFragment.Expr[_]: CypherFragment](expr: E): Var = Expr(expr.known)
-        implicit def wrapKnownExpr(expr: Known[CypherFragment.Expr[_]]): Var = Expr(expr)
-        implicit def wrapReturnExpr(expr: CypherFragment.Return.Expr[_]): Var = ReturnExpr(expr)
-        implicit def wrapName(name: String): Var = Name(name)
-        implicit def wrapNames(names: Iterable[String]): Var = Names(names)
-      }
-
-      protected[syntax] class WithMacros(val c: blackbox.Context) {
-        def implFOV[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]], vars: c.Expr[Match.Result.With.Var]*)
-                                     (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(c.universe.reify(false), ops, vars: _*)(res)
-        def implTOV[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]], var0: c.Expr[Match.Result.With.Var], vars: c.Expr[Match.Result.With.Var]*)
-                                     (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(c.universe.reify(true), ops, var0 +: vars: _*)(res)
-        def implTO[R: c.WeakTypeTag](ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]])
-                                    (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(c.universe.reify(true), ops)(res)
-        def implWV[R: c.WeakTypeTag](wildcard: c.Expr[Boolean], vars: c.Expr[Match.Result.With.Var]*)
-                                    (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(wildcard, c.universe.reify(locally[ReturnOps[Any]]), vars: _*)(res)
-        def implFV[R: c.WeakTypeTag](vars: c.Expr[Match.Result.With.Var]*)
-                                    (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(c.universe.reify(false), c.universe.reify(locally[ReturnOps[Any]]), vars: _*)(res)
-        def implTV[R: c.WeakTypeTag](vars: c.Expr[Match.Result.With.Var]*)
-                                    (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] =
-          implWOV(c.universe.reify(true), c.universe.reify(locally[ReturnOps[Any]]), vars: _*)(res)
-
-        def implWOV[R: c.WeakTypeTag](wildcard: c.Expr[Boolean], ops: c.Expr[ReturnOps[Any] => ReturnOps[Any]], vars: c.Expr[Match.Result.With.Var]*)
-                                     (res: c.Expr[Match.Result[R]]): c.Expr[Match.Result[R]] = {
-          import c.universe._
-
-          val isWildcard = wildcard.tree match {
-            case q"${b: Boolean}" => b
-            case t => c.abort(t.pos, "`wildcard` parameter must be literal boolean")
-          }
-
-          lazy val retExprs0 = vars.map(varTree => reify {
-            def mkRet = CypherFragment.Return.Expr[Any](_: Known[CypherFragment.Expr[Any]], as = None).known
-            def mkVarRet = CypherFragment.Expr.Var.apply[Any] _ andThen (_.known) andThen mkRet
-            varTree.splice match {
-              case MatchObj.Result.With.Var.Expr(expr) => mkRet(expr) :: Nil
-              case MatchObj.Result.With.Var.ReturnExpr(expr) => expr.known :: Nil
-              case MatchObj.Result.With.Var.Name(name) => mkVarRet(name) :: Nil
-              case MatchObj.Result.With.Var.Names(names) => names.toSeq.map(mkVarRet)
-            }
-          })
-          lazy val retExprs = c.Expr[Seq[Known[CypherFragment.Return.Expr[_]]]](q"_root_.scala.Seq(..$retExprs0).flatten")
-          lazy val withExpr = reify { MatchObj.Result.With[R](wildcard.splice, ops.splice, retExprs.splice, res.splice) }
-
-          // // // check for unbound usage // // //
-          lazy val wrapExprSymbol = typeOf[MatchObj.Result.With.Var.type].decl(TermName("wrapExpr"))
-          lazy val leftBound = vars.collect{
-            case c.Expr(q"$func[$_]($expr)($_)") if func.symbol == wrapExprSymbol => expr.symbol
-          }
-          def checkForUnboundUsage(tree: Tree, bound: Set[Symbol]): Unit =
-            if (!isWildcard && vars.nonEmpty) {
-              val forbidden = bound diff leftBound.toSet[c.universe.Symbol]
-              val t = new Traverser {
-                override def traverse(tree: c.universe.Tree): Unit =
-                  if (forbidden contains tree.symbol) c.abort(tree.pos, s"Variable unbound by `with`: ${tree.symbol}")
-                  else super.traverse(tree)
-              }
-              t.traverse(tree)
-            }
-          WithMacros.CheckForUnboundUsage +:= res.tree -> checkForUnboundUsage _
-
-          // do not build empty `WITH`, return initial result instead
-          if (!isWildcard && vars.isEmpty) res else withExpr
-        }
-      }
-
-      private[Match] object WithMacros {
-        var CheckForUnboundUsage: Seq[(Any, Any)] = Nil
-      }
-    }
-
-    protected[syntax] class Unwind[A, R](
-        protected[syntax] val exprs: Known[Expr[Seq[A]]],
-        protected[syntax] val alias: String,
-        protected[syntax] val query: Known[Query.Query0[R]]
-    ) extends Result[R] {
-      val result: Query.Query0[R] = Query.Clause(CypherFragment.Clause.Unwind(exprs, as = alias), query)
-    }
-    object Unwind {
-      def apply[A, R](expr: Known[Expr[Seq[A]]], unwindAlias: String, next: Known[Query.Query0[R]]): Unwind[A, R] =
-        new Unwind[A, R](expr, unwindAlias, next)
-
-      def instanceImpl[A: c.WeakTypeTag, R: c.WeakTypeTag]
-                      (c: blackbox.Context)
-                      (expr: c.Expr[Known[Expr[Seq[A]]]])
-                      (f: c.Expr[Expr.Var[A] => Match.Result[R]])
-                      : c.Expr[Match.Result.Unwind[A, R]] = {
-        import c.universe._
-        val paramName = (f.tree: @unchecked) match {
-          case Function(ValDef(_, name, _, _) :: Nil, _) => name.toString
-        }
-        val rowExprTree = q"_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Var[${weakTypeOf[A]}]($paramName)"
-        val rowExpr = c.Expr[CypherFragment.Expr.Var[A]](rowExprTree)
-        reify {
-          Unwind[A, R](
-            expr.splice,
-            c.Expr[String](Literal(Constant(paramName))).splice,
-            f.splice(rowExpr.splice).result
-          )
-        }
-      }
-    }
-
-    protected[syntax] class Call[R](
-        protected[syntax] val procedure: String,
-        protected[syntax] val params: List[Known[Expr[_]]],
-        protected[syntax] val outputs: List[Known[Return.Expr[_]]],
-        protected[syntax] val query: Known[Query.Query0[R]]
-    ) extends Result[R] {
-      private val out = Return.UntypedExpressions.returnsUnsafe(outputs)
-      val result: Query.Query0[R] = Query.Clause(Clause.Call(procedure, params, Some(out), None), query)
-    }
-
-    object Call {
-      def apply[R](procedure: String, params: List[Known[Expr[_]]], outputs: List[Known[Return.Expr[_]]], res: Match.Result[R]): Call[R] =
-        new Call[R](procedure, params, outputs, res.result)
-      def noAlias[R](procedure: String, params: List[Known[Expr[_]]], outputs: List[Known[Expr[_]]], res: Match.Result[R]): Call[R] =
-        apply(procedure, params, outputs.map(Return.Expr[Any](_, as = None).known), res)
-
-      def impl(c: whitebox.Context)(f: c.Tree): c.Tree = {
-        import c.universe._
-
-        val VarSymbol = symbolOf[CypherFragment.Expr.Var[_]]
-        val ProcedureStringOpsType = typeOf[ProcedureStringOps]
-        val ProcedureSymbolOpsType = typeOf[ProcedureSymbolOps]
-
-        f match {
-          case Function(params, _) =>
-            val paramTrees = params.map{ p =>
-              val tpe = p.tpt.tpe.dealias match {
-                case TypeRef(_, VarSymbol, List(t)) => t
-                case other => c.abort(p.pos, s"`yielding` arguments must be of type `Expr.Var[?]`, got $other")
-              }
-              q"_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Var[$tpe](${p.name.decodedName.toString})"
-            }
-            val (procedure, params0Trees) = c.prefix.tree match {
-              case q"$ops($procedure).call(..$args)" if ops.tpe.resultType =:= ProcedureStringOpsType =>
-                procedure -> args
-              case q"$ops($procedure).call(..$args)" if ops.tpe.resultType =:= ProcedureSymbolOpsType =>
-                q"$procedure.name" -> args
-            }
-            q"""
-              _root_.com.abraxas.slothql.cypher.syntax.Match.Result.Call.noAlias(
-                $procedure,
-                _root_.scala.List(..$params0Trees),
-                _root_.scala.List(..${paramTrees.map(t => q"$t.known")}),
-                $f(..$paramTrees)
-              )
-             """
-          case _ =>
-            c.abort(c.enclosingPosition, "Expecting a function (Var[A1], Var[A2], ...) => Match.Result[R]")
-        }
-      }
     }
 
     // TODO =========================================================
@@ -235,7 +57,6 @@ object Match { MatchObj =>
       val ParamSymbol = symbolOf[Param[_]]
       val QueryClauseSymbol = symbolOf[CypherFragment.Query.Clause[_]]
       val QuerySymbol       = symbolOf[CypherFragment.Query[_]]
-      val MatchUnwindSymbol = symbolOf[MatchObj.Result.Unwind[_, _]]
       val MatchResultType   = typeOf[MatchObj.Result[_]]
 
       f match {
@@ -243,7 +64,6 @@ object Match { MatchObj =>
           val (retType, isMatchResult) = body.tpe match {
             case TypeRef(_, QueryClauseSymbol, List(t)) => t -> false
             case TypeRef(_, QuerySymbol, List(t))       => t -> false
-            case TypeRef(_, MatchUnwindSymbol, List(_, t)) => t -> true
             case tpe@TypeRef(_, _, List(t)) if tpe <:< MatchResultType => t -> true
             case other => c.abort(body.pos, s"Not a query: $other")
           }
@@ -281,6 +101,11 @@ object Match { MatchObj =>
     @inline def setAlias(e: CypherFragment.Expr.Var[_], alias: String): Unit = e.asInstanceOf[Graph.Impl[_]]._alias = alias
     @inline def graph: Graph = Graph()
   }
+
+  private[syntax] object MacrosInternal {
+    var CheckForUnboundUsage: Seq[(Any, Any)] = Nil
+  }
+
   class Internal(val c: whitebox.Context) {
     import c.universe._
 
@@ -521,7 +346,7 @@ object Match { MatchObj =>
                 CaseDef(patTransformer.transform(pat), EmptyTree, b)
             }
 
-          private lazy val unboundUsage = MatchObj.Result.With.WithMacros.CheckForUnboundUsage
+          private lazy val unboundUsage = MatchObj.MacrosInternal.CheckForUnboundUsage
             .asInstanceOf[Seq[(Tree, (Tree, Set[Symbol]) => Unit)]]
 
           private var bound = Set.empty[Symbol]
