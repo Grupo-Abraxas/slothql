@@ -140,6 +140,7 @@ package object syntax extends LowPriorityImplicits {
     class CallBuilder(procedure: String, params: List[Known[Expr[_]]]) {
       // def void[R](res: Match.Result[R]): Match.Result[R] = ???
       def yielding(f: Any): Match.Result[_] = macro impl.Call.impl
+      def yieldingAs(outputs: Symbol*)(f: Any): Match.Result[_] = macro impl.Call.implAs
     }
   }
 

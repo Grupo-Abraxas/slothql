@@ -187,6 +187,14 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "RETURN `i` + 1"
     ).returns[Int]
 
+    "stored procedures calls (rename outputs)" in test(
+      'foo.call(lit("bar")).yieldingAs('value) { i: Var[Int] =>
+        i + 1
+      },
+      "CALL `foo`(\"bar\") YIELD `value` AS `i` " +
+      "RETURN `i` + 1"
+    ).returns[Int]
+
     "build function calls" in test(
       Match {
         case Vertex("Group") < _ *:(_, Edge("parent")) - (g@Vertex("Group")) =>
