@@ -170,7 +170,7 @@ object CypherFragment {
     }
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
-        case Lit(str) => "\"" + str.replaceAll("\"", "\\\"") + "\""
+        case Lit(str) => "\"" + str.replace("\"", "\\\"") + "\""
       }
       /** Warning: it does nothing to check whether the number can be represented in cypher (~Long~ equivalent). */
       implicit def literalNumericFragment[N: Numeric]: CypherFragment[Lit[N]] =
@@ -750,7 +750,7 @@ object CypherFragment {
     case "_" => "_"
     case _ => escapeName0(name)
   }
-  private def escapeName0(name: String) = "`" + name.replaceAll("`", "``") + "`"
+  private def escapeName0(name: String) = "`" + name.replace("`", "``") + "`"
   private def whereStr(where: Option[Known[Expr[Boolean]]]) = where.map(" WHERE " + _.toCypher).getOrElse("")
   private def asStr(as: Option[String]) = as.map(escapeName).map(" AS " + _).getOrElse("")
   private def mapStr(map: Map[String, Known[Expr[_]]]) =
