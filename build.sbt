@@ -27,7 +27,7 @@ lazy val root = (project in file(".")).
     name := "slothql"
   )
   .settings(ammSettings: _*)
-  .aggregate(cypher, arrows, arrowsShow)
+  .aggregate(cypher, cypherApoc, arrows, arrowsShow)
 
 
 lazy val cypher = (project in file("cypher"))
@@ -49,6 +49,11 @@ lazy val cypher = (project in file("cypher"))
         |import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
       """.stripMargin
   ).settings(ammSettings: _*)
+
+lazy val cypherApoc = (project in file("cypher-apoc"))
+  .settings(
+    name := "slothql-cypher-apoc"
+  ).dependsOn(cypher % "compile->compile;test->test")
 
 lazy val arrows = (project in file("arrows"))
   .settings(
