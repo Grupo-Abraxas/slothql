@@ -130,10 +130,13 @@ object Match { MatchObj =>
     val `syntax :?=` = typeOf[:?=.type]
     val `syntax ::=` = typeOf[::=.type]
     val `syntax *:` = typeOf[*:.type]
-    val GraphVertexType = weakTypeOf[ClassTag[Vertex]]
-    val GraphEdgeType   = weakTypeOf[ClassTag[Edge]]
-    val ExprType        = weakTypeOf[CypherFragment.Expr[_]]
-    val KnownExprType   = weakTypeOf[Known[CypherFragment.Expr[_]]]
+    val GraphType         = typeOf[Graph]
+    val GraphVertexType   = typeOf[Vertex]
+    val GraphEdgeType     = typeOf[Edge]
+    val GraphVertexCTType = weakTypeOf[ClassTag[Vertex]]
+    val GraphEdgeCTType   = weakTypeOf[ClassTag[Edge]]
+    val ExprType          = weakTypeOf[CypherFragment.Expr[_]]
+    val KnownExprType     = weakTypeOf[Known[CypherFragment.Expr[_]]]
 
     object SomeCypherExpr {
       def unapply(tree: Tree): Option[Tree] = if (tree.tpe <:< ExprType || tree.tpe <:< KnownExprType) Some(tree) else None
@@ -154,19 +157,23 @@ object Match { MatchObj =>
         extends KnownPattern with KnownExpr[Pattern.Let]
 
     object KnownExpr {
-      def node(name: Name, body: Tree): c.Expr[Known[Pattern.Node]] = {
-        val (labels, values) = PatternMatch.extractBindParams(body)
-        val valuesTree =
-          q"""
-            _root_.scala.collection.Seq[
-              _root_.scala.Option[(_root_.java.lang.String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]
-            ](..$values).flatten.toMap
-          """
-        node0(aliasTree(name), labels, valuesTree)
+      def node(name: Name, body: Tree): c.Expr[Known[Pattern.Node]] = PatternMatch.extractBindParams(body) match {
+        case PatternMatch.NewBindParams(labels, values) =>
+          val valuesTree =
+            q"""
+              _root_.scala.collection.Seq[
+                _root_.scala.Option[(_root_.java.lang.String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]
+              ](..$values).flatten.toMap
+            """
+          node0(aliasTree(name), labels, valuesTree)
+        case PatternMatch.ReuseBindParams(reuse) =>
+          if (name != termNames.WILDCARD) c.abort(body.pos, s"Cannot re-bind graph vertices, use the old ones")
+          nodeT(q"_root_.scala.Some($reuse.name)")
       }
-
       def node1(name: Name): c.Expr[Known[Pattern.Node]] =
-        node0(aliasTree(name), q"_root_.scala.Nil", q"_root_.scala.collection.immutable.Map.empty")
+        nodeT(aliasTree(name))
+      def nodeT(tree: Tree): c.Expr[Known[Pattern.Node]] =
+        node0(tree, q"_root_.scala.Nil", q"_root_.scala.collection.immutable.Map.empty")
 
       def node0(alias: Tree, labels: Tree, values: Tree): c.Expr[Known[Pattern.Node]] = c.Expr[Known[Pattern.Node]](
         q"""
@@ -175,25 +182,49 @@ object Match { MatchObj =>
           )
         """)
 
-      def rel(name: Option[Name], body: Tree, length: Option[Tree], dir: c.Expr[Rel.Direction]): c.Expr[Known[Pattern.Rel]] = {
-        val (labels, values) = PatternMatch.extractBindParams(body)
+      def rel(name: Option[Name], body: Tree, length: Option[Tree], dir: c.Expr[Rel.Direction]): c.Expr[Known[Pattern.Rel]] =
+        PatternMatch.extractBindParams(body) match {
+          case PatternMatch.NewBindParams(labels, values) =>
+            rel0(
+              alias = name.map(aliasTree(_)).getOrElse(q"_root_.scala.None"),
+              types = labels,
+              map = q"""_root_.scala.collection.Seq[Option[
+                            (String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])
+                          ]](..$values).flatten.toMap""",
+              length = length.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None"),
+              dir = dir.tree
+            )
+          case PatternMatch.ReuseBindParams(reuse) =>
+            if (name.exists(_ != termNames.WILDCARD)) c.abort(body.pos, s"Cannot re-bind graph edges, use the old ones")
+            rel0(
+              alias = q"_root_.scala.Some($reuse.name)",
+              types = q"_root_.scala.Nil",
+              map = q"""_root_.scala.collection.Map.empty[
+                          String,
+                           _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]]
+                        ]""",
+              length = q"_root_.scala.None",
+              dir = dir.tree
+            )
+      }
+
+      // simple
+      def rel(dir: c.Expr[Rel.Direction]): RelKP = RelKP(NoSymbol, None, KnownExpr.rel(None, EmptyTree, None, dir))
+
+      def rel0(alias: Tree, types: Tree, map: Tree, length: Tree, dir: Tree): c.Expr[Known[Pattern.Rel]] = {
         val tree = q"""
           _root_.com.abraxas.slothql.cypher.CypherFragment.Known(
             _root_.com.abraxas.slothql.cypher.CypherFragment.Pattern.Rel(
-              alias = ${name.map(aliasTree(_)).getOrElse(q"_root_.scala.None")},
-              types = $labels,
-              map = _root_.scala.collection.Seq[Option[(String, _root_.com.abraxas.slothql.cypher.CypherFragment.Known[_root_.com.abraxas.slothql.cypher.CypherFragment.Expr[_]])]]
-                                               (..$values).flatten.toMap,
-              length = ${length.map(len => q"_root_.scala.Some($len)").getOrElse(q"_root_.scala.None")},
-              dir = ${dir.tree}
+              alias = $alias,
+              types = $types,
+              map = $map,
+              length = $length ,
+              dir = $dir
             )
           )
         """
         c.Expr[Known[Pattern.Rel]](tree)
       }
-
-      // simple
-      def rel(dir: c.Expr[Rel.Direction]): RelKP = RelKP(NoSymbol, None, KnownExpr.rel(None, EmptyTree, None, dir))
 
       def let(name: Name, pattern: Tree): c.Expr[Known[Pattern.Let]] = c.Expr[Known[Pattern.Let]](
         q"""
@@ -219,8 +250,8 @@ object Match { MatchObj =>
       def unapply(tree: Tree): Option[NodeKP] = tree match {
         case Ident(termNames.WILDCARD) =>
           Some{ NodeKP(tree.symbol, None, KnownExpr.node1(termNames.WILDCARD)) }
-        case Ident(name) =>
-          Some{ NodeKP(tree.symbol, None, KnownExpr.node1(name)) }
+        case i@Ident(_) =>
+          c.abort(i.pos, "Graph element matching: `Vertex(?)` / `Edge(?)`")
         case Bind(name, body) =>
           Some{ NodeKP(tree.symbol, Some(name), KnownExpr.node(name, body)) }
         case ua@UnApply(fun, _) if fun.tpe =:= typeOf[Option[Seq[AnyRef]]] =>
@@ -406,8 +437,18 @@ object Match { MatchObj =>
       }
 
     object PatternMatch {
-      def extractBindParams(body: Tree): (Tree, List[Tree]) = body match {
+      sealed trait BindParams
+      case class NewBindParams(labelsTree: Tree, valueTrees: List[Tree]) extends BindParams
+      case class ReuseBindParams(reuse: Tree) extends BindParams
+
+      def extractBindParams(body: Tree): BindParams = body match {
+        case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), List(arg))
+          if (sel.tpe =:= typeOf[Vertex.type] && (arg.tpe =:= GraphVertexType || arg.tpe <:< GraphType)) ||
+             (sel.tpe =:= typeOf[Edge.type]   && arg.tpe =:= GraphEdgeType) =>
+          ReuseBindParams(arg)
         case UnApply(Apply(Select(sel, TermName("unapplySeq")), _), args) if sel.tpe =:= typeOf[Vertex.type] || sel.tpe =:= typeOf[Edge.type] =>
+          if (args.exists(arg => arg.tpe =:= GraphVertexType || arg.tpe =:= GraphEdgeType))
+            c.abort(body.pos, "Graph element matching: `Vertex(?)` / `Edge(?)`")
           val labels = args.collect{
             case one if one.tpe <:< typeOf[String] => q"_root_.scala.List($one)"
             case many if many.tpe <:< typeOf[Iterable[String]] => many
@@ -428,8 +469,8 @@ object Match { MatchObj =>
                   q"$v.map(_root_.com.abraxas.slothql.cypher.CypherFragment.Expr.Lit(_)).map($k -> _)"
               }
           }
-          (labels, values)
-        case _ => (q"_root_.scala.Nil", Nil)
+          NewBindParams(labels, values)
+        case _ => NewBindParams(q"_root_.scala.Nil", Nil)
       }
 
       def extractPatternRev(tree: Tree): List[KnownPattern] = tree match {
@@ -448,7 +489,7 @@ object Match { MatchObj =>
             case List(b@Bind(name, _), pat)                     if arrow.tpe =:= `syntax ::=` =>
               val patRev = extractPatternRev(pat)
               LetKP(b.symbol, Some(name), KnownExpr.let(name, patRev), patRev) :: Nil // TODO: handle Wildcard name
-            case List(V(v)) if arrow.tpe <:< GraphVertexType => v
+            case List(V(v)) if arrow.tpe <:< GraphVertexCTType => v
             case _ => failedToParse(ua)
           }
         case V(v) => v

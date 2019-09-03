@@ -518,7 +518,7 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       Match {
         case u@Vertex("User") =>
           Match {
-            case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> `u` =>
+            case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> Vertex(`u`) =>
               u.prop[String]("email") -> g.prop[String]("name")
           }
       },
@@ -526,6 +526,36 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`u`) " +
       "RETURN `u`.`email`, `g`.`name`"
     ).returns[(String, String)]
+
+    "support nested matches (separated, vertex)" in {
+      def inner(u: Vertex) = Match {
+        case (g@Vertex("Group")) -> Vertex("Members") -Edge("Admin")> Vertex(`u`) =>
+          u.prop[String]("email") -> g.prop[String]("name")
+      }
+      test(
+        Match {
+          case user@Vertex("User") => inner(user)
+        },
+        "MATCH (`user`:`User`) " +
+        "MATCH (`g`:`Group`) -[]-> (:`Members`) -[:`Admin`]-> (`user`) " +
+        "RETURN `user`.`email`, `g`.`name`"
+      ).returns[(String, String)]
+    }
+
+    "support nested matches (separated, edge)" in {
+      def inner(e0: Edge) = Match {
+        case (foo@Vertex("Foo")) -Edge(`e0`)> Vertex("Bar") =>
+          foo.prop[String]("name")
+      }
+      test(
+        Match {
+          case Vertex("User") -e> _ => inner(e)
+        },
+        "MATCH (:`User`) -[`e`]-> () " +
+        "MATCH (`foo`:`Foo`) -[`e`]-> (:`Bar`) " +
+        "RETURN `foo`.`name`"
+      ).returns[String]
+    }
 
     "support optional matches" in test(
       Match {
