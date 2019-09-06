@@ -25,10 +25,13 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
 
   import Neo4jCypherTransactor._
 
-  def runRead[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]] = {
+  def runRead[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]] = run(_.readTransaction[F[A]], tx)
+  def runWrite[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]] = run(_.writeTransaction[F[A]], tx)
+
+  private def run[F[_]: Monad: Traverse, A](getTxWork: Session => TransactionWork[F[A]] => F[A], tx: Tx[F, A]): IO[F[A]] = {
     type IOF[X] = IO[F[X]]
     session.bracket(s => IO {
-      s.readTransaction((transaction: Transaction) =>
+      getTxWork(s)((transaction: Transaction) =>
         tx.hoist[IOF](λ[IO ~> IOF](_.map(_.pure[F])))
           .foldMap(syncInterpreter[F](transaction))
           .unsafeRunSync()
@@ -36,7 +39,6 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
     })(s => IO { s.close() })
   }
 
-  def runWrite[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]] = ??? // TODO
 
 
   protected def syncInterpreter[F[_]](tx: Transaction)(implicit A: Applicative[F]): Op[F, ?] ~> λ[A => IO[F[A]]] = {
