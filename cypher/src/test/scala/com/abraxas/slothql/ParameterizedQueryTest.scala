@@ -46,7 +46,7 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
       val z = (1 to 3).map(_.toString)
 
       val readTx = tx
-        .read[List](query1)
+        .query[List](query1)
         .withParams(x = x, y = y, z = z)
 
       val res = tx.runRead(readTx).unsafeRunSync()

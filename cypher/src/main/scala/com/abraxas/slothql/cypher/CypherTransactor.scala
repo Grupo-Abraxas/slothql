@@ -11,9 +11,10 @@ import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.traverse._
 import shapeless.ops.record.{ MapValues, ToMap }
-import shapeless.{ DepFn1, HList, Poly1, RecordArgs, ops, |∨| }
+import shapeless.{ DepFn1, HList, Poly1, RecordArgs, ops }
 
-import com.abraxas.slothql.cypher.CypherFragment.{ Known, Parameterized, Query }
+import com.abraxas.slothql.cypher.{ CypherFragment => CF }
+import com.abraxas.slothql.cypher.CypherFragment.{ Known, Parameterized }
 import com.abraxas.slothql.util.MoreZip
 
 trait CypherTransactor {
@@ -21,26 +22,19 @@ trait CypherTransactor {
   val txBuilder: TxBuilder
   import txBuilder._
 
-  type Read[F[_], R] = txBuilder.Read[F, R]
-  type ReadWrite[F[_], R] = txBuilder.ReadWrite[F, R]
+  type Op[F[_], R] = txBuilder.Operation[F, R]
+  final lazy val Op = txBuilder.Op
 
-  final lazy val Read = txBuilder.Read
+  final def query[F[_]]: QueryBuilder[F] = txBuilder.query[F]
 
-  final def read[F[_]]: ReadBuilder[F] = txBuilder.read[F]
-
-  def readIO[F[_]: Monad: Traverse: ReadTo, A](query: Known[Query[A]])(implicit r: Reader[A]): IO[F[r.Out]] =
-    runRead(read[F](query))
+  def readIO[F[_]: Monad: Traverse: ReadTo, A](query: Known[CF.Query[A]])(implicit r: Reader[A]): IO[F[r.Out]] =
+    runRead(txBuilder.query[F](query))
+  def writeIO[F[_]: Monad: Traverse: ReadTo, A](query: Known[CF.Query[A]])(implicit r: Reader[A]): IO[F[r.Out]] =
+    runWrite(txBuilder.query[F](query))
 
   // Run transactions
-  def run[F[_]: Monad: Traverse, A, Tx: (ReadTx[F, A] |∨| WriteTx[F, A])#λ](tx: Tx)(
-    implicit isRead: Tx <:< ReadTx[F, _] = null, isWrite: Tx <:< WriteTx[F, _] = null
-  ): IO[F[A]] =
-    tx match {
-      case tx: ReadTx [F, A] @unchecked if isRead  != null => runRead(tx)
-      case tx: WriteTx[F, A] @unchecked if isWrite != null => runWrite(tx)
-    }
-  def runRead [F[_]: Monad: Traverse, A](tx: ReadTx [F, A]): IO[F[A]]
-  def runWrite[F[_]: Monad: Traverse, A](tx: WriteTx[F, A]): IO[F[A]]
+  def runRead [F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]]
+  def runWrite[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]]
 
 }
 
@@ -56,45 +50,80 @@ object CypherTransactor {
 
 
 trait CypherTxBuilder {
+  type Tx[F[_], R] = FreeT[Operation[F, ?],  IO, R]
+
   type Result
   type Reader[A] <: CypherTransactor.Reader[Result, A]
   type ReaderAux[A, R] = Reader[A] { type Out = R }
 
-  type CypherQuery[+A] = CypherFragment.Query[A]
-
-  sealed trait Operation[R]
-  sealed trait Read     [F[_], R] extends Operation[F[R]]
-  sealed trait ReadWrite[F[_], R] extends Read[F, R]
+  type CypherQuery[+A] = CF.Query[A]
 
   type ReadTo[F[_]] = CanBuildFrom[Nothing, Any, F[_]]
 
-  case class ReadQuery[F[_], A, R](
-      query: Known[Query[A]],
+  sealed trait Operation[F[_], R]
+
+  case class Query[F[_], A, R](
+      query: Known[CF.Query[A]],
       readTo: ReadTo[F],
       reader: CypherTransactor.Reader.Aux[Result, A, R]
-  ) extends Read[F, R]
-  case class PreparedReadQuery[F[_], A, R](
-      statement: CypherFragment.Statement,
+  ) extends Operation[F, R]
+
+  case class PreparedQuery[F[_], A, R](
+      statement: CF.Statement,
       readTo: ReadTo[F],
       reader: CypherTransactor.Reader.Aux[Result, A, R]
-  ) extends Read[F, R]
+  ) extends Operation[F, R]
 
-  case class Gather[F[_], R](read: Read[F, R]) extends Read[F, F[R]]
-  case class Unwind[F[_], R](values: F[R]) extends Read[F, R]
+  case class Gather[F[_], R](op: Operation[F, R]) extends Operation[F, F[R]]
+  case class Unwind[F[_], R](values: F[R]) extends Operation[F, R]
 
-  object Read {
-    def apply[F[_], A](q: Known[Query[A]])         (implicit b: ReadTo[F], r: Reader[A]): ReadTx[F, r.Out] = FreeT.liftF(ReadQuery(q, b, r))
-    def apply[F[_], A](s: CypherFragment.Statement)(implicit b: ReadTo[F], r: Reader[A]): ReadTx[F, r.Out] = FreeT.liftF(PreparedReadQuery(s, b, r))
+  object Operation {
+    implicit def txTraversableMonadIsMonad[F[_]: Monad: Traverse]: Monad[λ[A => Tx[F, F[A]]]] =
+      new StackSafeMonad[λ[A => Tx[F, F[A]]]]{
+        def pure[A](x: A): Tx[F, F[A]] =
+          FreeT.pure(x.pure[F])
+        override def map[A, B](fa: Tx[F, F[A]])(f: A => B): Tx[F, F[B]] =
+          fa.map(Monad[F].map(_)(f))
+        def flatMap[A, B](fa: Tx[F, F[A]])(f: A => Tx[F, F[B]]): Tx[F, F[B]] =
+          fa.flatMap(_.flatTraverse(f))
+      }
 
-    def const [F[_]]: Id ~> ReadTx[F, ?] = λ[Id ~> ReadTx[F, ?]](FreeT.pure(_))
-    def liftIO[F[_]]: IO ~> ReadTx[F, ?] = λ[IO ~> ReadTx[F, ?]](FreeT.liftT(_))
-    def liftTx[F[_]]: λ[A => IO[ReadTx[F, A]]] ~> ReadTx[F, ?] =
-      λ[λ[A => IO[ReadTx[F, A]]] ~> ReadTx[F, ?]]{ io => FreeT.liftT(io).flatMap(locally) }
+    implicit def txIsFunctorFilter[F[_]: MonoidK]: FunctorFilter[Tx[F, ?]] = new FunctorFilter[Tx[F, ?]]{
+      val functor: Functor[Tx[F, ?]] = Functor[Tx[F, ?]]
+      def mapFilter[A, B](fa: Tx[F, A])(f: A => Option[B]): Tx[F, B] = Op.filterOpt(fa)(f)
+    }
 
-    def product[F[_], A, B](txA: ReadTx[F, A], txB: ReadTx[F, B]): ReadTx[F, (A, B)] = (txA, txB).tupled
+
+    implicit class TxOps[F[_], A](tx: Tx[F, A]) {
+      def filtering(predTx: A => Tx[F, Boolean])(implicit M: Alternative[F]): Tx[F, A] = Op.filtering(tx)(predTx)
+      def filter      (pred: A => Boolean)      (implicit M: MonoidK[F])    : Tx[F, A] = Op.filter(tx)(pred)
+      def withFilter  (pred: A => Boolean)      (implicit M: MonoidK[F])    : Tx[F, A] = filter(pred)
+      def filterOpt[B](f: A => Option[B])       (implicit M: MonoidK[F])    : Tx[F, B] = Op.filterOpt(tx)(f)
+
+      def x[B](that: Tx[F, B]): Tx[F, (A, B)] = Op.product(tx, that)
+
+      def gather(implicit M: Monad[F], T: Traverse[F]): Tx[F, F[A]] =
+        tx.mapK[TxF](λ[IO         ~> TxF]{ io => FreeT.liftT(io.map(_.pure[F])) })
+          .foldMap  (λ[Operation[F, ?] ~> TxF]{ fa => FreeT.liftF(newGather(fa))     })
+
+      private type TxF[X] = Tx[F, F[X]]
+      private def newGather[X](op: Operation[F, X]): Operation[F, F[X]] = Gather(op)
+    }
+  }
+
+  object Op {
+    def query[F[_], A](q: Known[CF.Query[A]])(implicit b: ReadTo[F], r: Reader[A]): Tx[F, r.Out] = FreeT.liftF(Query(q, b, r))
+    def prepared[F[_], A](s: CF.Statement)(implicit b: ReadTo[F], r: Reader[A]): Tx[F, r.Out] = FreeT.liftF(PreparedQuery(s, b, r))
+
+    def const [F[_]]: Id ~> Tx[F, ?] = λ[Id ~> Tx[F, ?]](FreeT.pure(_))
+    def liftIO[F[_]]: IO ~> Tx[F, ?] = λ[IO ~> Tx[F, ?]](FreeT.liftT(_))
+    def liftTx[F[_]]: λ[A => IO[Tx[F, A]]] ~> Tx[F, ?] =
+      λ[λ[A => IO[Tx[F, A]]] ~> Tx[F, ?]]{ io => FreeT.liftT(io).flatMap(locally) }
+
+    def product[F[_], A, B](txA: Tx[F, A], txB: Tx[F, B]): Tx[F, (A, B)] = (txA, txB).tupled
 
     /** Will throw [[CannotZipException]] if lengths of the results do not correspond */
-    def zip[F[x] <: Seq[x]: Monad: Traverse, A, B](txA: ReadTx[F, A], txB: ReadTx[F, B]): ReadTx[F, (A, B)] =
+    def zip[F[x] <: Seq[x]: Monad: Traverse, A, B](txA: Tx[F, A], txB: Tx[F, B]): Tx[F, (A, B)] =
       for {
         as <- txA.gather
         bs <- txB.gather
@@ -103,7 +132,7 @@ trait CypherTxBuilder {
       } yield zipped
 
     /** Will throw [[CannotZip3Exception]] if lengths of the results do not correspond */
-    def zip3[F[x] <: Seq[x]: Monad: Traverse, A, B, C](txA: ReadTx[F, A], txB: ReadTx[F, B], txC: ReadTx[F, C]): ReadTx[F, (A, B, C)] =
+    def zip3[F[x] <: Seq[x]: Monad: Traverse, A, B, C](txA: Tx[F, A], txB: Tx[F, B], txC: Tx[F, C]): Tx[F, (A, B, C)] =
       for {
         as <- txA.gather
         bs <- txB.gather
@@ -112,90 +141,53 @@ trait CypherTxBuilder {
         zipped <- unwind(MoreZip.zip3(as, bs, cs))
       } yield zipped
 
-    def filterOpt[F[_]: MonoidK, A, B] (tx: ReadTx[F, A])(f: A => Option[B]) : ReadTx[F, B] = tx.flatMap { r => f(r).map(const[F](_)).getOrElse(nothing) }
-    def filter   [F[_]: MonoidK, A]    (tx: ReadTx[F, A])(pred: A => Boolean): ReadTx[F, A] = tx.flatMap { r => if (pred(r)) const(r) else nothing }
-    def filtering[F[_]: Alternative, A](tx: ReadTx[F, A])(predTx: A => ReadTx[F, Boolean]): ReadTx[F, A] =
+    def filterOpt[F[_]: MonoidK, A, B](tx: Tx[F, A])(f: A => Option[B]) : Tx[F, B] = tx.flatMap { r => f(r).map(const[F](_)).getOrElse(nothing) }
+    def filter   [F[_]: MonoidK, A](tx: Tx[F, A])(pred: A => Boolean): Tx[F, A] = tx.flatMap { r => if (pred(r)) const(r) else nothing }
+    def filtering[F[_]: Alternative, A](tx: Tx[F, A])(predTx: A => Tx[F, Boolean]): Tx[F, A] =
       for {
         a <- tx
         b <- predTx(a)
         if b
       } yield a
 
-    def unwind [F[_], A](iterable: F[A])        : ReadTx[F, A] = FreeT.liftF(Unwind(iterable))
-    def nothing[F[_], A](implicit M: MonoidK[F]): ReadTx[F, A] = unwind(M.empty)
+    def unwind [F[_], A](iterable: F[A])        : Tx[F, A] = FreeT.liftF(Unwind(iterable))
+    def nothing[F[_], A](implicit M: MonoidK[F]): Tx[F, A] = unwind(M.empty)
 
     class CannotZipException(left: Seq[Any], right: Seq[Any]) extends Exception(
       s"Cannot zip because of different length:\n\tleft:  $left\n\tright: $right")
 
     class CannotZip3Exception(seq1: Seq[Any], seq2: Seq[Any], seq3: Seq[Any]) extends Exception(
       s"Cannot zip because of different length:\n\t1: $seq1\n\t2: $seq2\n\t3: $seq3")
-
-
-    implicit def readTxTraversableMonadIsMonad[F[_]: Monad: Traverse]: Monad[λ[A => ReadTx[F, F[A]]]] =
-      new StackSafeMonad[λ[A => ReadTx[F, F[A]]]]{
-        def pure[A](x: A): ReadTx[F, F[A]] =
-          FreeT.pure(x.pure[F])
-        override def map[A, B](fa: ReadTx[F, F[A]])(f: A => B): ReadTx[F, F[B]] =
-          fa.map(Monad[F].map(_)(f))
-        def flatMap[A, B](fa: ReadTx[F, F[A]])(f: A => ReadTx[F, F[B]]): ReadTx[F, F[B]] =
-          fa.flatMap(_.flatTraverse(f))
-      }
-
-    implicit def readTxIsFunctorFilter[F[_]: MonoidK]: FunctorFilter[ReadTx[F, ?]] = new FunctorFilter[ReadTx[F, ?]]{
-      val functor: Functor[ReadTx[F, ?]] = Functor[ReadTx[F, ?]]
-      def mapFilter[A, B](fa: ReadTx[F, A])(f: A => Option[B]): ReadTx[F, B] = filterOpt(fa)(f)
-    }
-
-
-    implicit class ReadTxOps[F[_], A](tx: ReadTx[F, A]) {
-      def filtering   (predTx: A => ReadTx[F, Boolean])(implicit M: Alternative[F]): ReadTx[F, A] = Read.filtering(tx)(predTx)
-      def filter      (pred: A => Boolean)             (implicit M: MonoidK[F])    : ReadTx[F, A] = Read.filter(tx)(pred)
-      def withFilter  (pred: A => Boolean)             (implicit M: MonoidK[F])    : ReadTx[F, A] = filter(pred)
-      def filterOpt[B](f: A => Option[B])              (implicit M: MonoidK[F])    : ReadTx[F, B] = Read.filterOpt(tx)(f)
-
-      def x[B](that: ReadTx[F, B]): ReadTx[F, (A, B)] = Read.product(tx, that)
-
-      def gather(implicit M: Monad[F], T: Traverse[F]): ReadTx[F, F[A]] =
-        tx.mapK[ReadTxF](λ[IO         ~> ReadTxF]{ io => FreeT.liftT(io.map(_.pure[F])) })
-          .foldMap      (λ[Read[F, ?] ~> ReadTxF]{ fa => FreeT.liftF(newGather(fa))     })
-
-      private type ReadTxF[X] = ReadTx[F, F[X]]
-      private def newGather[X](read: Read[F, X]): Read[F, F[X]] = Gather(read)
-    }
   }
 
-  implicit class ReadTxZipOps[F[x] <: Seq[x]: Monad: Traverse, A](tx: ReadTx[F, A]) {
+  implicit class TxZipOps[F[x] <: Seq[x]: Monad: Traverse, A](tx: Tx[F, A]) {
     /** Will throw [[CannotZipException]] if lengths of the results do not correspond */
-    def zip[B](that: ReadTx[F, B]): ReadTx[F, (A, B)] = Read.zip(tx, that)
+    def zip[B](that: Tx[F, B]): Tx[F, (A, B)] = Op.zip(tx, that)
   }
 
 
-  type ReadTx [F[_], R] = FreeT[Read     [F, ?], IO, R]
-  type WriteTx[F[_], R] = FreeT[ReadWrite[F, ?], IO, R]
+  final def query[F[_]]: QueryBuilder[F] = QueryBuilder.asInstanceOf[QueryBuilder[F]]
 
+  protected[cypher] class QueryBuilder[F[_]] {
+    def apply[A](query: Known[CF.Query[A]])(implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], read: Reader[A]): Tx[F, read.Out] = Op.query(query)
 
-  final def read[F[_]]: ReadBuilder[F] = ReadBuilder.asInstanceOf[ReadBuilder[F]]
-
-  protected[cypher] class ReadBuilder[F[_]] {
-    def apply[A](query: Known[Query[A]])(implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], read: Reader[A]): ReadTx[F, read.Out] = Read(query)
-
-    def apply[Params <: HList, A](query: Parameterized.Prepared[Params, Query[A]])
+    def apply[Params <: HList, A](query: Parameterized.Prepared[Params, CF.Query[A]])
                                  (implicit M: Monad[F], T: Traverse[F], readTo: ReadTo[F], reader: Reader[A], supported: SupportedParams[Params])
-                                 : ParameterizedReadQueryBuilder[Params, F, A, reader.Out] =
-      new ParameterizedReadQueryBuilder(query)(reader, readTo, supported)
+                                 : ParameterizedQueryBuilder[Params, F, A, reader.Out] =
+      new ParameterizedQueryBuilder(query)(reader, readTo, supported)
   }
-  private object ReadBuilder extends ReadBuilder[Id]
+  private object QueryBuilder extends QueryBuilder[Id]
 
-  final class ParameterizedReadQueryBuilder[Params <: HList, F[_], A, R]
-      (q: Parameterized.Prepared[Params, Query[A]])
+  final class ParameterizedQueryBuilder[Params <: HList, F[_], A, R]
+      (q: Parameterized.Prepared[Params, CF.Query[A]])
       (implicit val reader: ReaderAux[A, R], readTo: ReadTo[F], supported: SupportedParams[Params])
     extends RecordArgs
   {
-    def withParamsRecord(params: Params): ReadTx[F, R] = FreeT.liftF {
+    def withParamsRecord(params: Params): Tx[F, R] = FreeT.liftF {
       import supported._
       val statement = q.changeParams[Poly](mapper)
                        .applyRecord(mapper(params))(toMap)
-      PreparedReadQuery(statement, readTo, reader)
+      PreparedQuery(statement, readTo, reader)
     }
   }
 

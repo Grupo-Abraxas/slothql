@@ -25,7 +25,7 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
 
   import Neo4jCypherTransactor._
 
-  def runRead[F[_]: Monad: Traverse, A](tx: ReadTx[F, A]): IO[F[A]] = {
+  def runRead[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]] = {
     type IOF[X] = IO[F[X]]
     session.bracket(s => IO {
       s.readTransaction((transaction: Transaction) =>
@@ -36,27 +36,27 @@ class Neo4jCypherTransactor(protected val session: IO[Session]) extends CypherTr
     })(s => IO { s.close() })
   }
 
-  def runWrite[F[_]: Monad: Traverse, A](tx: WriteTx[F, A]): IO[F[A]] = ??? // TODO
+  def runWrite[F[_]: Monad: Traverse, A](tx: Tx[F, A]): IO[F[A]] = ??? // TODO
 
 
-  protected def syncInterpreter[F[_]](tx: Transaction)(implicit A: Applicative[F]): Read[F, ?] ~> λ[A => IO[F[A]]] = {
+  protected def syncInterpreter[F[_]](tx: Transaction)(implicit A: Applicative[F]): Op[F, ?] ~> λ[A => IO[F[A]]] = {
     def rec = syncInterpreter[F](tx)
-    λ[Read[F, ?] ~> λ[A => IO[F[A]]]]{
-      case   Unwind(i)                  => IO.pure(i)
-      case q@ReadQuery(_, _, _)         => runReadQueryTxSync(tx, q)
-      case q@PreparedReadQuery(_, _, _) => runReadQueryTxSync(tx, q)
-      case   Gather(r)                  => rec(r).map(A.pure)
+    λ[Op[F, ?] ~> λ[A => IO[F[A]]]]{
+      case   Unwind(i)              => IO.pure(i)
+      case q@Query(_, _, _)         => runReadQueryTxSync(tx, q)
+      case q@PreparedQuery(_, _, _) => runReadQueryTxSync(tx, q)
+      case   Gather(r)              => rec(r).map(A.pure)
     }
   }
 
 
-  protected def runReadQueryTxSync[F[_], R](tx: Transaction, r: ReadQuery[F, _, R]): IO[F[R]] =
+  protected def runReadQueryTxSync[F[_], R](tx: Transaction, r: Query[F, _, R]): IO[F[R]] =
     fromIterableIO(r.readTo) {
       tx.run(new Statement(r.query.toCypher))
         .list(r.reader(_: Record)).asScala
     }
 
-  protected def runReadQueryTxSync[F[_], R](tx: Transaction, r: PreparedReadQuery[F, _, R]): IO[F[R]] =
+  protected def runReadQueryTxSync[F[_], R](tx: Transaction, r: PreparedQuery[F, _, R]): IO[F[R]] =
     fromIterableIO(r.readTo) {
       tx.run(new Statement(r.statement.template, r.statement.params.asInstanceOf[Map[String, AnyRef]].asJava))
         .list(r.reader(_: Record)).asScala
