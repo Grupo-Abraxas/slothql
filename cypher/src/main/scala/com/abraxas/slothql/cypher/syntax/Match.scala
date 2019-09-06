@@ -311,7 +311,20 @@ object Match { MatchObj =>
     }
 
 
-    def impl[R: c.WeakTypeTag](optional: c.Expr[Boolean], f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = {
+    def impl[R: c.WeakTypeTag](optional: c.Expr[Boolean], f: c.Expr[Graph => MatchObj.Result[R]]): c.Expr[Query[R]] = mkClause(f) {
+      (pattern, _, where) =>
+        reify {
+          Clause.Match(
+            NonEmptyList(pattern.splice, Nil),
+            optional = optional.splice,
+            where = where.splice
+          )
+        }
+    }
+
+    def mkClause[R: c.WeakTypeTag](f: c.Expr[Graph => MatchObj.Result[R]])(
+      mk: (c.Expr[Known[Pattern]], Option[Position], c.Expr[Option[Known[CypherFragment.Expr[Boolean]]]]) => c.Expr[Known[Clause]]
+    ): c.Expr[Query[R]] = {
       val (pattern, kps, guard) = matchPattern(f)
         def extractBindSymbols(kps: List[KnownPattern]): List[(Symbol, Option[Name])] =
           kps.flatMap(ke => (ke.symbol, ke.name) :: extractBindSymbols(ke.underlying))
@@ -404,11 +417,7 @@ object Match { MatchObj =>
           whereVarExpr.splice
           retValExpr.splice
           Query.Clause(
-            Clause.Match(
-              NonEmptyList(pattern.splice, Nil),
-              optional = optional.splice,
-              where = whereIdentExpr.splice
-            ),
+            mk(pattern, guard.map(_.tree.pos), whereIdentExpr).splice,
             retExpr.splice.result.known
           )
         }

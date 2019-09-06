@@ -655,27 +655,34 @@ object CypherFragment {
 
   sealed trait Clause
   object Clause {
-    case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Clause
-    case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Clause
-    case class Unwind(expr: Known[Expr[Seq[_]]], as: String) extends Clause
+    trait Read extends Clause
+    trait Write extends Clause
+    trait ReadWrite extends Clause
+
+    case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Known[Expr[Boolean]]]) extends Read
+    case class With(ret: Known[Return[_]], where: Option[Known[Expr[Boolean]]]) extends Read
+    case class Unwind(expr: Known[Expr[Seq[_]]], as: String) extends Read
     case class Call(
         procedure: String,
         params: scala.List[Known[Expr[_]]],
         yields: Option[Known[Return.ReturnE[_]]],
         where: Option[Known[Expr[Boolean]]]
-    ) extends Clause
+    ) extends ReadWrite
+    case class Create(pattern: PatternTuple) extends Write
 
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
         val optionalStr = if (optional) "OPTIONAL " else ""
-        val patternStr = pattern.toList.map(_.toCypher).mkString(", ")
-        s"${optionalStr}MATCH $patternStr${whereStr(where)}"
+        s"${optionalStr}MATCH ${patternStr(pattern)}${whereStr(where)}"
       case Call(procedure, params, yielding, where) =>
         val yieldStr = yielding.map(ret => s" YIELD ${ret.toCypher}").getOrElse("")
         s"CALL ${fragFuncLike(procedure, params)}$yieldStr${whereStr(where)}"
       case With(ret, where) => s"WITH ${ret.toCypher}${whereStr(where)}"
       case Unwind(expr, as) => s"UNWIND ${expr.toCypher}${asStr(Option(as))}"
+      case Create(pattern)  => s"CREATE ${patternStr(pattern)}"
     }
+
+    private def patternStr(pattern: PatternTuple) = pattern.toList.map(_.toCypher).mkString(", ")
   }
 
 

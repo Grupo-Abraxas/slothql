@@ -982,6 +982,29 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`v`.`z`"
     ).returns[(List[String], (String, (Int, Int), Boolean))]
 
+
+    // // // WRITE // // //
+
+    "Create paths" in {
+      val id = 123
+      val name = "foo"
+      test (
+        Match { case g@Vertex("Group", "id" := `id`) =>
+          Create { case (u@Vertex("User", "name" := `name` )) < Edge("Admin")- Vertex("Members") `<-` Vertex(`g`) =>
+            Match { case Vertex(`u`) -> (foo@Vertex("Foo")) =>
+              Create { case Vertex(`foo`) -Edge("bar") > (bar@Vertex("Bar")) =>
+                (u.prop[String]("id"), g.prop[String]("id"), collect(bar.prop[String]("id")))
+              }
+            }
+          }
+        },
+        "MATCH (`g`:`Group`{ `id`: 123 }) " +
+        "CREATE (`u`:`User`{ `name`: \"foo\" }) <-[:`Admin`]- (:`Members`) <-[]- (`g`) " +
+        "MATCH (`u`) -[]-> (`foo`:`Foo`) " +
+        "CREATE (`foo`) -[:`bar`]-> (`bar`:`Bar`) " +
+        "RETURN `u`.`id`, `g`.`id`, `collect`(`bar`.`id`)"
+      ).returns[(String, String, List[String])]
+    }
   }
 }
 
