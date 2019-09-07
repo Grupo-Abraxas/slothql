@@ -737,6 +737,23 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[Any]
     }
 
+    "allow to use non-literal value maps in matches" in
+      test(
+        Match {
+          case v0@Vertex("Foo") =>
+            val values = Map(
+              "foo" -> (v0.prop[Int]("n") > lit(0)).known,
+              "bar" -> knownLit("BAR")
+            )
+            Match {
+              case v@Vertex(`values`) => v.prop[Any]("something")
+            }
+        },
+        "MATCH (`v0`:`Foo`) " +
+        "MATCH (`v`{ `foo`: `v0`.`n` > 0, `bar`: \"BAR\" }) " +
+        "RETURN `v`.`something`"
+      ).returns[Any]
+
     "allow to use non-literal label/type iterables in matches" in {
       val labels = "User" :: Nil
       val types  = Set("Admin", "Share")
