@@ -549,6 +549,15 @@ package object syntax extends LowPriorityImplicits {
         def apply(e: E): Return.Expr[A] = Return.Expr(Known(e).widen, as = None)
       }
 
+    implicit def returnKnownExpr[A, KE <: Known[Expr[_]]](
+      implicit ev: KE <:< Known[Expr[A]]
+    ): AuxOut[KE, A, Return.Expr[A]] =
+      new QueryReturn[KE] {
+        type Ret = A
+        type Out = Return.Expr[A]
+        def apply(e: KE): Return.Expr[A] = Return.Expr(e, as = None)
+      }
+
     implicit def returnReturnExpr[A, E <: Return.Expr[_]](
       implicit
       unpack: Unpack1[E, Return.Expr, A],
