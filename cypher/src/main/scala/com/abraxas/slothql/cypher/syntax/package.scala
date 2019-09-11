@@ -41,14 +41,15 @@ package object syntax extends LowPriorityImplicits {
   type Path      = Expr.Var[Graph.Path]
 
 
-  final implicit class GraphPatternOps(e: Expr.Var[Graph.Pattern]) {
+  implicit class GraphPatternKnownOps(e: Known[Expr[Graph.Pattern]]) {
     /** Call built-in function `func` passing `this` expression as first argument. */
     def func[R](func: String, args: Known[Expr[_]]*): Expr.Func[R] =
-      Expr.Func(func, e.known :: args.toList)
+      Expr.Func(func, e :: args.toList)
   }
+  implicit class GraphPatternOps[E <: Expr[Graph.Pattern]: CypherFragment](e: E) extends GraphPatternKnownOps(e)
 
-  final implicit class GraphAtomOps(e: Expr.Var[Graph.Atom]) {
-    def props: Expr.Var[Map[String, Any]] = e.asInstanceOf[Expr.Var[Map[String, Any]]]
+  implicit class GraphAtomKnownOps(e: Known[Expr[Graph.Atom]]) {
+    def props: Known[Expr[Map[String, Any]]] = e.asInstanceOf[Known[Expr[Map[String, Any]]]]
 
     /** Select vertex/edge property. */
     def prop[A](k: String): Expr.MapKey[A] = Expr.MapKey[A](props, k)
@@ -69,20 +70,23 @@ package object syntax extends LowPriorityImplicits {
     def keys: Expr.Func[List[String]] = e.func("keys")
 
   }
+  implicit class GraphAtomOps[E <: Expr[Graph.Atom]: CypherFragment](e: E) extends GraphAtomKnownOps(e)
 
-  final implicit class VertexOps(v: Vertex) {
+  implicit class VertexKnownOps(v: Known[Expr[Graph.Vertex]]) {
     /** Call built-in `labels` function. */
     def labels: Expr.Func[List[String]] = v.func("labels")
   }
+  implicit class VertexOps[E <: Expr[Graph.Vertex]: CypherFragment](v: E) extends VertexKnownOps(v)
 
-  final implicit class EdgeOps(e: Edge) {
+  implicit class EdgeKnownOps(e: Known[Expr[Graph.Edge]]) {
     /** Call built-in `type` function. */
     def tpe: Expr.Func[String] = e.func("type")
     /** Call built-in `type` function. */
     def `type`: Expr.Func[String] = tpe
   }
+  implicit class EdgeOps[E <: Expr[Graph.Edge]: CypherFragment](e: E) extends EdgeKnownOps(e)
 
-  final implicit class PathOps(e: Path) {
+  implicit class PathKnownOps(e: Known[Expr[Graph.Path]]) {
     /** Call built-in `nodes` function. */
     def nodes: Expr.Func[List[Graph.Vertex]] = e.func("nodes")
     /** Call built-in `relationships` function. */
@@ -90,6 +94,7 @@ package object syntax extends LowPriorityImplicits {
     /** Call built-in `nodes` function. */
     def length: Expr.Func[Long] = e.func("length")
   }
+  implicit class PathOps[E <: Expr[Graph.Path]: CypherFragment](e: E) extends PathKnownOps(e)
 
 
   object Vertex {
@@ -397,12 +402,14 @@ package object syntax extends LowPriorityImplicits {
     }
   }
 
-  implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]]) {
-    def value[V](key: String): Expr.MapKey[V] = Expr.MapKey(expr0.known.widen, key)
+  implicit class MapKnownOps[A](expr0: Known[Expr[Map[String, A]]]) {
+    def value[V](key: String): Expr.MapKey[V] = Expr.MapKey(expr0, key)
 
-    def add(entries: MapEntry[A]*): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, entries.map(_.toPair).toMap)
-    def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0.known.widen, map)
+    def add(entries: MapEntry[A]*): Expr.MapAdd[A] = Expr.MapAdd(expr0, entries.map(_.toPair).toMap)
+    def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0, map)
   }
+  implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]])
+    extends MapKnownOps[A](expr0.known.widen)
 
 
   implicit class SimpleCaseKnownExprOps[A](expr: Known[Expr[A]]) {
