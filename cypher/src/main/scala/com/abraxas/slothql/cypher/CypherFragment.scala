@@ -170,7 +170,7 @@ object CypherFragment {
     }
     object Lit {
       implicit lazy val literalStringFragment: CypherFragment[Lit[String]] = define {
-        case Lit(str) => "\"" + str.replace("\"", "\\\"") + "\""
+        case Lit(str) => "\"" + str.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
       }
       /** Warning: it does nothing to check whether the number can be represented in cypher (~Long~ equivalent). */
       implicit def literalNumericFragment[N: Numeric]: CypherFragment[Lit[N]] =
