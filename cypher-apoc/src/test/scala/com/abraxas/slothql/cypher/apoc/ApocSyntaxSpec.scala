@@ -55,4 +55,31 @@ class ApocSyntaxSpec extends WordSpec with Matchers {
     "RETURN `replace`(\"Result: %n\", \"%n\", `toString`(`res`))"
   ).returns[String]
 
+
+  "Support [apoc.cypher.runFirstColumnSingle] function (plain query)" in test(
+    APOC.runFirstColumnSingle(
+      Match { case a@Vertex("A") => a.prop[String]("a") }
+    ).`return`,
+    "RETURN `apoc`.`cypher`.`runFirstColumnSingle`(" +
+      "\"MATCH (`a`:`A`) RETURN `a`.`a`\", " +
+      "null" +
+    ")"
+  ).returns[String]
+
+  "Support [apoc.cypher.runFirstColumnSingle] function (parameterized query)" in test(
+    APOC.runFirstColumnSingle(
+      parameterized {
+        (k: Param[String], x: Param[Int]) =>
+          Match { case a@Vertex("A", "key" := `k`) => a.prop[Int]("n") + x }
+      }
+    ).withParams(
+      k = knownLit("A-B-C"),
+      x = knownLit(123)
+    ).`return`,
+    "RETURN `apoc`.`cypher`.`runFirstColumnSingle`(" +
+      "\"MATCH (`a`:`A`{ `key`: $`k` }) RETURN `a`.`n` + $`x`\", " +
+      "{ `x`: 123, `k`: \"A-B-C\" }" +
+    ")"
+  ).returns[Int]
+
 }
