@@ -669,6 +669,7 @@ object CypherFragment {
         where: Option[Known[Expr[Boolean]]]
     ) extends ReadWrite
     case class Create(pattern: PatternTuple) extends Write
+    case class Delete(elems: NonEmptyList[Known[Expr[_]]]) extends Write
 
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
@@ -680,6 +681,7 @@ object CypherFragment {
       case With(ret, where) => s"WITH ${ret.toCypher}${whereStr(where)}"
       case Unwind(expr, as) => s"UNWIND ${expr.toCypher}${asStr(Option(as))}"
       case Create(pattern)  => s"CREATE ${patternStr(pattern)}"
+      case Delete(elems)    => s"DELETE ${elems.toList.map(_.toCypher).mkString(", ")}"
     }
 
     private def patternStr(pattern: PatternTuple) = pattern.toList.map(_.toCypher).mkString(", ")

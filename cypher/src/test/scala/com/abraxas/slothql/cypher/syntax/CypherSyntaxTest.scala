@@ -1022,6 +1022,19 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `u`.`id`, `g`.`id`, `collect`(`bar`.`id`)"
       ).returns[(String, String, List[String])]
     }
+
+    "Delete nodes and edges" in {
+      test(
+        Match { case (g@Vertex("Group", "id" := "123")) -foo> bar =>
+          Delete(foo, bar) {
+            g.props
+          }
+        },
+        "MATCH (`g`:`Group`{ `id`: \"123\" }) -[`foo`]-> (`bar`) " +
+        "DELETE `foo`, `bar` " +
+        "RETURN `g`"
+      ).returns[Map[String, Any]]
+    }
   }
 }
 
