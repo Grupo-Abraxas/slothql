@@ -82,4 +82,18 @@ class ApocSyntaxSpec extends WordSpec with Matchers {
     ")"
   ).returns[Int]
 
+  "Support [apoc.util.validate]" in test(
+    Match { case v@Vertex("Foo") =>
+      APOC.failingIf(v.prop[Int]("n") < lit(0), "The number is too small: %s", v.prop[Int]("n")) {
+        v.prop[String]("name")
+      }
+    },
+    "MATCH (`v`:`Foo`) " +
+    "CALL `apoc`.`util`.`validate`(" +
+      "`v`.`n` < 0, " +
+      "\"The number is too small: %s\", " +
+      "[ `v`.`n` ]" +
+    ") " +
+    "RETURN `v`.`name`"
+  ).returns[String]
 }

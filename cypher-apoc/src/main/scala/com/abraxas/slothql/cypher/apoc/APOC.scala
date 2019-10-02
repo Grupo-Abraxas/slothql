@@ -20,4 +20,7 @@ object APOC {
   def runFirstColumnSingle[Params <: HList, A](query: Match.ParameterizedQuery[Params, A])
                                               (implicit b: RunFirstColumnSingle.Builder[Params, A])
       : RunFirstColumnSingle[Params, b.ParamExprs, A] = b(query)
+
+  def failingIf[R](cond: Known[Expr[Boolean]], message: Known[Expr[String]], params: Known[Expr[_]]*)(res: Match.Result[R]): Match.Result[R] =
+    "apoc.util.validate".call(cond, message, list[Any](params: _*)).void { res }
 }
