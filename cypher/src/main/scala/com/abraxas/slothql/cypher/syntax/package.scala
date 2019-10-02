@@ -403,7 +403,10 @@ package object syntax extends LowPriorityImplicits {
   }
 
   implicit class MapKnownOps[A](expr0: Known[Expr[Map[String, A]]]) {
+    def keys: Expr.Func[List[String]] = "keys".func(expr0)
+
     def value[V](key: String): Expr.MapKey[V] = Expr.MapKey(expr0, key)
+    def value[V](key: Known[Expr[String]]): Expr.MapDynKey[V] = Expr.MapDynKey(expr0, key)
 
     def add(entries: MapEntry[A]*): Expr.MapAdd[A] = Expr.MapAdd(expr0, entries.map(_.toPair).toMap)
     def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0, map)

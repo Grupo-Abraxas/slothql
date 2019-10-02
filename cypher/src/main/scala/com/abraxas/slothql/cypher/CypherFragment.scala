@@ -208,6 +208,7 @@ object CypherFragment {
     sealed trait MapExpr[+A] extends Expr[A]
     case class Map[+A](get: Predef.Map[String, Known[Expr[A]]]) extends MapExpr[Predef.Map[String, A]]
     case class MapKey[+A](map: Known[Expr[Predef.Map[String, _]]], key: String) extends MapExpr[A]
+    case class MapDynKey[+A](map: Known[Expr[Predef.Map[String, _]]], key: Known[Expr[String]]) extends MapExpr[A]
     case class MapAdd[+A](map: Known[Expr[Predef.Map[String, _]]], values: Predef.Map[String, Known[Expr[A]]]) extends MapExpr[Predef.Map[String, A]]
 
     object MapExpr {
@@ -216,6 +217,9 @@ object CypherFragment {
       }
       implicit lazy val fragmentMapKey: CypherFragment[MapKey[_]] = define {
         case MapKey(m, k) => s"${m.toCypher}.${escapeName(k)}"
+      }
+      implicit lazy val fragmentMapDynKey: CypherFragment[MapDynKey[_]] = define {
+        case MapDynKey(m, k) => s"${m.toCypher}[${k.toCypher}]"
       }
       implicit lazy val fragmentMapAdd: CypherFragment[MapAdd[_]] = define {
         case MapAdd(m, vs) if vs.isEmpty => m.toCypher

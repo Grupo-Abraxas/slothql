@@ -913,6 +913,12 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       "RETURN `v`.`name`"
     ).returns[String]
 
+    "get map value by dynamic key" in test(
+      Match{ case v => v.props.value[Boolean](v.prop[String]("prop-name")) },
+      "MATCH (`v`) " +
+      "RETURN `v`[`v`.`prop-name`]"
+    ).returns[Boolean]
+
     "add keys to a map" in {
       val query = Match{ case v => v.props add ("foo" -> lit("bar"), "labels" -> v.labels) }
       test(
