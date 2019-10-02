@@ -143,7 +143,7 @@ package object syntax extends LowPriorityImplicits {
   // assigning aliases to procedure outputs is not supported by this syntax helper
   protected[syntax] object ProcedureOps {
     class CallBuilder(procedure: String, params: List[Known[Expr[_]]]) {
-      // def void[R](res: Match.Result[R]): Match.Result[R] = ???
+      def void[R](res: Match.Result[R]): Match.Result[R] = impl.Call.void(procedure, params, res)
       def yielding(f: Any): Match.Result[_] = macro impl.Call.impl
       def yieldingAs(outputs: Symbol*)(f: Any): Match.Result[_] = macro impl.Call.implAs
     }

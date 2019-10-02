@@ -12,8 +12,14 @@ object Call {
       val out = Return.UntypedExpressions.returnsUnsafe(outputs)
       Query.Clause(Clause.Call(procedure, params, Some(out), None), res.result)
     }
+
   def noAlias[R](procedure: String, params: List[Known[Expr[_]]], outputs: List[Known[Expr[_]]], res: Match.Result[R]): Match.Result[R] =
     apply(procedure, params, outputs.map(Return.Expr[Any](_, as = None).known), res)
+
+  def void[R](procedure: String, params: List[Known[Expr[_]]], res: Match.Result[R]): Match.Result[R] =
+    Match.Result.manually {
+      Query.Clause(Clause.Call(procedure, params, None, None), res.result)
+    }
 }
 
 class Call(val c: whitebox.Context) {
