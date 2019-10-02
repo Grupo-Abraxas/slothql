@@ -51,7 +51,13 @@ class ApocSyntaxSpec extends WordSpec with Matchers {
       "], " +
       "\"MATCH (`a`) RETURN $`n` + `a`.`n` + 100\", " +
       "{ `n`: 10, `baz`: `v`.`isBaz`, `bar`: `v`.`bar`, `foo`: `e`.`foo` }) " +
-    "YIELD `value` AS `res` " +
+    "YIELD `value` AS `callValue` " +
+    "WITH *, `keys`(`callValue`) AS `callValueKeys` " +
+    "CALL `apoc`.`util`.`validate`(" +
+      "`size`(`callValueKeys`) <> 1, " +
+      "\"Got not single result from apoc.case: %s\", " +
+      "[ `callValue` ]) " +
+    "WITH *, `callValue`[`callValueKeys`[0]] AS `res` " +
     "RETURN `replace`(\"Result: %n\", \"%n\", `toString`(`res`))"
   ).returns[String]
 

@@ -7,6 +7,7 @@ import shapeless.{ Coproduct, HList, HNil, Poly1, Poly2, RecordArgs, Unpack1, op
 
 import com.abraxas.slothql.cypher.CypherFragment
 import com.abraxas.slothql.cypher.CypherFragment.{ Expr, Known }
+import com.abraxas.slothql.cypher.apoc.APOC
 import com.abraxas.slothql.cypher.syntax._
 
 
@@ -121,6 +122,8 @@ object Case {
       val cases = syntax.cases.flatMap {
         case Case(condition, query) => condition :: knownLit(query.prepared.template) :: Nil
       }
+      val valueVar0 = Expr.Var[Map[String, Any]]("callValue")
+      val callOutKeysVar = Expr.Var[List[String]]("callValueKeys")
       impl.Call(
         "apoc.case",
         List(
@@ -128,8 +131,14 @@ object Case {
           lit(syntax.default.prepared.template), // else
           dict(syntax.params)                    // params
         ),
-        List(Expr.Var[Any]("value").as(valueAlias).known),
-        res
+        List(Expr.Var[Map[String, Any]]("value") as "callValue"),
+        withWildcard(valueVar0.keys as "callValueKeys") {
+          APOC.failingIf(callOutKeysVar.size <> lit(1L), "Got not single result from apoc.case: %s", valueVar0) {
+            withWildcard(valueVar0.value[R](callOutKeysVar.at(lit(0))) as valueAlias) {
+              res
+            }
+          }
+        }
       )
     }
   }
