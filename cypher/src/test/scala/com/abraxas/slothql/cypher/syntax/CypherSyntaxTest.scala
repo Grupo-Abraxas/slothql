@@ -1013,6 +1013,10 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`v`.`z`"
     ).returns[(List[String], (String, (Int, Int), Boolean))]
 
+    "Not allow to return nothing at read queries" in shapeless.test.illTyped(
+      "Match { case a => returnNothing }",
+      "type mismatch.*"
+    )
 
     // // // WRITE // // //
 
@@ -1037,6 +1041,11 @@ class CypherSyntaxTest extends WordSpec with Matchers {
       ).returns[(String, String, List[String])]
     }
 
+    "Allow to return nothing at write queries (create)" in test(
+      Create { case Vertex("A") => returnNothing },
+      "CREATE (:`A`) "
+    ).returns[Unit]
+
     "Delete nodes and edges" in {
       test(
         Match { case (g@Vertex("Group", "id" := "123")) -foo> bar =>
@@ -1049,6 +1058,16 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `g`"
       ).returns[Map[String, Any]]
     }
+
+    "Allow to return nothing at write queries (delete)" in test(
+      Match { case x =>
+        Delete(x) {
+          returnNothing
+        }
+      },
+      "MATCH (`x`) " +
+      "DELETE `x` "
+    ).returns[Unit]
 
     "Set props at nodes and edges" in {
       test(
@@ -1063,6 +1082,16 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `foo`"
       ).returns[Map[String, Any]]
     }
+
+    "Allow to return nothing at write queries (set prop)" in test(
+      Match{ case a =>
+        SetProp(a.set("x") = lit("y")) {
+          returnNothing
+        }
+      },
+      "MATCH (`a`) " +
+      "SET `a`.`x` = \"y\" "
+    ).returns[Unit]
   }
 }
 

@@ -18,7 +18,14 @@ object Match { MatchObj =>
   def optional[R](f: Graph => Match.Result[R]): Query[R] = macro Internal.implOptional[R]
   def maybeOptional[R](opt: Boolean)(f: Graph => Match.Result[R]): Query[R] = macro Internal.implMaybeOptional[R]
 
-  sealed trait Result[R] { def result: Query.Query0[R] }
+  sealed trait OptionalResult[R] {
+    def maybeResult: Option[Query.Query0[R]]
+    final def resultOrNothing: Query.Query0[R] = maybeResult getOrElse Query.Return(CypherFragment.Return.Nothing.as[R])
+  }
+  sealed trait Result[R] extends OptionalResult[R] {
+    def result: Query.Query0[R]
+    final def maybeResult: Option[Query.Query0[R]] = Some(result)
+  }
   object Result{
     implicit def resultToQuery[R](result: Result[R]): Query[R] = result.result
 
@@ -36,6 +43,9 @@ object Match { MatchObj =>
       def result: Query.Query0[R] = clause
     }
 
+    protected[syntax] case object None extends OptionalResult[Unit] {
+      def maybeResult: Option[Query.Query0[Unit]] = scala.None
+    }
     // TODO =========================================================
     // TODO: rename clause's aliases to avoid collision!?
   }
@@ -317,7 +327,7 @@ object Match { MatchObj =>
         }
     }
 
-    def mkClause[R: c.WeakTypeTag](f: c.Expr[Graph => MatchObj.Result[R]])(
+    def mkClause[R: c.WeakTypeTag](f: c.Expr[Graph => MatchObj.OptionalResult[R]])(
       mk: (c.Expr[Known[Pattern]], Option[Position], c.Expr[Option[Known[CypherFragment.Expr[Boolean]]]]) => c.Expr[Known[Clause]]
     ): c.Expr[Query[R]] = {
       val (pattern, kps, guard) = matchPattern(f)
@@ -404,14 +414,14 @@ object Match { MatchObj =>
           q"""
              val $retName = ${fTransormer.transform(f.tree)}(_root_.com.abraxas.slothql.cypher.syntax.Match.Internal.graph)
            """)
-        val retExpr = c.Expr[MatchObj.Result[R]](q"$retName")
+        val retExpr = c.Expr[MatchObj.OptionalResult[R]](q"$retName")
 
         val res = reify {
           whereVarExpr.splice
           retValExpr.splice
           Query.Clause(
             mk(pattern, guard.map(_.tree.pos), whereIdentExpr).splice,
-            retExpr.splice.result.known
+            retExpr.splice.resultOrNothing.known
           )
         }
 

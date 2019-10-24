@@ -26,5 +26,20 @@ class Neo4jCypherTransactorWriteTest extends WordSpec with Matchers {
         )
       )
     }
+
+    "execute query with SET clause, returning nothing" in test(
+      tx.query(
+        Create{ case Vertex("Q") =>
+          withWildcard() {
+            Match { case q@Vertex("Q") =>
+              SetProp(q.set("n") = lit(10)) {
+                returnNothing
+              }
+            }
+          }
+        }
+      ),
+      Seq()
+    )
   }
 }

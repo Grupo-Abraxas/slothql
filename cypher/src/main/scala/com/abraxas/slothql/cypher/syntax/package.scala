@@ -512,6 +512,7 @@ package object syntax extends LowPriorityImplicits {
   implicit def knownLit[A](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
 
   def cypherNull[A]: Expr.Null[A] = Expr.Null[A]
+  def returnNothing: Match.OptionalResult[Unit] = Match.Result.None
 
   def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
 

@@ -476,6 +476,7 @@ object CypherFragment {
     private lazy val instance = define[Query[Any]] {
       case Union(left, right, all) => s"${left.toCypher} UNION ${if (all) "ALL " else ""}${right.toCypher}"
       case Clause(clause, query) => s"${clause.toCypher} ${query.toCypher}"
+      case Return(Known(CypherFragment.Return.Nothing)) => ""
       case Return(ret) => s"RETURN ${ret.toCypher}"
     }
   }
@@ -518,6 +519,11 @@ object CypherFragment {
       def as[A]: Return1[A] = this.asInstanceOf[Return1[A]]
     }
     type Wildcard = Wildcard.type
+
+    case object Nothing extends Return1[scala.Unit] {
+      def as[A]: Return1[A] = this.asInstanceOf[Return1[A]]
+    }
+    type Nothing = Nothing.type
 
     case class Expr[+A](expr: Known[CypherFragment.Expr[A]], as: Option[String]) extends Return1[A] with ReturnE[A] {
       val expressions: List[Known[Expr[_]]] = this.known :: Nil
@@ -635,6 +641,7 @@ object CypherFragment {
 
     implicit def fragment[A]: CypherFragment[Return[A]] = instance.asInstanceOf[CypherFragment[Return[A]]]
     private lazy val instance = define[Return[Any]] {
+      case Nothing => ""
       case Wildcard | Untyped(Nil, true) => "*"
       case Expr(expr, as) => expr.toCypher + asStr(as)
       case Tuple(exprs) if exprs.nonEmpty => s"${exprs.map(_.toCypher).mkString(", ")}"

@@ -84,6 +84,10 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
         def apply(rec: Record): R = f(rec)
       }
 
+    implicit lazy val emptyResult: RecordReader.Aux[Unit, Unit] = RecordReader define {
+      _ => sys.error("Unexpected invocation for empty result")
+    }
+
     implicit def resultCells: RecordReader.Aux[List[Cell], List[Cell]] = RecordReader define { _.values().asScala.toList }
 
     implicit def recordCellsReader[A](implicit reader: ValuesReader[A]): RecordReader.Aux[A, reader.Res] =

@@ -6,13 +6,13 @@ import scala.reflect.macros.whitebox
 import cats.data.NonEmptyList
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Clause, Query }
-import com.abraxas.slothql.cypher.syntax.Match.{ Result => MResult }
+import com.abraxas.slothql.cypher.syntax.Match.OptionalResult
 
 object Create {
-  def apply[R](f: Graph => MResult[R]): Query[R] = macro Internal.impl[R]
+  def apply[R](f: Graph => OptionalResult[R]): Query[R] = macro Internal.impl[R]
 
   object Internal {
-    def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => MResult[R]]): c.Expr[Query[R]] = {
+    def impl[R: c.WeakTypeTag](c: whitebox.Context)(f: c.Expr[Graph => OptionalResult[R]]): c.Expr[Query[R]] = {
       val m = new Match.InternalImpl[c.type](c)
       import c.universe._
       m.mkClause(f) {
