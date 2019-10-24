@@ -675,6 +675,11 @@ object CypherFragment {
     case class Create(pattern: PatternTuple) extends Write
     case class Delete(elems: NonEmptyList[Known[Expr[_]]]) extends Write
 
+    case class SetProps(set: NonEmptyList[SetProps.One]) extends Write
+    object SetProps {
+      case class One(to: Known[Expr[Predef.Map[String, _]]], key: String, value: Known[Expr[_]])
+    }
+
     implicit lazy val fragment: CypherFragment[Clause] = define[Clause] {
       case Match(pattern, optional, where) =>
         val optionalStr = if (optional) "OPTIONAL " else ""
@@ -686,8 +691,10 @@ object CypherFragment {
       case Unwind(expr, as) => s"UNWIND ${expr.toCypher}${asStr(Option(as))}"
       case Create(pattern)  => s"CREATE ${patternStr(pattern)}"
       case Delete(elems)    => s"DELETE ${elems.toList.map(_.toCypher).mkString(", ")}"
+      case SetProps(set)    => s"SET ${set.toList.map(setOneProp).mkString(", ")}"
     }
 
+    private def setOneProp(set: SetProps.One) = s"${set.to.toCypher}.${escapeName(set.key)} = ${set.value.toCypher}"
     private def patternStr(pattern: PatternTuple) = pattern.toList.map(_.toCypher).mkString(", ")
   }
 

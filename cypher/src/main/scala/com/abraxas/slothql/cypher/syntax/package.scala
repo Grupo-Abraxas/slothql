@@ -702,6 +702,18 @@ package object syntax extends LowPriorityImplicits {
     def union   [R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = false)
     def unionAll[R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = true)
   }
+
+  implicit class SetPropOps[E <: Expr[Graph.Atom]: CypherFragment](elem: E) {
+    def set: SetPropOps.Assign = new SetPropOps.Assign(elem.known)
+  }
+  object SetPropOps {
+    protected class Assign(elem: Known[Expr[Graph.Atom]]) {
+      import SetProp.Internal.Set
+
+      def update(key: String, value: Known[Expr[_]]): Set = Set(elem, key, value)
+      def update[E <: Expr[_]: CypherFragment](key: String, value: E): Set = Set(elem, key, value)
+    }
+  }
 }
 
 trait LowPriorityImplicits {

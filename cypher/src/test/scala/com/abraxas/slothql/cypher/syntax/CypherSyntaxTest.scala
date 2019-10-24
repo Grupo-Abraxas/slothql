@@ -1049,6 +1049,20 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "RETURN `g`"
       ).returns[Map[String, Any]]
     }
+
+    "Set props at nodes and edges" in {
+      test(
+        Match { case (g@Vertex("Group", "id" := "123")) -foo> bar =>
+          SetProp(g.set("x") = lit("baz"),
+                  foo.set("i") = bar.prop[Int]("j")) {
+            foo.props
+          }
+        },
+        "MATCH (`g`:`Group`{ `id`: \"123\" }) -[`foo`]-> (`bar`) " +
+        "SET `g`.`x` = \"baz\", `foo`.`i` = `bar`.`j` " +
+        "RETURN `foo`"
+      ).returns[Map[String, Any]]
+    }
   }
 }
 
