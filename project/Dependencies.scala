@@ -2,6 +2,10 @@ import sbt._
 
 object Dependencies {
 
+  object Scala {
+    lazy val reflect = Def.setting{ "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value }
+  }
+
   lazy val shapeless         = "com.chuusai"    %% "shapeless"      % Version.shapeless
   lazy val `cats-core`       = "org.typelevel"  %% "cats-core"      % Version.cats
   lazy val `cats-free`       = "org.typelevel"  %% "cats-free"      % Version.cats

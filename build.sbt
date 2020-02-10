@@ -3,7 +3,7 @@ import com.typesafe.sbt.SbtGit.GitKeys
 enablePlugins(GitVersioning)
 
 lazy val scala211 = "2.11.12"
-lazy val scala212 = "2.12.8"
+lazy val scala212 = "2.12.10"
 
 lazy val root = (project in file(".")).
   settings(
@@ -34,6 +34,7 @@ lazy val cypher = (project in file("cypher"))
   .settings(
     name := "slothql-cypher",
     libraryDependencies ++= Seq(
+      Dependencies.Scala.reflect.value,
       Dependencies.shapeless,
       Dependencies.`cats-core`,
       Dependencies.`cats-free`,
@@ -59,6 +60,7 @@ lazy val arrows = (project in file("arrows"))
   .settings(
     name := "slothql-arrows",
     libraryDependencies ++= Seq(
+      Dependencies.Scala.reflect.value,
       Dependencies.shapeless,
       Dependencies.`cats-core`,
       Dependencies.Test.scalatest
