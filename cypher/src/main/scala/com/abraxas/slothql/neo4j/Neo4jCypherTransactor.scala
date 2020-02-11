@@ -7,8 +7,8 @@ import scala.reflect.runtime.{ universe => ru }
 import cats.{ Applicative, Functor, Monad, Traverse, ~> }
 import cats.effect.IO
 import cats.syntax.applicative._
+import org.neo4j.driver.{ Query => Statement, _ }
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.v1._
 import shapeless.{ :: => #:, _ }
 
 import com.abraxas.slothql.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
