@@ -712,9 +712,12 @@ object CypherFragment {
     case class Let(alias: String, pattern: Known[Pattern0]) extends Pattern
 
     sealed trait Pattern0 extends Pattern
-    case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0
+    sealed trait PatternA extends Pattern {
+      val alias: Option[String]
+    }
+    case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0 with PatternA
     case class Path(left: Known[Node], rel: Known[Rel], right: Known[Pattern0]) extends Pattern0
-    case class Rel(alias: Option[String], types: List[String], map: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+    case class Rel(alias: Option[String], types: List[String], map: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction) extends Pattern with PatternA
 
     object Rel {
       sealed trait Length
