@@ -1,12 +1,16 @@
-package com.abraxas.slothql.cypher
+package com.abraxas.slothql.newcypher
 
 import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 
-package object newsyntax {
+// TODO ================================================================================================================
+import com.abraxas.slothql.cypher.{ CypherFragment => OldCF }
+// TODO ================================================================================================================
+
+package object syntax {
 
   object Match {
-    def apply[R](query: Node => R): CypherFragment.Query[R] = macro CypherSyntaxMacros.matchImpl[R]
+    def apply[R](query: Node => R): OldCF.Query[R] = macro CypherSyntaxMacros.matchImpl[R]
   }
 
   sealed trait Node { val alias: String }
@@ -89,9 +93,9 @@ package object newsyntax {
   object Rel {
     type Aux[D <: Rel.Direction]  = Rel { type Dir = D }
 
-    type Direction = CypherFragment.Pattern.Rel.Direction
-    type Incoming  = CypherFragment.Pattern.Rel.Incoming.type
-    type Outgoing  = CypherFragment.Pattern.Rel.Outgoing.type
+    type Direction = OldCF.Pattern.Rel.Direction
+    type Incoming  = OldCF.Pattern.Rel.Incoming.type
+    type Outgoing  = OldCF.Pattern.Rel.Outgoing.type
 
     /** Supported params: {{{String}}}, {{{Iterable[String]}}}, {{{:=[_]}}}, {{{**}}}. */
     def unapplySeq(r: Rel): Option[Seq[Any]] = ???

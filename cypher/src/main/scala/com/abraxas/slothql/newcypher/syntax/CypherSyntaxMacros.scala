@@ -1,9 +1,9 @@
-package com.abraxas.slothql.cypher.newsyntax
+package com.abraxas.slothql.newcypher.syntax
 
 import scala.reflect.macros.blackbox
 
 import com.abraxas.slothql.cypher.CypherFragment.{ Pattern => P }
-import com.abraxas.slothql.cypher.newsyntax
+import com.abraxas.slothql.newcypher.syntax
 
 class CypherSyntaxMacros(val c: blackbox.Context) {
   import c.universe._
@@ -16,9 +16,9 @@ class CypherSyntaxMacros(val c: blackbox.Context) {
           println(s"binds = ${binds.mkString("\n        ")}")
           val bindDefs = binds.collect{
             case P.Node(Some(a), _, _) =>
-              q"val ${TermName(a)} = _root_.com.abraxas.slothql.cypher.newsyntax.CypherSyntaxFromMacro.mkNode($a)"
+              q"val ${TermName(a)} = _root_.com.abraxas.slothql.newcypher.syntax.CypherSyntaxFromMacro.mkNode($a)"
             case P.Rel(Some(a), _, _, _, dir) =>
-              q"val ${TermName(a)} = _root_.com.abraxas.slothql.cypher.newsyntax.CypherSyntaxFromMacro.mkRel[${dirType{dir}}]($a)"
+              q"val ${TermName(a)} = _root_.com.abraxas.slothql.newcypher.syntax.CypherSyntaxFromMacro.mkRel[${dirType{dir}}]($a)"
           }
           val newBody = transformBody(binds, body)
           // TODO ======================================================================================================
@@ -153,12 +153,12 @@ class CypherSyntaxMacros(val c: blackbox.Context) {
     lazy val Syntax_:= = symbolOf[:=.type].companionSymbol
     lazy val Syntax_** = symbolOf[**.type].companionSymbol
 
-    lazy val SyntaxNodeObj  = symbolOf[newsyntax.Node.type].companionSymbol
-    lazy val SyntaxNodeType = typeOf[newsyntax.Node].typeConstructor
-    lazy val SyntaxRelObj   = symbolOf[newsyntax.Rel.type].companionSymbol
-    lazy val SyntaxRelType  = typeOf[newsyntax.Rel].typeConstructor
+    lazy val SyntaxNodeObj  = symbolOf[syntax.Node.type].companionSymbol
+    lazy val SyntaxNodeType = typeOf[syntax.Node].typeConstructor
+    lazy val SyntaxRelObj   = symbolOf[syntax.Rel.type].companionSymbol
+    lazy val SyntaxRelType  = typeOf[syntax.Rel].typeConstructor
 
-    lazy val DirectionInType  = typeOf[newsyntax.Rel.Incoming]
-    lazy val DirectionOutType = typeOf[newsyntax.Rel.Outgoing]
+    lazy val DirectionInType  = typeOf[syntax.Rel.Incoming]
+    lazy val DirectionOutType = typeOf[syntax.Rel.Outgoing]
   }
 }

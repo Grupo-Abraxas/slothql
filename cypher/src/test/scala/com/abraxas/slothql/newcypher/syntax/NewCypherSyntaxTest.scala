@@ -1,6 +1,6 @@
-package com.abraxas.slothql.cypher.newsyntax
+package com.abraxas.slothql.newcypher.syntax
 
-import com.abraxas.slothql.cypher.syntax
+import com.abraxas.slothql.cypher.{ syntax => oldsyntax }
 
 class NewCypherSyntaxTest {
 
@@ -154,7 +154,7 @@ class NewCypherSyntaxTest {
   }
 
 
-  val baz = syntax.lit("baz")
+  val baz = oldsyntax.lit("baz")
   val q1 = Match {
     case x < y - (z@Node("foo", "bar" := `baz`)) =>
       x: Node
