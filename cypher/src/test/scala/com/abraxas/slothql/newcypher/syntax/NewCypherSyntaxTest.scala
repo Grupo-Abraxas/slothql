@@ -5,8 +5,6 @@ import com.abraxas.slothql.newcypher.{ CypherFragment, CypherStatement }
 
 object NewCypherSyntaxTest extends App {
 
-  val stub = CypherFragment.Query.Return(CypherFragment.Return.Expr(CypherFragment.Expr.Var("stub"), as = None))
-
   class StubIdGen extends CypherStatement.Gen {
     def nextAlias(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
     def nextParam(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
@@ -30,7 +28,7 @@ object NewCypherSyntaxTest extends App {
       x: Node
       y: Rel.Aux[Rel.Incoming]
       z: Node
-      stub
+      x.props
   }
 
   this show Match  {
@@ -39,7 +37,7 @@ object NewCypherSyntaxTest extends App {
       x: Node
       y: Rel.Aux[Rel.Incoming]
       z: Node
-      stub
+      x.prop[String]("a")
   }
 
   this show Match  {
@@ -48,7 +46,7 @@ object NewCypherSyntaxTest extends App {
       x: Node
       y: Rel.Aux[Rel.Outgoing]
       z: Node
-      stub
+      x.id + x.prop[Long]("foo") > y.prop[Long]("bar")
   }
 
   this show Match  {
@@ -59,7 +57,7 @@ object NewCypherSyntaxTest extends App {
       c: Node
       d: Rel.Aux[Rel.Incoming]
       e: Node
-      stub
+      c.labels as "qwerty"
   }
 
   this show Match  {
@@ -70,7 +68,7 @@ object NewCypherSyntaxTest extends App {
       c: Node
       d: Rel.Aux[Rel.Outgoing]
       e: Node
-      stub
+      a.props
   }
 
   this show Match  {
@@ -83,7 +81,7 @@ object NewCypherSyntaxTest extends App {
       e: Node
       f: Rel.Aux[Rel.Outgoing]
       g: Node
-      stub
+      a.props
   }
 
   this show Match  {
@@ -96,7 +94,7 @@ object NewCypherSyntaxTest extends App {
       e: Node
       f: Rel.Aux[Rel.Incoming]
       g: Node
-      stub
+      a.props
   }
 
   this show Match  {
@@ -111,7 +109,7 @@ object NewCypherSyntaxTest extends App {
       g: Node
       h: Rel.Aux[Rel.Outgoing]
       i: Node
-      stub
+      a.props
   }
 
   this show Match  {
@@ -128,7 +126,7 @@ object NewCypherSyntaxTest extends App {
       i: Node
       j: Rel.Aux[Rel.Outgoing]
       k: Node
-      stub
+      a.props
   }
 
   this show Match  {
@@ -149,7 +147,7 @@ object NewCypherSyntaxTest extends App {
       m: Node
       n: Rel.Aux[Rel.Incoming]
       o: Node
-      stub
+      a.props
   }
   this show Match  {
     case a - b > c - d > e < f - g < h - i - j > k - l > m < n - o =>
@@ -169,7 +167,7 @@ object NewCypherSyntaxTest extends App {
       m: Node
       n: Rel.Aux[Rel.Incoming]
       o: Node
-      stub
+      a.props
   }
 
 

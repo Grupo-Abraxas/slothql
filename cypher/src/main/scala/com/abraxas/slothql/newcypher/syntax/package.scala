@@ -2,6 +2,7 @@ package com.abraxas.slothql.newcypher
 
 import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
+import scala.language.implicitConversions
 
 import com.abraxas.slothql.newcypher.{ CypherFragment => CF }
 
@@ -41,8 +42,18 @@ package object syntax {
     // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.foreach[R]
   }
 
-  sealed trait Node { val alias: String }
-  sealed trait Rel  { val alias: String; type Dir <: Rel.Direction }
+  // // // // // // // // // // // // // // // // //
+  // // // // // Matching Graph Paths // // // // //
+  // // // // // // // // // // // // // // // // //
+
+  sealed trait GraphElem {
+    // TODO
+    val alias: String
+  }
+  sealed trait Node extends GraphElem { val alias: String }
+  sealed trait Rel  extends GraphElem { val alias: String; type Dir <: Rel.Direction }
+
+  // TODO: path!
 
   object CypherSyntaxFromMacro {
     def mkNode(name: String): Node                          = new Node { val alias = name }
@@ -136,6 +147,203 @@ package object syntax {
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object ** {
     def unapply(any: Any): Option[(CF.Expr[Long], CF.Expr[Long])] = ???
+  }
+
+  // // // // // // // // // // // // // // // // //
+  // // // // //  Return Expressions  // // // // //
+  // // // // // // // // // // // // // // // // //
+
+  implicit def cypherSyntaxExprToReturn[A](expr: CF.Expr[A]): CF.Return[A] = CF.Return.Expr(expr, as = None)
+  implicit def cypherSyntaxExprToQueryReturn[A](expr: CF.Expr[A]): CF.Query.Return[A] = CF.Query.Return(expr)
+  implicit def cypherSyntaxReturnToQueryReturn[A](ret: CF.Return[A]): CF.Query.Return[A] = CF.Query.Return(ret)
+
+  implicit final class CypherSyntaxReturnAsOps[A](expr: CF.Expr[A]) {
+    def as(alias: String): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
+  }
+
+  // // // // // // // // // // // // // // // // // //
+  // // // // // Ops: Node & Rel & Path  // // // // //
+  // // // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxGraphElemOps(g: GraphElem) {
+    /** Select all vertex/edge properties */
+    def props: CF.Expr[Map[String, Any]] = CF.Expr.Var(g.alias)
+
+    /** Select vertex/edge property. */
+    def prop[A](k: String): CF.Expr[A] = CF.Expr.MapKey[A](props, k)
+
+    /** Select vertex/edge property as [[Option]]. */
+    def propOpt[A](k: String): CF.Expr[Option[A]] = prop[Option[A]](k)
+
+    /** Call built-in function `func` passing `this` expression as first argument. */
+    def func[R](func: String, args: CF.Expr[_]*): CF.Expr[R] = CF.Expr.Func(func, props :: args.toList)
+
+    /** Call built-in `id` function. */
+    def id: CF.Expr[Long] = func("id")
+    /** Call built-in `count` function. */
+    def count: CF.Expr[Long] = func("count")
+    /** Call built-in `keys` function. */
+    def keys: CF.Expr[List[String]] = func("keys")
+  }
+
+  implicit final class CypherSyntaxNodeOps(n: Node) {
+    /** Call built-in `labels` function. */
+    def labels: CF.Expr[List[String]] = n.func("labels")
+  }
+
+  implicit final class CypherSyntaxRelOps(r: Rel) {
+    /** Call built-in `type` function. */
+    def tpe: CF.Expr[String] = r.func("type")
+
+    /** Call built-in `type` function. */
+    def `type`: CF.Expr[String] = tpe
+  }
+
+  // TODO ==============================================================================================================
+  // implicit final class CypherSyntaxPathOps(p: Path)
+
+  // // // // // // // // // // // // // // // // // // // // // // // // //
+  // // // // // // Ops: Function & Procedure + common functions // // // //
+  // // // // // // // // // // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxFuncOps(func: String) {
+    def func[R](args: CF.Expr[_]*): CF.Expr[R] = CF.Expr.Func(func, args.toList)
+  }
+
+  implicit final class CypherSyntaxProcedureOps(procedure: String) {
+    def call(args: CF.Expr[_]*): CypherSyntaxProcedureOps.CallBuilder = new CypherSyntaxProcedureOps.CallBuilder(procedure, args.toList)
+  }
+  // specifying WHERE condition is not supported by this syntax helper
+  // assigning aliases to procedure outputs is not supported by this syntax helper
+  protected[syntax] object CypherSyntaxProcedureOps {
+    class CallBuilder(procedure: String, params: List[CF.Expr[_]]) {
+      // TODO ==========================================================================================================
+//      def void[R](res: Match.Result[R]): Match.Result[R] = impl.Call.void(procedure, params, res)
+//      def yielding(f: Any): Match.Result[_] = macro impl.Call.impl
+//      def yieldingAs(outputs: Symbol*)(f: Any): Match.Result[_] = macro impl.Call.implAs
+    }
+  }
+
+  implicit final class CypherSyntaxAsStringOps[A: CypherSyntaxAsString.Can](expr: CF.Expr[A]) {
+    /** Call built-in `toString` function. */
+    def asString: CF.Expr[String] = CF.Expr.Func("toString", List(expr))
+  }
+
+  object CypherSyntaxAsString {
+    trait Can[A]
+    private object Can extends Can[Any]
+
+    implicit lazy val canString: Can[String] = Can.asInstanceOf[Can[String]]
+    implicit lazy val canBoolean: Can[Boolean] = Can.asInstanceOf[Can[Boolean]]
+    implicit def canNumeric[N: Numeric]: Can[N] = Can.asInstanceOf[Can[N]]
+  }
+
+  // // // // // // // // // // // // // // // // //
+  // // // // Ops:  Logic and Comparison // // // //
+  // // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxLogicExprOps(expr0: CF.Expr[Boolean]) {
+    def unary_! : CF.Expr[Boolean] = CF.Expr.LogicUnaryExpr(expr0, CF.Expr.LogicExpr.Negate)
+
+    def and(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.And)
+    def && (expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = and(expr1)
+
+    def or (expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Or)
+    def || (expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = or(expr1)
+
+    def xor(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Xor)
+
+    private def binary(expr1: CF.Expr[Boolean], op: CF.Expr.LogicExpr.BinaryOp) = CF.Expr.LogicBinaryExpr(expr0, expr1, op)
+  }
+
+  implicit final class CypherSyntaxCompareExprOps[A](expr0: CF.Expr[A]) {
+    def eq (expr1: CF.Expr[_]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Eq)
+    def ===(expr1: CF.Expr[_]): CF.Expr[Boolean] = eq(expr1)
+
+    def neq(expr1: CF.Expr[_]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Neq)
+    def <> (expr1: CF.Expr[_]): CF.Expr[Boolean] = neq(expr1)
+
+    def isNull : CF.Expr[Boolean] = unary(CF.Expr.CompareExpr.IsNull)
+    def notNull: CF.Expr[Boolean] = unary(CF.Expr.CompareExpr.NotNull)
+
+    def lt (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
+    def <  (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
+
+    def lte(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lte)
+    def <= (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lte)
+
+    def gte(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gte)
+    def >= (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gte)
+
+    def gt (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
+    def > (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
+
+    def in(expr1: CF.Expr[List[A]]): CF.Expr[Boolean] = CF.Expr.InList(expr1, expr0)
+
+    private def unary(op: CF.Expr.CompareExpr.UnaryOp) = CF.Expr.CompareUnaryExpr(expr0, op)
+    private def binary(expr1: CF.Expr[_], op: CF.Expr.CompareExpr.BinaryOp) = CF.Expr.CompareBinaryExpr(expr0, expr1, op)
+  }
+
+  // // // // // // // // // // // // // // // //
+  // // // // Ops:  Strings and Numeric  // // //
+  // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxStringExprOps(expr0: CF.Expr[String]) {
+    /** Regular expression match */
+    def matches   (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.Regex)
+    def contains  (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.Contains)
+    def startsWith(expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.StartsWith)
+    def endsWith  (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.EndsWith)
+
+    def toLower: CF.Expr[String] = "toLower".func(expr0)
+    def toUpper: CF.Expr[String] = "toUpper".func(expr0)
+    def size:    CF.Expr[Long]   = "size".func(expr0)
+
+    def toBoolean: CF.Expr[Boolean] = "toBoolean".func(expr0)
+    def toDouble:  CF.Expr[Double]  = "toFloat".func(expr0)
+    def toLong:    CF.Expr[Long]    = "toInteger".func(expr0)
+
+    /** Returns a string containing the specified number of leftmost characters of the original string. */
+    def takeLeft(n: CF.Expr[Long]): CF.Expr[String] = "left".func(expr0, n)
+
+    /** Returns a string containing the specified number of rightmost characters of the original string. */
+    def takeRight(n: CF.Expr[Long]): CF.Expr[String] = "right".func(expr0, n)
+
+    /** Returns a string in which all occurrences of a specified string in the original string have been replaced by another (specified) string. */
+    def replace(search: CF.Expr[String], replace: CF.Expr[String]): CF.Expr[String] = "replace".func(expr0, search, replace)
+
+    def reverse: CF.Expr[String] = "reverse".func(expr0)
+
+    /** Returns a list of strings resulting from the splitting of the original string around matches of the given delimiter. */
+    def split(delimiter: CF.Expr[String]): CF.Expr[List[String]] = "split".func(expr0, delimiter)
+
+    /** Returns a substring of the original string, beginning with a 0-based index start. */
+    def substring(start: CF.Expr[Long]): CF.Expr[String] = "substring".func(expr0, start)
+
+    /** Returns a substring of the original string, beginning with a 0-based index start and length. */
+    def substring(start: CF.Expr[Long], length: CF.Expr[Long]): CF.Expr[String] = "substring".func(expr0, start, length)
+
+    /** Returns the original string with leading and trailing whitespace removed. */
+    def trim: CF.Expr[String] = "trim".func(expr0)
+    /** Returns the original string with leading whitespace removed. */
+    def trimLeft: CF.Expr[String] = "lTrim".func(expr0)
+    /** Returns the original string with trailing whitespace removed. */
+    def trimRight: CF.Expr[String] = "rTrim".func(expr0)
+
+    private def binary(expr1: CF.Expr[String], op: CF.Expr.StringExpr.Op) = CF.Expr.StringExpr(expr0, expr1, op)
+  }
+
+  implicit final class CypherSyntaxMathematicalExprOps[N: Numeric](expr0: CF.Expr[N]) {
+    def unary_- : CF.Expr[N] = CF.Expr.MathematicalUnaryExpr(expr0, CF.Expr.MathematicalExpr.Negation)
+
+    def +(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Addition)
+    def -(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Subtraction)
+    def *(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Multiplication)
+    def /(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Division)
+    def %(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.ModuloDivision)
+    def ^(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Exponentiation)
+
+    private def binary(expr1: CF.Expr[N], op: CF.Expr.MathematicalExpr.BinaryOp) = CF.Expr.MathematicalBinaryExpr(expr0, expr1, op)
   }
 
 }
