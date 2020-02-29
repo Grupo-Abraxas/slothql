@@ -5,9 +5,6 @@ import scala.annotation.unchecked.uncheckedVariance
 import cats.data.{ Ior, NonEmptyList }
 import cats.instances.list._
 import cats.instances.option._
-import shapeless.HList
-import shapeless.LUBConstraint.<<:
-import shapeless.ops.tuple.ToTraversable
 
 
 trait CypherFragment {
@@ -77,6 +74,7 @@ trait CypherFragment {
  */
 object CypherFragment {
   import CypherStatement._
+  import GenS._
 
   type Aux[+S <: CypherStatement] = CypherFragment { type Statement <: S }
 
@@ -106,9 +104,16 @@ object CypherFragment {
     // // // Maps // // //
     sealed trait MapExpr[+A] extends Expr[A]
     final case class MapDef[+A](get: Map[String, Expr[A]]) extends MapExpr[Map[String, A]]
-    final case class MapKey[+A](map: Expr[Map[String, A]], key: String) extends MapExpr[A]
+    final case class MapKey[+A](map: Expr[Map[String, Any]], key: String) extends MapExpr[A]
     final case class MapDynKey[+A](map: Expr[Map[String, A]], key: Expr[String]) extends MapExpr[A]
     final case class MapAdd[+A](map: Expr[Map[String, A]], values: Map[String, Expr[A]]) extends MapExpr[Map[String, A]]
+
+    def toCypher(expr: MapExpr[_]): GenS[Part] = expr match {
+      case MapDef(entries)     => mapPart(entries)
+      case MapKey(map, key)    => part(map).map(m => s"$m.${escapeName(key)}")
+      case MapDynKey(map, key) => part2(map, key)((m, k) => s"$m[$k]")
+      case MapAdd(map, values) => part2(map, mapPart(values, _.mkString(", ")))((m, add) => s"$m{.*, $add}")
+    }
 
 
     // // // Lists // // //
@@ -150,46 +155,176 @@ object CypherFragment {
       case object Single  extends Predicate("single")
     }
 
-    def toCypher(expr: Expr[_]): GenS[Part] = expr match {
-      case Param(name0, lift)  => GenS.newParam(name0, lift).map(name => s"$$${escapeName(name)}")
-      case Lit(value, lift)    => GenS.part(lift.asLiteral(value))
-      case Null                => GenS.part("null")
-      case Var(name)           => GenS.part(escapeName(name))
-      case Func(func, params)  => funcLikePart(func, params)
-      case MapDef(entries)     => mapPart(entries)
-      case MapKey(map, key)    => GenS.part(map).map(m => s"$m.${escapeName(key)}")
-      case MapDynKey(map, key) => (GenS.part(map), GenS.part(key)).map2((m, k) => s"$m[$k]")
-      case MapAdd(map, values) => (GenS.part(map), mapPart(values, _.mkString(", "))).map2((m, add) => s"$m{.*, $add}")
-      case ListDef(values)     => GenS.partsSequence(values).map(_.mkString("[ ", ", ", " ]"))
-      case InList(list, elem)  => (GenS.part(list), GenS.part(elem)).map2((l, e) => s"$e IN $l")
-      case AtIndex(list, idx)  => (GenS.part(list), GenS.part(idx)).map2((l, i) => s"$l[$i]")
-      case AtRange(list, lim)  => (GenS.part(list), rangePart(lim)).map2((l, r) => s"$l[$r]")
-      case Concat(pref, suff)  => (GenS.part(pref), GenS.part(suff)).map2((p, s) => s"$p + $s")
+    def toCypher(expr: ListExpr[_]): GenS[Part] = expr match {
+      case ListDef(values)     => partsSequence(values).map(_.mkString("[ ", ", ", " ]"))
+      case InList(list, elem)  => part2op(list, elem, "IN")
+      case AtIndex(list, idx)  => part2(list, idx)((l, i) => s"$l[$i]")
+      case AtRange(list, lim)  => part2(list, rangePart(lim))((l, r) => s"$l[$r]")
+      case Concat(pref, suff)  => part2op(pref, suff, "+")
       case Reduce(list, elemAlias, initial, accAlias, reduce) =>
         for {
-          lst  <- GenS.part(list)
-          elem <- GenS.newAlias(elemAlias)
-          init <- GenS.part(initial)
-          acc  <- GenS.newAlias(accAlias)
-          expr <- GenS.part(reduce(Var(acc), Var(elem)))
+          lst  <- part(list)
+          elem <- newAlias(elemAlias)
+          init <- part(initial)
+          acc  <- newAlias(accAlias)
+          expr <- part(reduce(Var(acc), Var(elem)))
         } yield s"reduce(${escapeName(acc)} = $init, ${escapeName(elem)} IN $lst | $expr)"
       case ListComprehension(list, _, None, None) =>
-        GenS.part(list)
+        part(list)
       case ListComprehension(list, elemAlias, filter, map) =>
         for {
-          lst  <- GenS.part(list)
-          elem <- GenS.newAlias(elemAlias)
-          fOpt <- GenS.partsSequence(filter.map(_(Var(elem))))
-          mOpt <- GenS.partsSequence(map.map(_(Var(elem))))
-          f    <- GenS.part(fOpt.map(f => s" WHERE $f").getOrElse(""))
-          m    <- GenS.part(mOpt.map(m => s" | $m").getOrElse(""))
+          lst  <- part(list)
+          elem <- newAlias(elemAlias)
+          fOpt <- partsSequence(filter.map(_(Var(elem))))
+          mOpt <- partsSequence(map.map(_(Var(elem))))
+          f    <- part(fOpt.map(f => s" WHERE $f").getOrElse(""))
+          m    <- part(mOpt.map(m => s" | $m").getOrElse(""))
         } yield s"[${escapeName(elem)} IN $lst$f$m]"
       case ListPredicate(list, elemAlias, predicate, cond) =>
         for {
-          lst  <- GenS.part(list)
-          elem <- GenS.newAlias(elemAlias)
-          expr <- GenS.part(cond(Var(elem)))
+          lst  <- part(list)
+          elem <- newAlias(elemAlias)
+          expr <- part(cond(Var(elem)))
         } yield s"${predicate.cypher}(${escapeName(elem)} IN $lst WHERE $expr)"
+    }
+
+
+    // // // Strings // // //
+    case class StringExpr(left: Expr[String], right: Expr[String], op: StringExpr.Op) extends Expr[Boolean]
+    object StringExpr {
+      sealed abstract class Op(protected[Expr] val cypher: String)
+      case object StartsWith extends Op("STARTS WITH")
+      case object EndsWith   extends Op("ENDS WITH")
+      case object Contains   extends Op("CONTAINS")
+      case object Regex      extends Op("=~")
+    }
+
+    def toCypher(expr: StringExpr): GenS[Part] = part2op(expr.left, expr.right, expr.op.cypher)
+
+    // // // Logic // // //
+    sealed trait LogicExpr extends Expr[Boolean]
+    case class LogicUnaryExpr(expr: Expr[Boolean], op: LogicExpr.UnaryOp) extends LogicExpr
+    case class LogicBinaryExpr(left: Expr[Boolean], right: Expr[Boolean], op: LogicExpr.BinaryOp) extends LogicExpr
+
+    object LogicExpr {
+      sealed trait UnaryOp
+      case object Negate  extends UnaryOp
+      
+      sealed abstract class BinaryOp(protected[Expr] val cypher: String)
+      case object Or  extends BinaryOp("OR")
+      case object And extends BinaryOp("AND")
+      case object Xor extends BinaryOp("XOR")
+    }
+
+    def toCypher(expr: LogicExpr): GenS[Part] = expr match {
+      case LogicUnaryExpr(expr, LogicExpr.Negate) => part(expr).map(e => s"NOT $e")
+      case LogicBinaryExpr(left, right, op)       => part2op(left, right, op.cypher)
+    }
+
+    // // // Compare // // //
+    sealed trait CompareExpr extends Expr[Boolean]
+    case class CompareUnaryExpr(expr: Expr[Any], op: CompareExpr.UnaryOp) extends CompareExpr
+    case class CompareBinaryExpr(left: Expr[_], right: Expr[_], op: CompareExpr.BinaryOp) extends CompareExpr
+
+    object CompareExpr {
+      sealed trait UnaryOp
+      case object IsNull  extends UnaryOp
+      case object NotNull extends UnaryOp
+      
+      sealed abstract class BinaryOp(protected[Expr] val cypher: String)
+      case object Eq  extends BinaryOp("=")
+      case object Neq extends BinaryOp("<>")
+      case object Lt  extends BinaryOp("<")
+      case object Lte extends BinaryOp("<=")
+      case object Gte extends BinaryOp(">=")
+      case object Gt  extends BinaryOp(">")
+    }
+
+    def toCypher(expr: CompareExpr): GenS[Part] = expr match {
+      case CompareUnaryExpr(expr, CompareExpr.IsNull)  => part(expr).map(e => s"$e IS NULL")
+      case CompareUnaryExpr(expr, CompareExpr.NotNull) => part(expr).map(e => s"$e IS NOT NULL")
+      case CompareBinaryExpr(left, right, op)          => part2op(left, right, op.cypher)
+    }
+
+    // // // Mathematical // // //
+    sealed trait MathematicalExpr[N] extends Expr[N]
+    case class MathematicalUnaryExpr[N](expr: Expr[N], op: MathematicalExpr.UnaryOp) extends MathematicalExpr[N]
+    case class MathematicalBinaryExpr[N](left: Expr[N], right: Expr[N], op: MathematicalExpr.BinaryOp) extends MathematicalExpr[N]
+
+    object MathematicalExpr {
+      sealed trait UnaryOp
+      case object Negation extends UnaryOp
+
+      sealed abstract class BinaryOp(protected[Expr] val cypher: String)
+      case object Addition        extends BinaryOp("+")
+      case object Subtraction     extends BinaryOp("-")
+      case object Multiplication  extends BinaryOp("*")
+      case object Division        extends BinaryOp("/")
+      case object ModuloDivision  extends BinaryOp("%")
+      case object Exponentiation  extends BinaryOp("^")
+    }
+
+    def toCypher(expr: MathematicalExpr[_]): GenS[Part] = expr match {
+      case MathematicalUnaryExpr(expr, MathematicalExpr.Negation) => part(expr).map(e => s"-$e")
+      case MathematicalBinaryExpr(left, right, op)                => part2op(left, right, op.cypher)
+    }
+
+    // // // Distinct // // //
+    case class Distinct[A](expr: Expr[A]) extends Expr[A]
+
+    // // // Pattern Predicate // // //
+    case class Exists(pattern: Pattern) extends Expr[Boolean]
+
+    // // // Cases // // //
+    sealed trait CaseExpr[A] extends Expr[A]
+    case class SimpleCaseExpr[V, A](value: Expr[V], cases: Map[Expr[V], Expr[A]], default: Option[Expr[A]]) extends CaseExpr[A]
+    case class GenericCaseExpr[A](cases: Map[Expr[Boolean], Expr[A]], default: Option[Expr[A]]) extends CaseExpr[A]
+
+    def toCypher(expr: CaseExpr[_]): GenS[Part] = {
+      def casesStr(cases: Seq[(String, String)]) = cases.map{ case (c, t) => s"WHEN $c THEN $t" }
+                                                        .mkString(" ", " ", "")
+      def casesPart(cases0: Map[_ <: Expr[_], Expr[_]]) = {
+        val (conds0, thens0) = cases0.unzip
+        for {
+          conds <- partsSequence(conds0.toList)
+          thens <- partsSequence(thens0.toList)
+          cases <- part(casesStr(conds.zip(thens)))
+        } yield cases
+      }
+      def defaultStr(opt: Option[String]) = opt.map(d => s" ELSE $d").getOrElse("")
+      def defaultPart(opt: Option[Expr[_]]) = partsSequence(opt).map(defaultStr)
+
+      expr match {
+        case SimpleCaseExpr(value0, cases0, default0) =>
+          for {
+            value   <- part(value0)
+            cases   <- casesPart(cases0)
+            default <- defaultPart(default0)
+          } yield s"CASE $value$cases$default END"
+        case GenericCaseExpr(cases0, default0) =>
+          for {
+            cases   <- casesPart(cases0)
+            default <- defaultPart(default0)
+          } yield s"CASE$cases$default END"
+      }
+    }
+
+    // // // Final // // //
+    def toCypher(expr: Expr[_]): GenS[Part] = expr match {
+      case e: MapExpr[_]          => toCypher(e)
+      case e: ListExpr[_]         => toCypher(e)
+      case e: StringExpr          => toCypher(e)
+      case e: LogicExpr           => toCypher(e)
+      case e: CompareExpr         => toCypher(e)
+      case e: MathematicalExpr[_] => toCypher(e)
+      case e: CaseExpr[_]         => toCypher(e)
+      case Param(name0, lift)  => newParam(name0, lift).map(name => s"$$${escapeName(name)}")
+      case Lit(value, lift)    => part(lift.asLiteral(value))
+      case Null                => part("null")
+      case Var(name)           => part(escapeName(name))
+      case Func(func, params)  => funcLikePart(func, params)
+      case Distinct(expr)      => part(expr).map(e => s"DISTINCT $e")
+      case Exists(pattern)     => part(pattern).map(p => s"EXISTS ($p})")
     }
   }
 
@@ -211,11 +346,11 @@ object CypherFragment {
 
     def toCypher[A](query: Query[A]): GenS[Complete[A]] = query match {
       case Union(left, right, all) =>
-        (GenS.complete(left), GenS.complete(right)).map2((l, r) => s"$l UNION${if (all) " ALL" else ""} $r")
+        (complete(left), complete(right)).map2((l, r) => s"$l UNION${if (all) " ALL" else ""} $r")
       case Clause(clause, query) =>
-        (GenS.part(clause).toComplete[A], GenS.complete(query)).map2((c, q) => s"$c $q")
+        (part(clause).toComplete[A], complete(query)).map2((c, q) => s"$c $q")
       case Return(ret) =>
-        GenS.part(ret).toComplete[A].map(r => s"RETURN $r")
+        part(ret).toComplete[A].map(r => s"RETURN $r")
     }
   }
 
@@ -231,9 +366,11 @@ object CypherFragment {
     case object All extends Return[Map[String, Any]]
 
     final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[String]) extends Return[A]
-    final case class Tuple[T <: HList: <<:[Expr[_]]#λ](tuple: T)(implicit list: ToTraversable.Aux[T, List, Expr[_]]) extends Return[T] {
-      def toList: List[Expr[_]] = list(tuple)
-    }
+    final case class Tuple[T <: Product](exprs: List[Expr[_]]) extends Return[T]
+
+    // TODO ================================================================
+    @deprecated("should be in Query.Return")
+    case object Nothing extends Return[Unit]
 
     sealed trait Order
     object Order {
@@ -253,22 +390,23 @@ object CypherFragment {
 
 
     def toCypher(ret: Return[_]): GenS[Part] = ret match {
-      case All            => GenS.part("*")
-      case t@Tuple(_)     => GenS.partsSequence(t.toList).map(_.mkString(", "))
+      case All            => part("*")
+      case Tuple(exprs)   => partsSequence(exprs).map(_.mkString(", "))
+      case Nothing        => part("")
       case Expr(expr, as) =>
-        val r = GenS.part(expr)
-        as.map(alias => r.map(t => s"$t AS ${escapeName(alias)}")).getOrElse(r)
+        as.map(a => part(expr).map(t => s"$t AS ${escapeName(a)}"))
+          .getOrElse(part(expr))
       case Options(ret0, distinct0, orderBy0, skip0, limit0) =>
         val (ordEs, ordOs)  = orderBy0.unzip
         for {
-          ret      <- GenS.part(ret0)
-          ordList  <- GenS.partsSequence(ordEs)
-          skipOpt  <- GenS.partsSequence(skip0)
-          limOpt   <- GenS.partsSequence(limit0)
-          distinct <- GenS.part(if (distinct0) "DISTINCT " else "")
-          ord      <- GenS.part(ordList.zip(ordOs).map{ case (s, o) => s" $s $o" }.mkString(", "))
-          skip     <- GenS.part(skipOpt.map(s => s" $s").getOrElse(""))
-          lim      <- GenS.part(limOpt .map(s => s" $s").getOrElse(""))
+          ret      <- part(ret0)
+          ordList  <- partsSequence(ordEs)
+          skipOpt  <- partsSequence(skip0)
+          limOpt   <- partsSequence(limit0)
+          distinct <- part(if (distinct0) "DISTINCT " else "")
+          ord      <- part(ordList.zip(ordOs).map{ case (s, o) => s" $s $o" }.mkString(", "))
+          skip     <- part(skipOpt.map(s => s" $s").getOrElse(""))
+          lim      <- part(limOpt .map(s => s" $s").getOrElse(""))
         } yield s"$distinct$ret$ord$skip$lim"
     }
   }
@@ -305,8 +443,8 @@ object CypherFragment {
         type Statement = Part
         val toCypherF: GenF[Part] = (
           for {
-            tgt <- GenS.part(to)
-            v   <- GenS.part(value)
+            tgt <- part(to)
+            v   <- part(value)
           } yield s"$tgt.${escapeName(key)} = $v"
         ).f
       }
@@ -315,29 +453,29 @@ object CypherFragment {
     def toCypher(clause: Clause): GenS[Part] = clause match {
       case Match(pattern, optional, where) =>
         for {
-          ps  <- GenS.partsSequence(pattern.toList)
-          wh0 <- GenS.partsSequence(where)
-          opt <- GenS.part{ if (optional) "OPTIONAL " else "" }
-          wh  <- GenS.part{ wh0.map(w => s"WHERE $w").getOrElse("") }
+          ps  <- partsSequence(pattern.toList)
+          wh0 <- partsSequence(where)
+          opt <- part{ if (optional) "OPTIONAL " else "" }
+          wh  <- part{ wh0.map(w => s"WHERE $w").getOrElse("") }
         } yield s"${opt}MATCH ${ps.mkString(", ")}$wh"
       case Unwind(expr, as) =>
-        GenS.part(expr).map(e => s"$e AS ${escapeName(as)}")
+        part(expr).map(e => s"$e AS ${escapeName(as)}")
       case With(ret0, where0) =>
         for {
-          ret      <- GenS.part(ret0)
-          whereOpt <- GenS.partsSequence(where0)
-          where    <- GenS.part(whereOpt.map(w => s" WHERE $w").getOrElse(""))
+          ret      <- part(ret0)
+          whereOpt <- partsSequence(where0)
+          where    <- part(whereOpt.map(w => s" WHERE $w").getOrElse(""))
         } yield s"WITH $ret$where"
-      case Create(pattern) => GenS.partsSequence(pattern.toList).map(ps => s"CREATE ${ps.mkString(", ")}")
-      case Delete(elems)   => GenS.partsSequence(elems.toList)  .map(es => s"DELETE ${es.mkString(", ")}")
-      case SetProps(set)   => GenS.partsSequence(set.toList)    .map(ss => s"SET ${ss.mkString(", ")}")
+      case Create(pattern) => partsSequence(pattern.toList).map(ps => s"CREATE ${ps.mkString(", ")}")
+      case Delete(elems)   => partsSequence(elems.toList)  .map(es => s"DELETE ${es.mkString(", ")}")
+      case SetProps(set)   => partsSequence(set.toList)    .map(ss => s"SET ${ss.mkString(", ")}")
       case Call(procedure, params, yields0, where0) =>
         for {
           call     <- funcLikePart(procedure, params)
-          yieldOpt <- GenS.partsSequence(yields0)
-          whereOpt <- GenS.partsSequence(where0)
-          yields   <- GenS.part(yieldOpt.map(y => s" YIELD $y").getOrElse(""))
-          where    <- GenS.part(whereOpt.map(w => s" WHERE $w").getOrElse(""))
+          yieldOpt <- partsSequence(yields0)
+          whereOpt <- partsSequence(where0)
+          yields   <- part(yieldOpt.map(y => s" YIELD $y").getOrElse(""))
+          where    <- part(whereOpt.map(w => s" WHERE $w").getOrElse(""))
         } yield s"CALL $call$yields$where"
     }
   }
@@ -383,24 +521,24 @@ object CypherFragment {
     def toCypher(pattern: Pattern): GenS[Part] = pattern match {
       case Let(alias, pattern) =>
         for {
-          pat <- GenS.part(pattern)
+          pat <- part(pattern)
         } yield s"${escapeName(alias)} = $pat"
       case Path(left, relation, right) =>
         for {
-          lhs <- GenS.part(left)
-          rel <- GenS.part(relation)
-          rhs <- GenS.part(right)
+          lhs <- part(left)
+          rel <- part(relation)
+          rhs <- part(right)
         } yield s"$lhs $rel $rhs"
       case Node(alias, labels, map) =>
         for {
-          m <- mapPart(map)
+          m <- mapPart(map, joinPropsMap)
         } yield s"(${aliasStr(alias)}${labelLikeStr(labels, ":")}$m)"
       case Rel(alias, types, map, length, dir) =>
         for {
-          m   <- mapPart(map)
+          m   <- mapPart(map, joinPropsMap)
           len <- length match {
-                   case None                   => GenS.part("")
-                   case Some(Rel.All)          => GenS.part("*")
+                   case None                   => part("")
+                   case Some(Rel.All)          => part("*")
                    case Some(Rel.Range(range)) => rangePart(range.bimap(longLit, longLit)).map(r => s"* $r")
                  }
         } yield {
@@ -412,6 +550,11 @@ object CypherFragment {
             case Rel.Any      => s"-$params-"
           }
         }
+    }
+
+    private def joinPropsMap: List[String] => String = {
+      case Nil => ""
+      case l   => l.mkString("{ ", ", ", " }")
     }
 
     @deprecated // TODO ================================================================================================
@@ -427,8 +570,20 @@ object CypherFragment {
   // // // // // // Utils // // // // // //
   // // // // // // // // // // // // // //
 
+  private def part2(left: CypherFragment.Aux[Part], right: CypherFragment.Aux[Part])(f: (String, String) => String): GenS[Part] =
+    (part(left), part(right)).map2(f)
+
+  private def part2(left: CypherFragment.Aux[Part], right: GenS[Part])(f: (String, String) => String): GenS[Part] =
+    (part(left), right).map2(f)
+
+  private def part2(left: GenS[Part], right: CypherFragment.Aux[Part])(f: (String, String) => String): GenS[Part] =
+    (left, part(right)).map2(f)
+
+  private def part2op(left: CypherFragment.Aux[Part], right: CypherFragment.Aux[Part], op: String): GenS[Part] =
+    part2(left, right)((l, r) => s"$l $op $r")
+
   private def funcLikePart(func: String, params: List[Expr[_]]): GenS[Part] =
-    GenS.partsSequence(params).map { ps =>
+    partsSequence(params).map { ps =>
       s"${func.split('.').map(escapeName).mkString(".")}(${ps.mkString(", ")})"
     }
 
@@ -438,15 +593,15 @@ object CypherFragment {
     }
 
   private def rangePart(ior: Ior[Expr[_], Expr[_]]) = ior match {
-    case Ior.Left(min)      => GenS.part(min).map(m => s"$m..")
-    case Ior.Right(max)     => GenS.part(max).map(m => s"..$m")
-    case Ior.Both(min, max) => (GenS.part(min), GenS.part(max)).map2((mn, mx) => s"$mn..$mx")
+    case Ior.Left(min)      => part(min).map(m => s"$m..")
+    case Ior.Right(max)     => part(max).map(m => s"..$m")
+    case Ior.Both(min, max) => part2(min, max)((mn, mx) => s"$mn..$mx")
   }
 
 
   private def mapEntryParts(map: Map[String, Expr[_]]): GenS0[List, Part] =
     if (map.isEmpty) GenF.pure(List.empty[Part]).genS
-    else GenS.partsSequence(map.values.toList)
+    else partsSequence(map.values.toList)
 
   private def escapeName(name: String) = name match {
     case "_" => "_"
