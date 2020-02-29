@@ -3,14 +3,42 @@ package com.abraxas.slothql.newcypher
 import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 
-// TODO ================================================================================================================
-import com.abraxas.slothql.cypher.{ CypherFragment => OldCF }
-// TODO ================================================================================================================
+import com.abraxas.slothql.newcypher.{ CypherFragment => CF }
 
 package object syntax {
 
   object Match {
-    def apply[R](query: Node => R): OldCF.Query[R] = macro CypherSyntaxMacros.matchImpl[R]
+    def apply[R]              (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.match_[R]
+//  def optional[R]           (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.optional[R]
+//  def maybe[R](opt: Boolean)(query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.maybe[R]
+  }
+
+  object With {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.with_[R]
+  }
+
+  object Unwind {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.unwind[R]
+  }
+
+  object Call {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.call[R]
+  }
+
+  object Create {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.create[R]
+  }
+
+  object Merge {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.merge[R]
+  }
+
+  object Delete {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.delete[R]
+  }
+
+  object Foreach {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.foreach[R]
   }
 
   sealed trait Node { val alias: String }
@@ -93,9 +121,9 @@ package object syntax {
   object Rel {
     type Aux[D <: Rel.Direction]  = Rel { type Dir = D }
 
-    type Direction = OldCF.Pattern.Rel.Direction
-    type Incoming  = OldCF.Pattern.Rel.Incoming.type
-    type Outgoing  = OldCF.Pattern.Rel.Outgoing.type
+    type Direction = CF.Pattern.Rel.Direction
+    type Incoming  = CF.Pattern.Rel.Incoming.type
+    type Outgoing  = CF.Pattern.Rel.Outgoing.type
 
     /** Supported params: {{{String}}}, {{{Iterable[String]}}}, {{{:=[_]}}}, {{{**}}}. */
     def unapplySeq(r: Rel): Option[Seq[Any]] = ???
@@ -103,11 +131,11 @@ package object syntax {
 
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object := {
-    def unapply[A](any: Any): Option[(String, CypherFragment.Expr[A])] = ???
+    def unapply[A](any: Any): Option[(String, CF.Expr[A])] = ???
   }
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object ** {
-    def unapply(any: Any): Option[(CypherFragment.Expr[Long], CypherFragment.Expr[Long])] = ???
+    def unapply(any: Any): Option[(CF.Expr[Long], CF.Expr[Long])] = ???
   }
 
 }
