@@ -9,37 +9,37 @@ import com.abraxas.slothql.newcypher.{ CypherFragment => CF }
 package object syntax {
 
   object Match {
-    def apply[R]              (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.match_[R]
-//  def optional[R]           (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.optional[R]
-//  def maybe[R](opt: Boolean)(query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.maybe[R]
+    def apply[R]              (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.match_[R]
+//  def optional[R]           (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.optional[R]
+//  def maybe[R](opt: Boolean)(query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.maybe[R]
   }
 
   object With {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.with_[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.with_[R]
   }
 
   object Unwind {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.unwind[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.unwind[R]
   }
 
   object Call {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.call[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.call[R]
   }
 
   object Create {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.create[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.create[R]
   }
 
   object Merge {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.merge[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.merge[R]
   }
 
   object Delete {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.delete[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.delete[R]
   }
 
   object Foreach {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxMacros.foreach[R]
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.foreach[R]
   }
 
   // // // // // // // // // // // // // // // // //

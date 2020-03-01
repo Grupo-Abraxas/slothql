@@ -8,7 +8,7 @@ import cats.data.NonEmptyList
 import com.abraxas.slothql.newcypher.CypherFragment.{ Pattern => P }
 import com.abraxas.slothql.newcypher.{ syntax, CypherFragment => CF }
 
-class CypherSyntaxMacros(val c: blackbox.Context) {
+class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._
 
   def match_[R: WeakTypeTag](query: c.Expr[Node => CF.Query[R]]): c.Expr[CF.Query[R]] = qImpl(query) {
