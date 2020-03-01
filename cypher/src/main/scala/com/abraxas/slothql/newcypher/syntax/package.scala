@@ -161,6 +161,17 @@ package object syntax {
     def as(alias: String): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
   }
 
+  implicit def cypherSyntaxTupleToReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Return[ret.Out] = ret(tuple)
+  implicit def cypherSyntaxTupleToQueryReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] = CF.Query.Return(ret(tuple))
+
+  trait CypherSyntaxReturnTuple[T <: Product] {
+    type Out
+    def apply(t: T): CF.Return[Out]
+  }
+  object CypherSyntaxReturnTuple {
+    implicit def cypherSyntaxReturnTuple[T <: Product]: CypherSyntaxReturnTuple[T] = macro CypherSyntaxMacros.returnTuple[T]
+  }
+
   // // // // // // // // // // // // // // // // // //
   // // // // // Ops: Node & Rel & Path  // // // // //
   // // // // // // // // // // // // // // // // // //

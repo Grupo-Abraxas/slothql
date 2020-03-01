@@ -37,7 +37,7 @@ object NewCypherSyntaxTest extends App {
       x: Node
       y: Rel.Aux[Rel.Incoming]
       z: Node
-      x.prop[String]("a")
+      (x.prop[String]("a"), y.tpe, z.labels)
   }
 
   this show Match  {
@@ -57,7 +57,7 @@ object NewCypherSyntaxTest extends App {
       c: Node
       d: Rel.Aux[Rel.Incoming]
       e: Node
-      c.labels as "qwerty"
+      a.props -> c.labels.as("qwerty")
   }
 
   this show Match  {
@@ -126,7 +126,7 @@ object NewCypherSyntaxTest extends App {
       i: Node
       j: Rel.Aux[Rel.Outgoing]
       k: Node
-      a.props
+      (a.props, j.props, k.props)
   }
 
   this show Match  {
