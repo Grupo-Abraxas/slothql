@@ -2,7 +2,7 @@ package com.abraxas.slothql.newcypher
 
 import scala.language.{ higherKinds, implicitConversions }
 
-import cats.{ Applicative, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad, catsInstancesForId }
+import cats.{ Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad, catsInstancesForId }
 import cats.arrow.Arrow
 import cats.instances.function._
 import cats.instances.map._
@@ -80,11 +80,11 @@ object CypherStatement {
     }
 
     def sequence[C[_]: Applicative: Foldable, A](fs: C[GenF[A]])(implicit M: MonoidK[C]): GenF[C[A]] = new GenF(
-      fs.foldLeft((M.empty[A], _: Gen)) {
-        case (accF, f) => accF andThen {
+      fs.foldRight(Eval.now((M.empty[A], _: Gen))) {
+        case (f, accF) => accF.map(_ andThen {
           case (acc, gen) => f.f andThen Arrow[Function1].first(_.pure[C] <+> acc) apply gen
-        }
-      }
+        })
+      }.value
     )
   }
 
