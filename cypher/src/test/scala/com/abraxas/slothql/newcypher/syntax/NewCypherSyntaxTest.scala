@@ -1,27 +1,70 @@
 package com.abraxas.slothql.newcypher.syntax
 
-import org.scalatest.{ Assertion, Matchers, WordSpec }
-
 import com.abraxas.slothql.newcypher.{ CypherFragment, CypherStatement }
 
 
-// TODO: structure the spec
-class NewCypherSyntaxTest extends WordSpec with Matchers {
+/* TODO: restructure the spec
+
+[M] CypherSyntaxMainSpec
+[R] CypherSyntaxReadSpec
+[E] CypherSyntaxExprSpec
+[P] CypherSyntaxPatternSpec
+[W] CypherSyntaxWriteSpec
+[C] CypherSyntaxCallSpec
+
+  - Clause
+    - Read
+      - Match  [M]
+      - With   [R]
+      - Unwind [R]
+    - Write
+      - Create   [W]
+      - Delete   [W]
+      - SetProps [W]
+    - ReadWrite
+      - Call [C]
+  - Pattern
+    - Let + Path [R]
+    - long paths [P]
+    - Node [P]
+    - Rel  [P]
+  - Expr [E]
+    - Input
+    - Param
+    - Lit
+    - Null
+    - ? Var
+    - Func
+      + built-in
+    - MapExpr: MapDef, MapKey, MapDynKey, MapAdd
+    - ListExpr: ListDef, InList, AtIndex, AtRange, Concat, Reduce, ListComprehension, ListPredicate (All/Any/None/Single)
+    - StringExpr (StartsWith/EndsWith/Contains/Regex)
+    - LogicExpr: Negate, Or, And, Xor
+    - CompareExpr: IsNull, NotNull, Eq, Neq, Lt, Lte, Gte, Gt
+    - MathematicalExpr: unary_-, +, -, *, /, %, ^
+    - Distinct
+    - Exists
+    - CaseExpr
+      - SimpleCaseExpr
+      - GenericCaseExpr
+  - Query
+    - Return: final return [M]
+    - Clause: nesting [M]
+  - Return
+    - All [R]
+    - Expr: as [M]
+    - Tuple [M]
+    - Nothing? [W], [R]
+    - Options: distinct, orderBy, skip, limit [R]
+*/
+class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
 
   class StubIdGen extends CypherStatement.Gen {
     def nextAlias(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
     def nextParam(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
   }
 
-  private def test[A](query: CypherFragment.Query[A], expectedTemplate: String, expectedParams: Map[String, CypherStatement.LiftValue[_]] = Map()): Test[A] =
-    new Test[A](query, expectedTemplate, expectedParams)
-  private class Test[T](query: CypherFragment.Query[T], expectedTemplate: String, expectedParams: Map[String, CypherStatement.LiftValue[_]]) {
-    def returns[R](implicit correct: T =:= R): Assertion = {
-      val (CypherStatement.Complete(template, params), _) = query.toCypherF(new StubIdGen)
-      template shouldBe expectedTemplate
-      params   shouldBe expectedParams
-    }
-  }
+  protected val cypherGen: CypherStatement.Gen = new StubIdGen
 
   // // // // // // // // // // // // // // // // // // // // // // // //
 
