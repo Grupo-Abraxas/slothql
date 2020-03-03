@@ -603,10 +603,10 @@ object CypherFragment {
     if (map.isEmpty) GenF.pure(List.empty[Part]).genS
     else partsSequence(map.values.toList)
 
-  private def escapeName(name: String) = name match {
+  protected[newcypher] def escapeName(name: String): String = name match {
     case "_" => "_"
     case _ => escapeName0(name)
   }
-  private def escapeName0(name: String) = "`" + name.replace("`", "``") + "`"
+  private def escapeName0(name: String) = s"`${name.replace("`", "``")}`"
 
 }

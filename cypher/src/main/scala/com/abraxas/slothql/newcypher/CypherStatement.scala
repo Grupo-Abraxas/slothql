@@ -1,5 +1,6 @@
 package com.abraxas.slothql.newcypher
 
+import scala.collection.JavaConverters
 import scala.language.{ higherKinds, implicitConversions }
 
 import cats.{ Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad, catsInstancesForId }
@@ -30,6 +31,30 @@ object CypherStatement {
     implicit lazy val liftLongValue: LiftValue[Long] = new LiftValue[Long] {
       def asParam(a: Long): AnyRef = Long.box(a)
       def asLiteral(a: Long): String = a.toString
+    }
+    implicit lazy val liftIntValue: LiftValue[Int] = new LiftValue[Int] {
+      def asParam(a: Int): AnyRef = Int.box(a)
+      def asLiteral(a: Int): String = a.toString
+    }
+    implicit lazy val liftBooleanValue: LiftValue[Boolean] = new LiftValue[Boolean] {
+      def asParam(a: Boolean): AnyRef = Boolean.box(a)
+      def asLiteral(a: Boolean): String = a.toString
+    }
+    implicit lazy val liftStringValue: LiftValue[String] = new LiftValue[String] {
+      def asParam(a: String): AnyRef = a
+      def asLiteral(a: String): String = s""""${a.replaceAll("\"", "\\\"")}""""
+    }
+    implicit def liftListValue[T](implicit lift: LiftValue[T]): LiftValue[List[T]] = new LiftValue[List[T]] {
+      import JavaConverters._
+      def asParam(a: List[T]): AnyRef = a.asJava
+      def asLiteral(a: List[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
+    }
+    implicit def liftStringMapValue[T](implicit lift: LiftValue[T]): LiftValue[Map[String, T]] = new LiftValue[Map[String, T]] {
+      import JavaConverters._
+      def asParam(a: Map[String, T]): AnyRef = a.asJava
+      def asLiteral(a: Map[String, T]): String = a
+        .map{ case (k, v) => s"${CypherFragment.escapeName(k)}: ${lift.asLiteral(v)}" }
+        .mkString("{", ", ", "}")
     }
   }
 

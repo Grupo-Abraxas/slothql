@@ -357,4 +357,10 @@ package object syntax {
     private def binary(expr1: CF.Expr[N], op: CF.Expr.MathematicalExpr.BinaryOp) = CF.Expr.MathematicalBinaryExpr(expr0, expr1, op)
   }
 
+  // // // // // // // // // // // // // // // //
+  // // // // Literals and Parameters // // // //
+  // // // // // // // // // // // // // // // //
+
+  def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
+
 }
