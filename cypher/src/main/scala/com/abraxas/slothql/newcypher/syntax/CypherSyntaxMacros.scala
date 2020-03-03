@@ -1,10 +1,10 @@
 package com.abraxas.slothql.newcypher.syntax
 
-import scala.reflect.macros.blackbox
+import scala.reflect.macros.whitebox
 
 import com.abraxas.slothql.newcypher.{ CypherFragment => CF }
 
-class CypherSyntaxMacros(val c: blackbox.Context) {
+class CypherSyntaxMacros(val c: whitebox.Context) {
   import c.universe._
 
   def returnTuple[T: WeakTypeTag]: Tree = {
