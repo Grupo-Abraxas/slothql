@@ -179,6 +179,9 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val nme  = stringName(name)
           val expr = reify{ P.Node(stringExpr(nme).splice, Nil, Map()) }
           (nme, Tpe.Node, expr)
+        case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxNodeType =>
+          val expr = reify{ P.Node(None, Nil, Map()) }
+          (None, Tpe.Node, expr)
       }
     }
     object Rel {
@@ -193,6 +196,10 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val dir  = dirExpr(tree)
           val expr = reify{ P.Rel(stringExpr(nme).splice, Nil, Map(), None, dir.splice) }
           (nme, Tpe.Rel(dir.staticType), expr)
+        case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxRelType =>
+          val dir  = dirExpr(tree)
+          val expr = reify{ P.Rel(None, Nil, Map(), None, dir.splice) }
+          (None, Tpe.Rel(dir.staticType), expr)
       }
     }
 

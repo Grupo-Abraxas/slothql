@@ -50,21 +50,20 @@ class NewCypherSyntaxTest extends WordSpec with Matchers {
       "RETURN `x`.`a`, `type`(`y`), `labels`(`z`)"
     ).returns[(String, String, List[String])]
 
-// TODO ================================================================================================================
-//    "return tuples (2)" in test(
-//      Match {
-//        case user < _ - _ < _ - group =>
-//          (
-//            user.propOpt[String]("email"),
-//            user.propOpt[String]("name"),
-//            user.propOpt[Int]("age"),
-//            user.propOpt[Boolean]("confirmed"),
-//            group.prop[String]("name")
-//          )
-//      },
-//      "MATCH (`user`) <-[]- () <-[]- (`group`) " +
-//      "RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`"
-//    ).returns[(Option[String], Option[String], Option[Int], Option[Boolean], String)]
+    "return tuples (2)" in test(
+      Match {
+        case user < _ - _ < _ - group =>
+          (
+            user.propOpt[String]("email"),
+            user.propOpt[String]("name"),
+            user.propOpt[Int]("age"),
+            user.propOpt[Boolean]("confirmed"),
+            group.prop[String]("name")
+          )
+      },
+      "MATCH (`user`) <-[]- () <-[]- (`group`) " +
+      "RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`"
+    ).returns[(Option[String], Option[String], Option[Int], Option[Boolean], String)]
 
 
     "support built-in operators" in test(
