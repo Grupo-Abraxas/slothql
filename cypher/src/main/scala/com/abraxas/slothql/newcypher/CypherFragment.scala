@@ -97,7 +97,7 @@ object CypherFragment {
 
     final case object Null extends Expr[Nothing]
 
-    final case class Var[+A](name: String) extends Expr[A]
+    case class Var[+A](name: String) extends Expr[A]
 
     final case class Func[+A](func: String, params: List[Expr[_]]) extends Expr[A]
 

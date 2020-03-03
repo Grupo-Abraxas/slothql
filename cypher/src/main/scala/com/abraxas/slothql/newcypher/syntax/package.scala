@@ -47,17 +47,20 @@ package object syntax {
   // // // // // // // // // // // // // // // // //
 
   sealed trait GraphElem {
-    // TODO
-    val alias: String
+    val name: String
   }
-  sealed trait Node extends GraphElem { val alias: String }
-  sealed trait Rel  extends GraphElem { val alias: String; type Dir <: Rel.Direction }
+  object GraphElem {
+    sealed trait Node extends GraphElem { val name: String }
+    sealed trait Rel  extends GraphElem { val name: String; type Dir <: Rel.Direction }
+  }
+  type Node = GraphElem.Node with CF.Expr[Map[String, Any]]
+  type Rel  = GraphElem.Rel  with CF.Expr[Map[String, Any]]
 
   // TODO: path!
 
   object CypherSyntaxFromMacro {
-    def mkNode(name: String): Node                          = new Node { val alias = name }
-    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new Rel  { val alias = name; type Dir = D }
+    def mkNode(name: String): Node                          = new CF.Expr.Var(name) with GraphElem.Node
+    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Var(name) with GraphElem.Rel { type Dir = D }
   }
 
   // // // // // //
@@ -178,7 +181,7 @@ package object syntax {
 
   implicit final class CypherSyntaxGraphElemOps(g: GraphElem) {
     /** Select all vertex/edge properties */
-    def props: CF.Expr[Map[String, Any]] = CF.Expr.Var(g.alias)
+    def props: CF.Expr[Map[String, Any]] = g.asInstanceOf[CF.Expr[Map[String, Any]]]
 
     /** Select vertex/edge property. */
     def prop[A](k: String): CF.Expr[A] = CF.Expr.MapKey[A](props, k)
