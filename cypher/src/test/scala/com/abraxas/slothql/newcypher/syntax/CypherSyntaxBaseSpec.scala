@@ -17,6 +17,12 @@ trait CypherSyntaxBaseSpec extends WordSpec with Matchers {
     }
   }
 
+  protected def assert[A](a: A): IsOps[A] = isOps.asInstanceOf[IsOps[A]]
+
+  protected class IsOps[T] {
+    def is[R](implicit correct: T <:< R): Assertion = succeed
+  }
+  private lazy val isOps = new IsOps[Any]
 }
 
 object CypherSyntaxBaseSpec {
