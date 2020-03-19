@@ -542,8 +542,9 @@ object CypherFragment {
                    case Some(Rel.Range(range)) => rangePart(range.bimap(longLit, longLit)).map(r => s"* $r")
                  }
         } yield {
-          val tpe    = labelLikeStr(types, "|")
-          val params = s"[${aliasStr(alias)}$tpe$len$m]"
+          val tpe       = labelLikeStr(types, "|")
+          val hasParams = alias.nonEmpty || tpe.nonEmpty || len.nonEmpty || m.nonEmpty
+          val params    = if (hasParams) s"[${aliasStr(alias)}$tpe$len$m]" else ""
           dir match {
             case Rel.Outgoing => s"-$params->"
             case Rel.Incoming => s"<-$params-"

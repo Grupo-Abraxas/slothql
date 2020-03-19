@@ -44,7 +44,7 @@ class CypherSyntaxMainSpec extends CypherSyntaxBaseSpec {
             assert(b).is[Node] // test
             (a.labels, a.props, b.labels, b.props)
         },
-        "MATCH (`a`) -[]-> (`b`) " +
+        "MATCH (`a`) --> (`b`) " +
         "RETURN `labels`(`a`), `a`, `labels`(`b`), `b`"
       ).returns[(List[String], Map[String, Any], List[String], Map[String, Any])]
 
@@ -77,7 +77,7 @@ class CypherSyntaxMainSpec extends CypherSyntaxBaseSpec {
           case a -_> b =>
             (a.props, b.props as "a0")
         },
-        "MATCH (`a`) -[]-> (`b`) " +
+        "MATCH (`a`) --> (`b`) " +
         "RETURN `a`, `b` AS `a0`"
       ).returns[(Map[String, Any], Map[String, Any])]
 
@@ -91,7 +91,7 @@ class CypherSyntaxMainSpec extends CypherSyntaxBaseSpec {
                 (a.props, b.props, e.props, c.props)
             }
         },
-        "MATCH (`a`) -[]-> (`b`) " +
+        "MATCH (`a`) --> (`b`) " +
         "MATCH (`b`) <-[`e`]- (`c`) " +
         "RETURN `a`, `b`, `e`, `c`"
       ).returns[(Map[String, Any], Map[String, Any], Map[String, Any], Map[String, Any])]
