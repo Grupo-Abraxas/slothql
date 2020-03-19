@@ -1,7 +1,7 @@
 Cypher syntax
 ---------------------
 
-Enable syntax extensions by importing `com.abraxas.slothql.cypher.syntax._`.
+Enable syntax extensions by importing `com.arkondata.slothql.cypher.syntax._`.
 
 ## Match
 
