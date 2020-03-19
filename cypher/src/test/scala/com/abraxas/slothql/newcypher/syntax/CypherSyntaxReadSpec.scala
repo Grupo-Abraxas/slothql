@@ -1,7 +1,5 @@
 package com.abraxas.slothql.newcypher.syntax
 
-import com.abraxas.slothql.newcypher.CypherStatement
-
 /** Advanced [[CypherSyntaxMainSpec]]
  *  - Referencing paths
  *  - Clauses WITH, UNWIND and OPTIONAL MATCH
@@ -10,5 +8,5 @@ import com.abraxas.slothql.newcypher.CypherStatement
  *  - Return: All, Nothing, Options
  */
 class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
-  protected def cypherGen: CypherStatement.Gen = ???
+
 }

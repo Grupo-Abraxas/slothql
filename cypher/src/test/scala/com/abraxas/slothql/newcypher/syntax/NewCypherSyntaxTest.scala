@@ -59,15 +59,6 @@ import com.abraxas.slothql.newcypher.{ CypherFragment, CypherStatement }
 */
 class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
 
-  class StubIdGen extends CypherStatement.Gen {
-    def nextAlias(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
-    def nextParam(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
-  }
-
-  protected val cypherGen: CypherStatement.Gen = new StubIdGen
-
-  // // // // // // // // // // // // // // // // // // // // // // // //
-
   "Slothql cypher syntax" should {
     "build path pattern matching node label" in test(
       Match  {

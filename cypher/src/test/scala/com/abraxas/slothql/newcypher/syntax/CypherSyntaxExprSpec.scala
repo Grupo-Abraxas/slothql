@@ -1,8 +1,6 @@
 package com.abraxas.slothql.newcypher.syntax
 
-import com.abraxas.slothql.newcypher.{ CypherFragment, CypherStatement }
-
-/** Variety of [[CypherFragment.Expr]].
+/** Variety of [[com.abraxas.slothql.newcypher.CypherFragment.Expr]].
  *  - Input
  *  - Param
  *  - Lit
@@ -23,5 +21,5 @@ import com.abraxas.slothql.newcypher.{ CypherFragment, CypherStatement }
  *    - GenericCaseExpr
  */
 class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
-  protected def cypherGen: CypherStatement.Gen = ???
+
 }

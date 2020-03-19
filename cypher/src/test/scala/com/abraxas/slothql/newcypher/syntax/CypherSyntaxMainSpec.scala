@@ -1,7 +1,5 @@
 package com.abraxas.slothql.newcypher.syntax
 
-import com.abraxas.slothql.newcypher.CypherStatement
-
 /** Simplest spec: match and return.
  *  - Basic matching
  *  - Basic expressions
@@ -9,5 +7,5 @@ import com.abraxas.slothql.newcypher.CypherStatement
  *  - Nesting matches
  */
 class CypherSyntaxMainSpec extends CypherSyntaxBaseSpec {
-  protected def cypherGen: CypherStatement.Gen = ???
+
 }
