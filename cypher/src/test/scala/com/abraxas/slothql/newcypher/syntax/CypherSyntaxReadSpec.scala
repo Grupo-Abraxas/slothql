@@ -1,6 +1,6 @@
 package com.abraxas.slothql.newcypher.syntax
 
-/** Advanced [[CypherSyntaxMainSpec]]
+/** Advanced [[CypherSyntax0Spec]]
  *  - Referencing paths
  *  - Clauses WITH, UNWIND and OPTIONAL MATCH
  *  - {{{if}}} guards

@@ -6,7 +6,7 @@ package com.abraxas.slothql.newcypher.syntax
  *  - Returning: expr (with `as`), tuple
  *  - Nesting matches
  */
-class CypherSyntaxMainSpec extends CypherSyntaxBaseSpec {
+class CypherSyntax0Spec extends CypherSyntaxBaseSpec {
   "Slothql cypher syntax" should {
     "build query returning properties of any node" in
       test(
