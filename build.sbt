@@ -8,7 +8,7 @@ lazy val scala212 = "2.12.10"
 lazy val root = (project in file(".")).
   settings(
     inThisBuild(List(
-      organization := "com.abraxas",
+      organization := "com.arkondata",
       scalaVersion := scala212,
       git.gitHeadCommit := GitKeys.gitReader.value.withGit(
         _.asInstanceOf[com.typesafe.sbt.git.JGit]
@@ -45,9 +45,9 @@ lazy val cypher = (project in file("cypher"))
     initialCommands in console :=
       """
         |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
-        |import com.abraxas.slothql.cypher.syntax._
-        |import com.abraxas.slothql.cypher.CypherFragment
-        |import com.abraxas.slothql.neo4j.Neo4jCypherTransactor
+        |import com.arkondata.slothql.cypher.syntax._
+        |import com.arkondata.slothql.cypher.CypherFragment
+        |import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
       """.stripMargin
   ).settings(ammSettings: _*)
 
@@ -67,7 +67,7 @@ lazy val arrows = (project in file("arrows"))
     ),
     initialCommands in console :=
       """
-        |import com.abraxas.slothql.arrow._
+        |import com.arkondata.slothql.arrow._
       """.stripMargin
   ).settings(ammSettings: _*)
 
@@ -78,7 +78,7 @@ lazy val arrowsShow = (project in file("arrows-show"))
     libraryDependencies += Dependencies.`droste-core`,
     initialCommands in console := (initialCommands in (arrows, console)).value +
       """
-        |import com.abraxas.slothql.arrow.show._
+        |import com.arkondata.slothql.arrow.show._
       """.stripMargin
   )
   .dependsOn(arrows % "compile->compile;test->test")
