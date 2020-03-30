@@ -184,10 +184,7 @@ trait CypherTxBuilder {
     extends RecordArgs
   {
     def withParamsRecord(params: Params): Tx[F, R] = FreeT.liftF {
-      import supported._
-      val statement = q.changeParams[Poly](mapper)
-                       .applyRecord(mapper(params))(toMap)
-      PreparedQuery(statement, readTo, reader)
+      PreparedQuery(supported.statement(q, params), readTo, reader)
     }
   }
 
@@ -198,6 +195,9 @@ trait CypherTxBuilder {
 
     def mapper: ops.record.MapValues.Aux[Poly, Params0, Params]
     def toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]
+
+    def statement[A](q: Parameterized.Prepared[Params0, CF.Query[A]], params: Params0): CypherFragment.Statement =
+      q.changeParams[Poly](mapper).applyRecord(mapper(params))(toMap)
   }
   object SupportedParams {
     type Aux[Params0 <: HList, Params1 <: HList] = SupportedParams[Params0] { type Params = Params1 }
