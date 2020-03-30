@@ -179,13 +179,12 @@ trait CypherTxBuilder {
   private object QueryBuilder extends QueryBuilder[Id]
 
   final class ParameterizedQueryBuilder[Params <: HList, F[_], A, R]
-      (q: Parameterized.Prepared[Params, CF.Query[A]])
-      (implicit val reader: ReaderAux[A, R], readTo: ReadTo[F], supported: SupportedParams[Params])
-    extends RecordArgs
+      (protected val q: Parameterized.Prepared[Params, CF.Query[A]])
+      (implicit val reader: ReaderAux[A, R], readTo: ReadTo[F], protected val supported: SupportedParams[Params])
+    extends SupportedParams.WithParamsParameterizedQueryBuilder[Params, A, Tx[F, R]]
   {
-    def withParamsRecord(params: Params): Tx[F, R] = FreeT.liftF {
-      PreparedQuery(supported.statement(q, params), readTo, reader)
-    }
+    protected def out(statement: CypherFragment.Statement): Tx[F, R] =
+      FreeT.liftF { PreparedQuery(statement, readTo, reader) }
   }
 
   sealed trait SupportedParams[Params0 <: HList] {
@@ -216,6 +215,15 @@ trait CypherTxBuilder {
         def mapper: MapValues.Aux[Poly.type, Params0, Params1] = mapper0
         def toMap: ToMap.Aux[Params1, _ <: Symbol, _] = toMap0
       }
+
+    trait WithParamsParameterizedQueryBuilder[Params <: HList, A, Out] extends RecordArgs {
+
+      final def withParamsRecord(params: Params): Out = out(supported.statement(q, params))
+
+      protected val q: Parameterized.Prepared[Params, CF.Query[A]]
+      protected val supported: SupportedParams[Params]
+      protected def out(statement: CypherFragment.Statement): Out
+    }
   }
 
   trait SupportedParam[A] extends DepFn1[A]
