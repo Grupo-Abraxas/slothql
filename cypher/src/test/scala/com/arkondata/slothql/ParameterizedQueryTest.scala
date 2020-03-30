@@ -27,6 +27,12 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
       }
   }
 
+  lazy val query2 = parameterized {
+    (x: Param[Option[String]], y: Param[Option[String]], z: Param[Option[Int]]) =>
+      val props = Map("x" -> x.known, "y" -> y.known, "z" -> z.known)
+      Create { case v@Vertex("Test", `props`) => v.props }
+  }
+
 
   "Parameterized Query API" should {
     "build cypher parameterized statements" in {
@@ -51,6 +57,17 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
 
       val res = tx.runRead(readTx).unsafeRunSync()
       res shouldBe z.map((_, "null", y))
+    }
+
+    "support optional parameters" in {
+      val s = Random.alphanumeric.take(10).mkString
+
+      val readTx = tx
+        .query[List](query2)
+        .withParams(x = Some(s), y = None, z = None)
+
+      val res = tx.runRead(readTx).unsafeRunSync()
+      res shouldBe Seq(Map("x" -> s))
     }
   }
 

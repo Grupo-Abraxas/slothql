@@ -226,26 +226,31 @@ trait CypherTxBuilder {
     }
   }
 
-  trait SupportedParam[A] extends DepFn1[A]
+  trait SupportedParam[A] extends DepFn1[A] {
+    type Out >: Null
+  }
   object SupportedParam {
-    type Aux[A, R] = SupportedParam[A] { type Out = R }
+    type Aux[A, R >: Null] = SupportedParam[A] { type Out = R }
 
-    def define[A, R](f: A => R): SupportedParam.Aux[A, R] =
+    def define[A, R >: Null](f: A => R): SupportedParam.Aux[A, R] =
       new SupportedParam[A] {
         type Out = R
         def apply(t: A): R = f(t)
       }
 
-    implicit def intParamIsSupported: SupportedParam.Aux[Int, Int] = define(locally)
-    implicit def longParamIsSupported: SupportedParam.Aux[Long, Long] = define(locally)
+    implicit def intParamIsSupported: SupportedParam.Aux[Int, java.lang.Integer] = define(Int.box)
+    implicit def longParamIsSupported: SupportedParam.Aux[Long, java.lang.Long] = define(Long.box)
     implicit def stringParamIsSupported: SupportedParam.Aux[String, String] = define(locally)
-    implicit def booleanParamIsSupported: SupportedParam.Aux[Boolean, Boolean] = define(locally)
+    implicit def booleanParamIsSupported: SupportedParam.Aux[Boolean, java.lang.Boolean] = define(Boolean.box)
 
     implicit def seqParamIsSupported[A0, A](implicit isSeq: A0 <:< Seq[A], underlying: SupportedParam[A]): SupportedParam.Aux[A0, java.util.List[underlying.Out]] =
       define(_.map(underlying(_)).asJava)
 
     implicit def mapParamIsSupported[A](implicit underlying: SupportedParam[A]): SupportedParam.Aux[Map[String, A], java.util.Map[String, underlying.Out]] =
       define(_.mapValues(underlying(_)).asJava)
+
+    implicit def optionParamIsSupported[A](implicit underlying: SupportedParam[A]): SupportedParam.Aux[Option[A], underlying.Out] =
+      define(_.map(underlying(_)).orNull)
   }
 
 }
