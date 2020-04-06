@@ -9,7 +9,7 @@ package object pattern {
                  props:  Map[String, Known[Expr[_]]] = Map(),
                  alias:  String                      = null
                ): Pattern.Node =
-      Pattern.Node(Option(alias), labels.toList, props)
+      Pattern.Node(Option(alias), labels.toList, Left(props))
   }
 
   implicit class PatternPathBuilder(pat: Pattern.Pattern0) {
@@ -34,7 +34,7 @@ package object pattern {
            ): PatternLeftPathBuilder = `<-`(types, props, length, alias)
 
     private def mkRel(alias: String, types: Seq[String], props: Map[String, Known[Expr[_]]], length: Pattern.Rel.type => Pattern.Rel.Length, dir: Pattern.Rel.Direction) =
-      Pattern.Rel(Option(alias), types.toList, props, Option(length).map(_(Pattern.Rel)), dir)
+      Pattern.Rel(Option(alias), types.toList, Left(props), Option(length).map(_(Pattern.Rel)), dir)
   }
 
 
@@ -44,14 +44,14 @@ package object pattern {
             props:  Map[String, Known[Expr[_]]] = Map(),
             alias:  String                      = null
           ): Pattern.Path =
-      this -- Pattern.Node(Option(alias), labels.toList, props)
+      this -- Pattern.Node(Option(alias), labels.toList, Left(props))
 
     def ->(node: Pattern.Node): Pattern.Path = mkPathBuilderPath(left, mkRel(Pattern.Rel.Outgoing), node)
     def ->( labels: Seq[String]                 = Nil,
             props:  Map[String, Known[Expr[_]]] = Map(),
             alias:  String                      = null
           ): Pattern.Path =
-      this -> Pattern.Node(Option(alias), labels.toList, props)
+      this -> Pattern.Node(Option(alias), labels.toList, Left(props))
   }
 
   class PatternLeftPathBuilder(left: Pattern.Pattern0, rel: Pattern.Rel) {
@@ -60,14 +60,14 @@ package object pattern {
             props:  Map[String, Known[Expr[_]]] = Map(),
             alias:  String                      = null
           ): Pattern.Path =
-      this -- Pattern.Node(Option(alias), labels.toList, props)
+      this -- Pattern.Node(Option(alias), labels.toList, Left(props))
 
     /** Unicode alias for [[--(labels:Seq[String]*]]. Has different operator precedence. */
     def ⤙( labels: Seq[String]                 = Nil,
             props:  Map[String, Known[Expr[_]]] = Map(),
             alias:  String                      = null
           ): Pattern.Path =
-      this -- Pattern.Node(Option(alias), labels.toList, props)
+      this -- Pattern.Node(Option(alias), labels.toList, Left(props))
   }
 
   private def mkPathBuilderPath(left: Pattern.Pattern0, rel: Pattern.Rel, right: Pattern.Node): Pattern.Path = left match {

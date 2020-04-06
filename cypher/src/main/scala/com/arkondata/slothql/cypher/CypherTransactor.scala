@@ -11,7 +11,7 @@ import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.traverse._
 import shapeless.ops.record.{ MapValues, ToMap }
-import shapeless.{ DepFn1, HList, Poly1, RecordArgs, ops }
+import shapeless.{ DepFn1, HList, LowPriority, Poly1, RecordArgs, ops }
 
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 import com.arkondata.slothql.cypher.CypherFragment.{ Known, Parameterized }
@@ -242,6 +242,12 @@ trait CypherTxBuilder {
     implicit def longParamIsSupported: SupportedParam.Aux[Long, java.lang.Long] = define(Long.box)
     implicit def stringParamIsSupported: SupportedParam.Aux[String, String] = define(locally)
     implicit def booleanParamIsSupported: SupportedParam.Aux[Boolean, java.lang.Boolean] = define(Boolean.box)
+
+    object Unsafe {
+      implicit def anyIsSupported[A](implicit lowPriority: LowPriority): SupportedParam.Aux[A, AnyRef] =
+        AnyIsSupported.asInstanceOf[SupportedParam.Aux[A, AnyRef]]
+      private lazy val AnyIsSupported: SupportedParam.Aux[Any, Any] = define(identity)
+    }
 
     implicit def seqParamIsSupported[A0, A](implicit isSeq: A0 <:< Seq[A], underlying: SupportedParam[A]): SupportedParam.Aux[A0, java.util.List[underlying.Out]] =
       define(_.map(underlying(_)).asJava)

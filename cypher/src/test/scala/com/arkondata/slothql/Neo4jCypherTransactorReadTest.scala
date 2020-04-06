@@ -27,7 +27,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
 
   "Neo4jCypherTransactor" should {
     "execute single query (1)" in {
-      val pattern = Pattern.Node(alias = Some("n"), labels = Nil, map = Map())
+      val pattern = Pattern.Node(alias = Some("n"), labels = Nil, props = Left(Map()))
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
@@ -39,7 +39,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       test[Any](tx.query(query), allVertices)
     }
     "execute single query (2)" in {
-      val pattern = Pattern.Node(alias = Some("n"), labels = Nil, map = Map())
+      val pattern = Pattern.Node(alias = Some("n"), labels = Nil, props = Left(Map()))
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
@@ -51,7 +51,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       test[Any](tx.query(query), allVertices)
     }
     "execute single query (3)" in {
-      val pattern = Pattern.Node(alias = Some("n"), labels = List("User"), map = Map())
+      val pattern = Pattern.Node(alias = Some("n"), labels = List("User"), props = Left(Map()))
       val n = Expr.Var[Map[String, Any]]("n")
       val query = Query.Clause(
         Clause.Match(

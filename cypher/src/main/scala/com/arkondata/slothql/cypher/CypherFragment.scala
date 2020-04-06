@@ -712,9 +712,11 @@ object CypherFragment {
     case class Let(alias: String, pattern: Known[Pattern0]) extends Pattern
 
     sealed trait Pattern0 extends Pattern
-    case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0
+    case class Node(alias: Option[String], labels: List[String], props: Properties) extends Pattern0
     case class Path(left: Known[Node], rel: Known[Rel], right: Known[Pattern0]) extends Pattern0
-    case class Rel(alias: Option[String], types: List[String], map: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+    case class Rel(alias: Option[String], types: List[String], props: Properties, length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+
+    type Properties = Either[Map[String, Known[Expr[_]]], Known[Expr[Map[String, Any]]]]
 
     object Rel {
       sealed trait Length
@@ -729,15 +731,15 @@ object CypherFragment {
 
     implicit lazy val fragment: CypherFragment[Pattern] = define[Pattern] {
       case Let(alias, pattern) => s"${escapeName(alias)} = ${pattern.toCypher}"
-      case Node(alias, labels, map) => s"(${aliasStr(alias)}${labelsStr(labels)}${mapStr(map)})"
+      case Node(alias, labels, props) => s"(${aliasStr(alias)}${labelsStr(labels)}${props.fold(mapStr, _.toCypher)})"
       case Path(left, rel, right) => s"${left.toCypher} ${rel.toCypher} ${right.toCypher}"
-      case Rel(alias, types, map, len, dir) =>
+      case Rel(alias, types, props, len, dir) =>
         val lenStr = len match {
           case None => ""
           case Some(Rel.All) => "*"
           case Some(Rel.Range(range)) => "*" + rangeStr(range.bimap(Expr.Lit(_), Expr.Lit(_)))
         }
-        val params = s"[${aliasStr(alias)}${typesStr(types)}$lenStr${mapStr(map)}]"
+        val params = s"[${aliasStr(alias)}${typesStr(types)}$lenStr${props.fold(mapStr, _.toCypher)}]"
         dir match {
           case Rel.Outgoing => s"-$params->"
           case Rel.Incoming => s"<-$params-"
