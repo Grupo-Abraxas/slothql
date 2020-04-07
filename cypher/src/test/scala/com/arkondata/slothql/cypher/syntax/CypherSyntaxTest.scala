@@ -276,6 +276,11 @@ class CypherSyntaxTest extends WordSpec with Matchers {
         "`v`.`name` =~ \"foo.*bar\""
     ).returns[(Boolean, Boolean, Boolean, Boolean)]
 
+    "support string concatenation expressions" in test(
+      Match{ case v => v.prop[String]("a") + lit("!") },
+      "MATCH (`v`) RETURN `v`.`a` + \"!\""
+    )
+
     "support cypher's `toString` built-in function for numbers, booleans and strings" in test(
       Match { case v =>
         (

@@ -238,6 +238,9 @@ package object syntax extends LowPriorityImplicits {
   }
 
   implicit class StringKnownExprOps(expr0: Known[Expr[String]]) {
+    def +(expr1: Known[Expr[String]]): Expr.StringConcat                  = Expr.StringConcat(expr0, expr1)
+    def +[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringConcat = Expr.StringConcat(expr0, expr1)
+
     def contains(expr1: Known[Expr[String]]): Expr.StringExpr                     = binary(expr1, Expr.StringExpr.Contains)
     def contains[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr    = binary(expr1, Expr.StringExpr.Contains)
 
@@ -343,9 +346,9 @@ package object syntax extends LowPriorityImplicits {
   {
     private lazy val listExpr: Known[Expr[List[A]]] = expr0.known.widen
 
-    def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =
-      Expr.Concat(listExpr, expr1.known)
-    def ++[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] = concat(expr1)
+    def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.ListConcat[A] =
+      Expr.ListConcat(listExpr, expr1.known)
+    def ++[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.ListConcat[A] = concat(expr1)
 
     def at[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtIndex[A] =
       Expr.AtIndex(listExpr, i.asInstanceOf[E1[Long]].known)
