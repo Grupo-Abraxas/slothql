@@ -206,7 +206,9 @@ package object syntax extends LowPriorityImplicits {
   }
   implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) extends CompareAnyKnownOps(expr0)
 
-  implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) {
+  implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) extends CompareKnownOps(Known(expr0))
+
+  implicit class CompareKnownOps[A](expr0: Known[Expr[A]]) {
     def lt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
     def lte[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
     def gte[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
@@ -217,10 +219,22 @@ package object syntax extends LowPriorityImplicits {
     def >=[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
     def > [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
 
-    def in[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.In[A] = Expr.In(expr0.known, expr1.known)
+    def in[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.In[A] = Expr.In(expr0, expr1)
 
-    private def binary[E1 <: Expr[A]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryOp) =
-      Expr.CompareBinaryExpr(expr0.known, expr1.known, op)
+    def lt (expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
+    def lte(expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
+    def gte(expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
+    def gt (expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
+
+    def < (expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
+    def <=(expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
+    def >=(expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
+    def > (expr1: Known[Expr[A]]): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
+
+    def in(expr1: Known[Expr[List[A]]]): Expr.In[A] = Expr.In(expr0, expr1)
+
+    private def binary(expr1: Known[Expr[A]], op: Expr.CompareExpr.BinaryOp) =
+      Expr.CompareBinaryExpr(expr0, expr1, op)
   }
 
   implicit class StringKnownExprOps(expr0: Known[Expr[String]]) {
