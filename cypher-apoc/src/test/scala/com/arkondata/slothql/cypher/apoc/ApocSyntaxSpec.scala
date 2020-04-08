@@ -61,6 +61,28 @@ class ApocSyntaxSpec extends WordSpec with Matchers {
     "RETURN `replace`(\"Result: %n\", \"%n\", `toString`(`res`))"
   ).returns[String]
 
+  "Support [apoc.when] call" in test(
+    Match { case a =>
+      APOC.when(
+        lit("foo") in a.labels,
+        parameterized{ a: Param[Int] => Match { case v if v.id === a => v.props } },
+        parameterized{ b: Param[String] => Match { case v@Vertex("bar" := `b`) => v.props } }
+      ).withParams(a = a.prop[Int]("foo").known, b = a.prop[String]("bar").known).apply {
+        _.value[String]("baz")
+      }
+    },
+    "MATCH (`a`) " +
+    "CALL `apoc`.`when`(" +
+      "\"foo\" IN `labels`(`a`), " +
+      "\"MATCH (`v`) WHERE `id`(`v`) = $`a` RETURN `v`\", " +
+      "\"MATCH (`v`{ `bar`: $`b` }) RETURN `v`\", " +
+      "{ " +
+        "`b`: `a`.`bar`, " +
+        "`a`: `a`.`foo`" +
+      " }" +
+    ") YIELD `value` " +
+    "RETURN `value`[`keys`(`value`)[0]].`baz`"
+  ).returns[String]
 
   "Support [apoc.cypher.runFirstColumnSingle] function (plain query)" in test(
     APOC.runFirstColumnSingle(
