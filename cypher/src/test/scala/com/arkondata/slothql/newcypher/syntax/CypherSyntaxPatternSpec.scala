@@ -156,5 +156,14 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       ).returns[Map[String, Any]]
     }
 
+    "match node labels and properties" in {
+      val label = "Foo"
+      val id = "abcd"
+      test(
+        Match { case n@Node(`label`, "Bar", "id" := `id`, "type" := "baz") => n },
+        "MATCH (`n0`:`Foo`:`Bar`{ `id`: \"abcd\", `type`: \"baz\" }) RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
   }
 }
