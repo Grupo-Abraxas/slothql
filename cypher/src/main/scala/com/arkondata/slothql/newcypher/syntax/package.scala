@@ -143,7 +143,7 @@ package object syntax {
 
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object := {
-    def unapply[A](any: Any): Option[(String, CF.Expr[A])] = ???
+    def unapply(any: Any): Option[(String, Any)] = ???
   }
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object ** {

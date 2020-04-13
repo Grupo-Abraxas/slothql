@@ -190,7 +190,18 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           }
           val labels = if (labels0.isEmpty) reify { Nil }
                        else c.Expr[List[String]](q"${labels0.reduce((i1, i2) => q"$i1 ++ $i2")}.toList")
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, labels.splice, Map()) }
+          val props0 = args.collect {
+            case UnApply(m,  List(lhs, rhs)) if m.symbol == Syntax_UnapplySeqSymbol_:= =>
+              val key = lhs match {
+                case Literal(Constant(s: String)) => s
+                case _ => c.abort(lhs.pos, "Property key must be a literal string")
+              }
+              val value = if (rhs.tpe <:< CypherExprType) rhs
+                          else q"_root_.com.arkondata.slothql.newcypher.syntax.lit($rhs)"
+              key -> value
+          }
+          val props = c.Expr[Map[String, CF.Expr[_]]](q"_root_.scala.Predef.Map(..$props0)")
+          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, labels.splice, props.splice) }
           (stringName(name), Tpe.Node, expr)
         case pq"$name@$other" if tree.tpe <:< SyntaxNodeType =>
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
@@ -226,13 +237,16 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
       case tpe if tpe <:< DirectionOutType => reify{ P.Rel.Outgoing }
     }
 
+    lazy val CypherExprType = typeOf[CF.Expr[_]].typeConstructor
+
     lazy val Syntax_<  = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$less")
     lazy val Syntax_>  = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$greater")
     lazy val Syntax_-  = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$minus")
-    lazy val Syntax_:= = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$colons$equal")
+    lazy val Syntax_:= = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$colon$eq")
     lazy val Syntax_** = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$times$times")
 
     lazy val SyntaxNodeUnapplySeqSymbol = typeOf[syntax.Node.type].decl(TermName("unapplySeq")).asMethod
+    lazy val Syntax_UnapplySeqSymbol_:= = Syntax_:=.typeSignature.decl(TermName("unapply")).asMethod
     lazy val SyntaxNodeType = typeOf[syntax.Node].typeConstructor
     lazy val SyntaxRelObj   = symbolOf[syntax.Rel.type]
     lazy val SyntaxRelType  = typeOf[syntax.Rel].typeConstructor

@@ -93,7 +93,7 @@ object CypherFragment {
       def lift: LiftValue[A]
     }
     final case class Param[A](name: String, lift: LiftValue[A]) extends Input[A] with CypherStatement.Param
-    final case class Lit[A](value: A, lift: LiftValue[A]) extends Input[A]
+    final case class Lit[A](value: A, lift: LiftValue[A]) extends Input[A] with LiftedValue { type Value = A }
 
     final case object Null extends Expr[Nothing]
 
