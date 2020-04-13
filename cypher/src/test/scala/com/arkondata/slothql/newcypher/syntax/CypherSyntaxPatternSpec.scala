@@ -6,7 +6,7 @@ import com.arkondata.slothql.newcypher.CypherFragment
 
 /** Advanced pattern matching.
  *  - Node: labels, props
- *  - Rel: labels, props, variable length paths
+ *  - Rel: labels, props, variable length
  *  - Matching paths with many elements (macro test)
  */
 class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
@@ -248,10 +248,61 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       ).returns[Map[String, Any]]
     }
 
-    "match relationship of variable length (no limits)" in pending
-    "match relationship of variable length (min length)" in pending
-    "match relationship of variable length (max length)" in pending
-    "match relationship of variable length (both limits)" in pending
-    "match relationship of variable length with types and properties" in pending
+    "match relationship of variable length (no limits)" in
+      test(
+        Match { case n -Rel(`**`)> _ => n.props },
+        "MATCH (`n0`) -[*]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship of variable length (no limits) (1)" in
+      test(
+        Match { case n -Rel(_ ** _)> _ => n.props },
+        "MATCH (`n0`) -[*]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship of variable length (min length, from literal)" in
+      test(
+        Match { case n -Rel(0 ** _)> _ => n.props },
+        "MATCH (`n0`) -[*0..]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship of variable length (max length, from literal)" in
+      test(
+        Match { case n -Rel(_ ** 10)> _ => n.props },
+        "MATCH (`n0`) -[*..10]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship of variable length (both limits, from literal)" in
+      test(
+        Match { case n -Rel(0 ** 10)> _ => n.props },
+        "MATCH (`n0`) -[*0..10]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship of variable length (both limits, from values)" in {
+      val min = 1
+      val max = 51
+      test(
+        Match { case n -Rel(`min` ** `max`)> _ => n.props },
+        "MATCH (`n0`) -[*1..51]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match relationship of variable length with types" in {
+      test(
+        Match { case n -Rel("foo", "bar", 0 ** 10)> _ => n.props },
+        "MATCH (`n0`) -[:`foo`|`bar`*0..10]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match relationship of variable length with types and properties" in {
+      val min = 0
+      val max = 10
+      val tpe = "Foo"
+      val index = Random.nextInt()
+      test(
+        Match { case n -Rel(`min` ** `max`, `tpe`, "Bar", "flag" := true, "index" := `index`)> _ => n.props },
+        s"MATCH (`n0`) -[:`Foo`|`Bar`*0..10{ `flag`: true, `index`: $index }]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
   }
 }

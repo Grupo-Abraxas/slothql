@@ -147,7 +147,7 @@ package object syntax {
   }
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object ** {
-    def unapply(any: Any): Option[(CF.Expr[Long], CF.Expr[Long])] = ???
+    def unapply(any: Any): Option[(Int, Int)] = ???
   }
 
   // // // // // // // // // // // // // // // // //

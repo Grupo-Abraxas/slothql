@@ -552,7 +552,7 @@ object CypherFragment {
           len <- length match {
                    case None                   => part("")
                    case Some(Rel.All)          => part("*")
-                   case Some(Rel.Range(range)) => rangePart(range.bimap(longLit, longLit)).map(r => s"* $r")
+                   case Some(Rel.Range(range)) => rangePart(range.bimap(longLit, longLit)).map(r => s"*$r")
                  }
           alias <- liftAlias(alias)
         } yield {

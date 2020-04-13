@@ -4,7 +4,7 @@ import scala.annotation.tailrec
 import scala.reflect.ClassTag
 import scala.reflect.macros.blackbox
 
-import cats.data.NonEmptyList
+import cats.data.{ Ior, NonEmptyList }
 
 import com.arkondata.slothql.newcypher.CypherFragment.{ Pattern => P }
 import com.arkondata.slothql.newcypher.CypherStatement.Alias
@@ -222,10 +222,31 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
 
       private def relExprAndDirType(tree: Tree, args: List[Tree]) = {
         val dir = dirExpr(tree)
+        val varLength0 = args.collect {
+          case t if t.symbol == Syntax_** =>
+            reify { P.Rel.All }
+          case pq"$obj($lhs, $rhs)" if obj.symbol == Syntax_** =>
+            (lhs, rhs) match {
+              case (IW(),         IW())         => reify { P.Rel.All }
+              case (IntExpr(min), IW())         => reify { P.Rel.Range(Ior.left(min.splice)) }
+              case (IW(),         IntExpr(max)) => reify { P.Rel.Range(Ior.right(max.splice)) }
+              case (IntExpr(min), IntExpr(max)) => reify { P.Rel.Range(Ior.both(min.splice, max.splice)) }
+            }
+        }
+        if (varLength0.length > 1) c.abort(tree.pos, "Multiple ** used at same relationship")
+        val varLength = varLength0.headOption.map(len => reify { Some(len.splice) }).getOrElse(reify{ None })
         def expr(alias: c.Expr[Option[Alias]]) = reify {
-          P.Rel(alias.splice, collectLabels(args).splice, collectProps(args).splice, None, dir.splice)
+          P.Rel(alias.splice, collectLabels(args).splice, collectProps(args).splice, varLength.splice, dir.splice)
         }
         expr _ -> Tpe.Rel(dir.staticType)
+      }
+
+      private object IW {
+        def unapply(tree: Tree): Boolean = PartialFunction.cond(tree) { case Ident(termNames.WILDCARD) => true }
+      }
+
+      private object IntExpr {
+        def unapply(tree: Tree): Option[c.Expr[Int]] = if (tree.tpe <:< typeOf[Int]) Some(c.Expr[Int](tree)) else None
       }
     }
 
