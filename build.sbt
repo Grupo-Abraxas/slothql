@@ -86,7 +86,9 @@ lazy val arrowsShow = (project in file("arrows-show"))
 // // // Repository // // //
 
 publishTo in ThisBuild := Some("Artifactory Realm" at "https://artifactory.arkondata.com/artifactory/sbt-dev")
-credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkondata.com", sys.env("ARTIFACTORY_USER"), sys.env("ARTIFACTORY_PASSWORD"))
+credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkondata.com",
+                                        sys.env.getOrElse("ARTIFACTORY_USER", ""),
+                                        sys.env.getOrElse("ARTIFACTORY_PASSWORD", ""))
 
 
 // Ammonite
