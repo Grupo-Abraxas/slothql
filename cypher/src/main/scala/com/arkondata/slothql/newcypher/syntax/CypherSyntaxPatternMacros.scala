@@ -11,7 +11,7 @@ import com.arkondata.slothql.newcypher.{ syntax, CypherFragment => CF }
 class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._
 
-  def match_[R: WeakTypeTag](query: c.Expr[Node => CF.Query[R]]): c.Expr[CF.Query[R]] = qImpl(query) {
+  def match_[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = qImpl(query) {
     (guard, pattern) => reify {
       CF.Clause.Match(
         NonEmptyList.one[P](pattern.splice),
@@ -46,8 +46,8 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     case other => c.abort(query.tree.pos, s"Unexpected query function: $other")
   }
 
-  protected def qImpl[R: WeakTypeTag](query0: c.Expr[Node => CF.Query[R]])
-                                     (mkClause: (Guard, QPattern) => c.Expr[CF.Clause]): c.Expr[CF.Query[R]] = {
+  protected def qImpl[R: WeakTypeTag](query0: c.Expr[Node => CF.Query.Query0[R]])
+                                     (mkClause: (Guard, QPattern) => c.Expr[CF.Clause]): c.Expr[CF.Query.Query0[R]] = {
     val (guard, pattern, inner) = impl(query0)
     reify {
       CF.Query.Clause(mkClause(guard, pattern).splice, inner.splice)

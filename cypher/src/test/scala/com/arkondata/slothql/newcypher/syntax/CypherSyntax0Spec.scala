@@ -81,20 +81,15 @@ class CypherSyntax0Spec extends CypherSyntaxBaseSpec {
         "RETURN `a`, `b` AS `a0`"
       ).returns[(Map[String, Any], Map[String, Any])]
 
-    "support nested matches" in pending
-/*
+    "support nested matches" in
       test(
-        Match {
-          case a -_> b =>
-            Match {
-              case `b` < e - c =>
-                (a.props, b.props, e.props, c.props)
-            }
-        },
+        Match { case a -_> b =>
+        Match { case c < e - d =>
+          (a.props, b.props, e.props, c.props)
+        }},
         "MATCH (`a`) --> (`b`) " +
-        "MATCH (`b`) <-[`e`]- (`c`) " +
+        "MATCH (`c`) <-[`e`]- (`d`) " +
         "RETURN `a`, `b`, `e`, `c`"
       ).returns[(Map[String, Any], Map[String, Any], Map[String, Any], Map[String, Any])]
-*/
   }
 }
