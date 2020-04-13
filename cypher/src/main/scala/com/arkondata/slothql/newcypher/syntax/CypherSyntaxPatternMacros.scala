@@ -1,6 +1,7 @@
 package com.arkondata.slothql.newcypher.syntax
 
 import scala.annotation.tailrec
+import scala.reflect.ClassTag
 import scala.reflect.macros.blackbox
 
 import cats.data.NonEmptyList
@@ -181,8 +182,15 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
 
     object Node {
       def unapply(tree: Tree): Option[Elem] = PartialFunction.condOpt(tree) {
-        case pq"$name@$obj(..$args)" if obj.symbol == SyntaxNodeObj =>
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
+        case pq"$name@$obj0(${UnApply(m, args)})" if obj0.tpe <:< typeOf[ClassTag[syntax.Node]]
+                                                  && m.symbol == SyntaxNodeUnapplySeqSymbol =>
+          val labels0 = args.collect {
+            case tree if tree.tpe <:< typeOf[String] => q"_root_.scala.List($tree)"
+            case tree if tree.tpe <:< typeOf[Iterable[String]] => tree
+          }
+          val labels = if (labels0.isEmpty) reify { Nil }
+                       else c.Expr[List[String]](q"${labels0.reduce((i1, i2) => q"$i1 ++ $i2")}.toList")
+          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, labels.splice, Map()) }
           (stringName(name), Tpe.Node, expr)
         case pq"$name@$other" if tree.tpe <:< SyntaxNodeType =>
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
@@ -224,7 +232,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     lazy val Syntax_:= = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$colons$equal")
     lazy val Syntax_** = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$times$times")
 
-    lazy val SyntaxNodeObj  = symbolOf[syntax.Node.type]
+    lazy val SyntaxNodeUnapplySeqSymbol = typeOf[syntax.Node.type].decl(TermName("unapplySeq")).asMethod
     lazy val SyntaxNodeType = typeOf[syntax.Node].typeConstructor
     lazy val SyntaxRelObj   = symbolOf[syntax.Rel.type]
     lazy val SyntaxRelType  = typeOf[syntax.Rel].typeConstructor
