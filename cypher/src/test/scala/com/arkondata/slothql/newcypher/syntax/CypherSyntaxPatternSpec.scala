@@ -304,5 +304,137 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
         s"MATCH (`n0`) -[:`Foo`|`Bar`*0..10{ `flag`: true, `index`: $index }]-> () RETURN `n0`"
       ).returns[Map[String, Any]]
     }
+
+    "build long path patterns (1)" in test(
+      Match { case a < b - c - d > e =>
+           // case (a < ((b - c) - d)) > e =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        a.props
+      },
+      "MATCH (`a0`) <-[`b0`]- (`c0`) -[`d0`]-> (`e0`) " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
+    "build long path patterns (2)" in test(
+      Match { case a - b > c < d - e - f > g =>
+           // case (((a - b) > c) < ((d - e) - f)) > g =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        assert(f).is[Rel]  // test
+        assert(g).is[Node] // test
+        a.props
+      },
+      "MATCH (`a0`) -[`b0`]-> (`c0`) <-[`d0`]- (`e0`) -[`f0`]-> (`g0`) " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
+    "build long path patterns (3)" in test(
+      Match { case a < b - c - d > e < f - g =>
+           // case ((a < ((b - c) - d)) > e) < (f - g) =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        assert(f).is[Rel]  // test
+        assert(g).is[Node] // test
+        a.props
+      },
+      "MATCH (`a0`) <-[`b0`]- (`c0`) -[`d0`]-> (`e0`) <-[`f0`]- (`g0`) " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
+    "build long path patterns (4)" in test(
+      Match { case a <(b)- c <(d)- e <(f)- g -(h)> i =>
+           // case (((a < (b - c)) < (d - e)) < ((f - g) - h)) > i =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        assert(f).is[Rel]  // test
+        assert(g).is[Node] // test
+        assert(h).is[Rel]  // test
+        assert(i).is[Node] // test
+        a.props
+      },
+      "MATCH (`a0`) <-[`b0`]- (`c0`) <-[`d0`]- (`e0`) <-[`f0`]- (`g0`) -[`h0`]-> (`i0`) " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
+    "build long path patterns (5)" in test(
+      Match { case a <(b)- c <(d)- e <(f)- g -(h)> i -(j)> k =>
+           // case ((((a < (b - c)) < (d - e)) < (f - g - h)) > (i - j)) > k =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        assert(f).is[Rel]  // test
+        assert(g).is[Node] // test
+        assert(h).is[Rel]  // test
+        assert(i).is[Node] // test
+        assert(j).is[Rel]  // test
+        assert(k).is[Node] // test
+        (a.props, j.props, k.props)
+      },
+      "MATCH (`a0`) <-[`b0`]- (`c0`) <-[`d0`]- (`e0`) <-[`f0`]- (`g0`) -[`h0`]-> (`i0`) -[`j0`]-> (`k0`) " +
+      "RETURN `a0`, `j0`, `k0`"
+    ).returns[(Map[String, Any], Map[String, Any], Map[String, Any])]
+
+    "build long path patterns (6)" in test(
+      Match { case a <(b)- c <(d)- e <(f)- g -(h)> i -(j)> k <(l)- m <(n)- o =>
+           // case ((((((a < (b - c)) < (d - e)) < ((f - g) - h)) > (i - j)) > k) < (l - m)) < (n - o) =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        assert(f).is[Rel]  // test
+        assert(g).is[Node] // test
+        assert(h).is[Rel]  // test
+        assert(i).is[Node] // test
+        assert(j).is[Rel]  // test
+        assert(k).is[Node] // test
+        assert(l).is[Rel]  // test
+        assert(m).is[Node] // test
+        assert(n).is[Rel]  // test
+        assert(o).is[Node] // test
+        a.props
+      },
+      "MATCH (`a0`) <-[`b0`]- (`c0`) <-[`d0`]- (`e0`) <-[`f0`]- (`g0`) -[`h0`]-> (`i0`) -[`j0`]-> (`k0`) <-[`l0`]- (`m0`) <-[`n0`]- (`o0`) " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
+    "build long path patterns (7)" in test(
+      Match { case a - b > c - d > e < f - g < h - i - j > k - l > m < n - o =>
+           // case (((((((a - b) > (c - d)) > e) < (f - g)) < ((h - i) - j)) > (k - l)) > m) < (n - o) =>
+        assert(a).is[Node] // test
+        assert(b).is[Rel]  // test
+        assert(c).is[Node] // test
+        assert(d).is[Rel]  // test
+        assert(e).is[Node] // test
+        assert(f).is[Rel]  // test
+        assert(g).is[Node] // test
+        assert(h).is[Rel]  // test
+        assert(i).is[Node] // test
+        assert(j).is[Rel]  // test
+        assert(k).is[Node] // test
+        assert(l).is[Rel]  // test
+        assert(m).is[Node] // test
+        assert(n).is[Rel]  // test
+        assert(o).is[Node] // test
+        a.props
+      },
+      "MATCH (`a0`) -[`b0`]-> (`c0`) -[`d0`]-> (`e0`) <-[`f0`]- (`g0`) <-[`h0`]- (`i0`) -[`j0`]-> (`k0`) -[`l0`]-> (`m0`) <-[`n0`]- (`o0`) " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
   }
 }
