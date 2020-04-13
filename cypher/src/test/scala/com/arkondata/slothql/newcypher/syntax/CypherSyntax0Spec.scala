@@ -119,5 +119,32 @@ class CypherSyntax0Spec extends CypherSyntaxBaseSpec {
         "RETURN `a0`, `b0`, `a1`, `x0`"
       ).returns[(Map[String, Any], Map[String, Any], Map[String, Any], Map[String, Any])]
     }
+
+    "support reusing graph nodes at nested matches" in
+      test(
+        Match { case a -_> b =>
+        Match { case `b` < e - c =>
+          (a.props, b.props, e.props, c.props)
+        }},
+        "MATCH (`a0`) --> (`b0`) " +
+        "MATCH (`b0`) <-[`e0`]- (`c0`) " +
+        "RETURN `a0`, `b0`, `e0`, `c0`"
+      ).returns[(Map[String, Any], Map[String, Any], Map[String, Any], Map[String, Any])]
+
+    "support reusing graph nodes at nested matches (2)" in {
+      def match1[R](res: (Node, Node) => CypherFragment.Query.Query0[R]) = Match {
+        case a -_> b => res(a, b)
+      }
+      test(
+        match1 { (n1, n2) =>
+        Match { case `n1` -_> a =>
+          (n1.props, n2.props, a.props)
+        }},
+        "MATCH (`a0`) --> (`b0`) " +
+        "MATCH (`a0`) --> (`a1`) " +
+        "RETURN `a0`, `b0`, `a1`"
+      ).returns[(Map[String, Any], Map[String, Any], Map[String, Any])]
+    }
+
   }
 }

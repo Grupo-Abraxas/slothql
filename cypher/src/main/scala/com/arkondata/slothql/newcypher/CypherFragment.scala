@@ -504,12 +504,16 @@ object CypherFragment {
     sealed trait PatternA extends Pattern {
       val alias: Option[Alias]
     }
-    case class Node(alias: Option[Alias], labels: List[String], map: Map[String, Expr[_]]) extends Pattern0 with PatternA
+    case class Node(
+      alias: Option[CypherStatement.Alias],
+      labels: List[String],
+      props: Map[String, Expr[_]]
+    ) extends Pattern0 with PatternA
     case class Path(left: Node, rel: Rel, right: Pattern0) extends Pattern0
     case class Rel(
-      alias: Option[Alias],
+      alias: Option[CypherStatement.Alias],
       types: List[String],
-      map: Map[String, Expr[_]],
+      props: Map[String, Expr[_]],
       length: Option[Rel.Length],
       dir: Rel.Direction
     ) extends Pattern with PatternA

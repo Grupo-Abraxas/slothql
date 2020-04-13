@@ -182,32 +182,32 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     object Node {
       def unapply(tree: Tree): Option[Elem] = PartialFunction.condOpt(tree) {
         case pq"$name@$obj(..$args)" if obj.symbol == SyntaxNodeObj =>
-          val nme  = stringName(name)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
-          (nme, Tpe.Node, expr)
+          (stringName(name), Tpe.Node, expr)
         case pq"$name@$other" if tree.tpe <:< SyntaxNodeType =>
-          val nme  = stringName(name)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
-          (nme, Tpe.Node, expr)
+          (stringName(name), Tpe.Node, expr)
         case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxNodeType =>
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(None, Nil, Map()) }
+          (None, Tpe.Node, expr)
+        case pq"${Ident(name)}" if tree.tpe <:< SyntaxNodeType =>
+          val node = c.Expr[syntax.Node](q"${name.toTermName}")
+          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(Some(node.splice), Nil, Map()) }
           (None, Tpe.Node, expr)
       }
     }
     object Rel {
       def unapply(tree: Tree): Option[Elem] = PartialFunction.condOpt(tree) {
         case pq"$name@$obj(..$args)" if obj.symbol == SyntaxRelObj =>
-          val nme  = stringName(name)
-          val dir  = dirExpr(obj)
+          val dir = dirExpr(obj)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(alias.splice, Nil, Map(), None, dir.splice) }
-          (nme, Tpe.Rel(dir.staticType), expr)
+          (stringName(name), Tpe.Rel(dir.staticType), expr)
         case pq"$name@$_" if tree.tpe <:< SyntaxRelType =>
-          val nme  = stringName(name)
-          val dir  = dirExpr(tree)
+          val dir = dirExpr(tree)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(alias.splice, Nil, Map(), None, dir.splice) }
-          (nme, Tpe.Rel(dir.staticType), expr)
+          (stringName(name), Tpe.Rel(dir.staticType), expr)
         case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxRelType =>
-          val dir  = dirExpr(tree)
+          val dir = dirExpr(tree)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(None, Nil, Map(), None, dir.splice) }
           (None, Tpe.Rel(dir.staticType), expr)
       }
