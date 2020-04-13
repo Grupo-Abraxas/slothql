@@ -189,11 +189,9 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
                                                   && m.symbol == SyntaxNodeUnapplySeqSymbol =>
           (stringName(name), Tpe.Node, nodeExpr(args))
         case pq"$name@$_" if tree.tpe <:< SyntaxNodeType =>
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
-          (stringName(name), Tpe.Node, expr)
+          (stringName(name), Tpe.Node, nodeExpr(Nil))
         case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxNodeType =>
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(None, Nil, Map()) }
-          (None, Tpe.Node, expr)
+          (None, Tpe.Node, nodeExpr(Nil))
         case pq"${Ident(name)}" if tree.tpe <:< SyntaxNodeType =>
           val node = c.Expr[syntax.Node](q"${name.toTermName}")
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(Some(node.splice), Nil, Map()) }
@@ -215,13 +213,11 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val (expr, relTpe) = relExprAndDirType(tree, args)
           (stringName(name), relTpe, expr)
         case pq"$name@$_" if tree.tpe <:< SyntaxRelType =>
-          val dir = dirExpr(tree)
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(alias.splice, Nil, Map(), None, dir.splice) }
-          (stringName(name), Tpe.Rel(dir.staticType), expr)
+          val (expr, relTpe) = relExprAndDirType(tree, Nil)
+          (stringName(name), relTpe, expr)
         case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxRelType =>
-          val dir = dirExpr(tree)
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(None, Nil, Map(), None, dir.splice) }
-          (None, Tpe.Rel(dir.staticType), expr)
+          val (expr, relTpe) = relExprAndDirType(tree, Nil)
+          (None, relTpe, expr)
       }
 
       private def relExprAndDirType(tree: Tree, args: List[Tree]) = {
