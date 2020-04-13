@@ -17,6 +17,12 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
         "MATCH (`n0`:`Foo`) RETURN `n0`"
       ).returns[Map[String, Any]]
 
+    "match literal node label (1)" in
+      test(
+        Match { case Node("Foo") -_> n => n.props },
+        "MATCH (:`Foo`) --> (`n0`) RETURN `n0`"
+      ).returns[Map[String, Any]]
+
     "match multiple literal node labels" in
       test(
         Match { case n@Node("Foo", "Bar", "Baz") => n.props },

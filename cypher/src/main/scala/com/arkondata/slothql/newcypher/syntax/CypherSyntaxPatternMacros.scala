@@ -182,28 +182,13 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
 
     object Node {
       def unapply(tree: Tree): Option[Elem] = PartialFunction.condOpt(tree) {
+        case pq"$obj0(${UnApply(m, args)})" if obj0.tpe <:< typeOf[ClassTag[syntax.Node]]
+                                            && m.symbol == SyntaxNodeUnapplySeqSymbol =>
+          (None, Tpe.Node, nodeExpr(args))
         case pq"$name@$obj0(${UnApply(m, args)})" if obj0.tpe <:< typeOf[ClassTag[syntax.Node]]
                                                   && m.symbol == SyntaxNodeUnapplySeqSymbol =>
-          val labels0 = args.collect {
-            case tree if tree.tpe <:< typeOf[String] => q"_root_.scala.List($tree)"
-            case tree if tree.tpe <:< typeOf[Iterable[String]] => tree
-          }
-          val labels = if (labels0.isEmpty) reify { Nil }
-                       else c.Expr[List[String]](q"${labels0.reduce((i1, i2) => q"$i1 ++ $i2")}.toList")
-          val props0 = args.collect {
-            case UnApply(m,  List(lhs, rhs)) if m.symbol == Syntax_UnapplySeqSymbol_:= =>
-              val key = lhs match {
-                case Literal(Constant(s: String)) => s
-                case _ => c.abort(lhs.pos, "Property key must be a literal string")
-              }
-              val value = if (rhs.tpe <:< CypherExprType) rhs
-                          else q"_root_.com.arkondata.slothql.newcypher.syntax.lit($rhs)"
-              key -> value
-          }
-          val props = c.Expr[Map[String, CF.Expr[_]]](q"_root_.scala.Predef.Map(..$props0)")
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, labels.splice, props.splice) }
-          (stringName(name), Tpe.Node, expr)
-        case pq"$name@$other" if tree.tpe <:< SyntaxNodeType =>
+          (stringName(name), Tpe.Node, nodeExpr(args))
+        case pq"$name@$_" if tree.tpe <:< SyntaxNodeType =>
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(alias.splice, Nil, Map()) }
           (stringName(name), Tpe.Node, expr)
         case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxNodeType =>
@@ -213,6 +198,10 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val node = c.Expr[syntax.Node](q"${name.toTermName}")
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(Some(node.splice), Nil, Map()) }
           (None, Tpe.Node, expr)
+      }
+
+      private def nodeExpr(args: List[Tree])(alias: c.Expr[Option[Alias]]) = reify {
+        P.Node(alias.splice, collectLabels(args).splice, collectProps(args).splice)
       }
     }
     object Rel {
@@ -235,6 +224,29 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     private def dirExpr(tree: Tree) = (tree.tpe.decl(TypeName("Dir")).asType.toType: @unchecked) match {
       case tpe if tpe <:< DirectionInType  => reify{ P.Rel.Incoming }
       case tpe if tpe <:< DirectionOutType => reify{ P.Rel.Outgoing }
+    }
+
+    private def collectLabels(args: Seq[Tree]): c.Expr[List[String]] = {
+      val labels0 = args.collect {
+        case tree if tree.tpe <:< typeOf[String] => q"_root_.scala.List($tree)"
+        case tree if tree.tpe <:< typeOf[Iterable[String]] => tree
+      }
+      if (labels0.isEmpty) reify { Nil }
+      else c.Expr[List[String]](q"${labels0.reduce((i1, i2) => q"$i1 ++ $i2")}.toList")
+    }
+
+    private def collectProps(args: Seq[Tree]): c.Expr[Map[String, CF.Expr[_]]] = {
+      val props0 = args.collect {
+        case UnApply(m,  List(lhs, rhs)) if m.symbol == Syntax_UnapplySeqSymbol_:= =>
+          val key = lhs match {
+            case Literal(Constant(s: String)) => s
+            case _ => c.abort(lhs.pos, "Property key must be a literal string")
+          }
+          val value = if (rhs.tpe <:< CypherExprType) rhs
+          else q"_root_.com.arkondata.slothql.newcypher.syntax.lit($rhs)"
+          key -> value
+      }
+      c.Expr[Map[String, CF.Expr[_]]](q"_root_.scala.Predef.Map(..$props0)")
     }
 
     lazy val CypherExprType = typeOf[CF.Expr[_]].typeConstructor
