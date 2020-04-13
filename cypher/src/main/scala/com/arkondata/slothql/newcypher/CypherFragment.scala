@@ -92,12 +92,15 @@ object CypherFragment {
     sealed trait Input[A] extends Expr[A] {
       def lift: LiftValue[A]
     }
-    final case class Param[A](name: String, lift: LiftValue[A]) extends Input[A]
+    final case class Param[A](name: String, lift: LiftValue[A]) extends Input[A] with CypherStatement.Param
     final case class Lit[A](value: A, lift: LiftValue[A]) extends Input[A]
 
     final case object Null extends Expr[Nothing]
 
-    case class Var[+A](name: String) extends Expr[A]
+    class Alias[+A](val name: String) extends Expr[A] with CypherStatement.Alias
+    object Alias {
+      def apply[A](name: String): Alias[A] = new Alias(name)
+    }
 
     final case class Func[+A](func: String, params: List[Expr[_]]) extends Expr[A]
 
@@ -126,24 +129,24 @@ object CypherFragment {
 
     final case class Reduce[A, B](
       list: Expr[List[A]],
-      elemAlias: String,
+      elemAlias: Alias[A],
       initial: Expr[B],
-      accAlias: String,
-      reduce: (Var[B], Var[A]) => Expr[B]
+      accAlias: Alias[B],
+      reduce: (Alias[B], Alias[A]) => Expr[B]
     ) extends ListExpr[B]
 
     final case class ListComprehension[A, B](
       list: Expr[List[A]],
-      elemAlias: String,
-      filter: Option[Var[A] => Expr[Boolean]],
-      map: Option[Var[A] => Expr[B]]
+      elemAlias: Alias[A],
+      filter: Option[Alias[A] => Expr[Boolean]],
+      map: Option[Alias[A] => Expr[B]]
     ) extends ListExpr[List[B]]
 
     final case class ListPredicate[A](
       list: Expr[List[A]],
-      elemAlias: String,
+      elemAlias: Alias[A],
       predicate: ListPredicate.Predicate,
-      cond: Var[A] => Expr[Boolean]
+      cond: Alias[A] => Expr[Boolean]
     ) extends ListExpr[Boolean]
 
     object ListPredicate {
@@ -164,28 +167,28 @@ object CypherFragment {
       case Reduce(list, elemAlias, initial, accAlias, reduce) =>
         for {
           lst  <- part(list)
-          elem <- newAlias(elemAlias)
+          elem <- liftAlias(elemAlias)
           init <- part(initial)
-          acc  <- newAlias(accAlias)
-          expr <- part(reduce(Var(acc), Var(elem)))
-        } yield s"reduce(${escapeName(acc)} = $init, ${escapeName(elem)} IN $lst | $expr)"
+          acc  <- liftAlias(accAlias)
+          expr <- part(reduce(Alias(acc), Alias(elem)))
+        } yield s"reduce($acc = $init, $elem IN $lst | $expr)"
       case ListComprehension(list, _, None, None) =>
         part(list)
       case ListComprehension(list, elemAlias, filter, map) =>
         for {
           lst  <- part(list)
-          elem <- newAlias(elemAlias)
-          fOpt <- partsSequence(filter.map(_(Var(elem))))
-          mOpt <- partsSequence(map.map(_(Var(elem))))
+          elem <- liftAlias(elemAlias)
+          fOpt <- partsSequence(filter.map(_(Alias(elem))))
+          mOpt <- partsSequence(map.map(_(Alias(elem))))
           f    <- part(fOpt.map(f => s" WHERE $f").getOrElse(""))
           m    <- part(mOpt.map(m => s" | $m").getOrElse(""))
-        } yield s"[${escapeName(elem)} IN $lst$f$m]"
+        } yield s"[$elem IN $lst$f$m]"
       case ListPredicate(list, elemAlias, predicate, cond) =>
         for {
           lst  <- part(list)
-          elem <- newAlias(elemAlias)
-          expr <- part(cond(Var(elem)))
-        } yield s"${predicate.cypher}(${escapeName(elem)} IN $lst WHERE $expr)"
+          elem <- liftAlias(elemAlias)
+          expr <- part(cond(Alias(elem)))
+        } yield s"${predicate.cypher}($elem IN $lst WHERE $expr)"
     }
 
 
@@ -209,7 +212,7 @@ object CypherFragment {
     object LogicExpr {
       sealed trait UnaryOp
       case object Negate  extends UnaryOp
-      
+
       sealed abstract class BinaryOp(protected[Expr] val cypher: String)
       case object Or  extends BinaryOp("OR")
       case object And extends BinaryOp("AND")
@@ -230,7 +233,7 @@ object CypherFragment {
       sealed trait UnaryOp
       case object IsNull  extends UnaryOp
       case object NotNull extends UnaryOp
-      
+
       sealed abstract class BinaryOp(protected[Expr] val cypher: String)
       case object Eq  extends BinaryOp("=")
       case object Neq extends BinaryOp("<>")
@@ -318,10 +321,10 @@ object CypherFragment {
       case e: CompareExpr         => toCypher(e)
       case e: MathematicalExpr[_] => toCypher(e)
       case e: CaseExpr[_]         => toCypher(e)
-      case Param(name0, lift)  => newParam(name0, lift).map(name => s"$$${escapeName(name)}")
+      case param@Param(_, lift)   => liftParam(param, lift).map(name => s"$$${escapeName(name)}")
       case Lit(value, lift)    => part(lift.asLiteral(value))
       case Null                => part("null")
-      case Var(name)           => part(escapeName(name))
+      case alias: Alias[_]     => liftAlias(alias)
       case Func(func, params)  => funcLikePart(func, params)
       case Distinct(expr)      => part(expr).map(e => s"DISTINCT $e")
       case Exists(pattern)     => part(pattern).map(p => s"EXISTS ($p})")
@@ -365,7 +368,7 @@ object CypherFragment {
   object Return {
     case object All extends Return[Map[String, Any]]
 
-    final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[String]) extends Return[A]
+    final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[Alias]) extends Return[A]
     final case class Tuple[T <: Product](exprs: List[Expr[_]]) extends Return[T]
 
     // TODO ================================================================
@@ -394,8 +397,12 @@ object CypherFragment {
       case Tuple(exprs)   => partsSequence(exprs).map(_.mkString(", "))
       case Nothing        => part("")
       case Expr(expr, as) =>
-        as.map(a => part(expr).map(t => s"$t AS ${escapeName(a)}"))
-          .getOrElse(part(expr))
+        as.map{ alias =>
+          for {
+            alias <- liftAlias(alias)
+            expr  <- part(expr)
+          } yield s"$expr AS $alias"
+        }.getOrElse(part(expr))
       case Options(ret0, distinct0, orderBy0, skip0, limit0) =>
         val (ordEs, ordOs)  = orderBy0.unzip
         for {
@@ -491,16 +498,16 @@ object CypherFragment {
     final lazy val toCypherF: GenF[Part] = Pattern.toCypher(this).f
   }
   object Pattern {
-    case class Let(alias: String, pattern: Pattern0) extends Pattern
+    case class Let(alias: Alias, pattern: Pattern0) extends Pattern
 
     sealed trait Pattern0 extends Pattern
     sealed trait PatternA extends Pattern {
-      val alias: Option[String]
+      val alias: Option[Alias]
     }
-    case class Node(alias: Option[String], labels: List[String], map: Map[String, Expr[_]]) extends Pattern0 with PatternA
+    case class Node(alias: Option[Alias], labels: List[String], map: Map[String, Expr[_]]) extends Pattern0 with PatternA
     case class Path(left: Node, rel: Rel, right: Pattern0) extends Pattern0
     case class Rel(
-      alias: Option[String],
+      alias: Option[Alias],
       types: List[String],
       map: Map[String, Expr[_]],
       length: Option[Rel.Length],
@@ -521,8 +528,9 @@ object CypherFragment {
     def toCypher(pattern: Pattern): GenS[Part] = pattern match {
       case Let(alias, pattern) =>
         for {
+          alias <- liftAlias(alias)
           pat <- part(pattern)
-        } yield s"${escapeName(alias)} = $pat"
+        } yield s"$alias = $pat"
       case Path(left, relation, right) =>
         for {
           lhs <- part(left)
@@ -531,8 +539,9 @@ object CypherFragment {
         } yield s"$lhs $rel $rhs"
       case Node(alias, labels, map) =>
         for {
+          alias <- liftAlias(alias)
           m <- mapPart(map, joinPropsMap)
-        } yield s"(${aliasStr(alias)}${labelLikeStr(labels, ":")}$m)"
+        } yield s"($alias${labelLikeStr(labels, ":")}$m)"
       case Rel(alias, types, map, length, dir) =>
         for {
           m   <- mapPart(map, joinPropsMap)
@@ -541,10 +550,11 @@ object CypherFragment {
                    case Some(Rel.All)          => part("*")
                    case Some(Rel.Range(range)) => rangePart(range.bimap(longLit, longLit)).map(r => s"* $r")
                  }
+          alias <- liftAlias(alias)
         } yield {
           val tpe       = labelLikeStr(types, "|")
           val hasParams = alias.nonEmpty || tpe.nonEmpty || len.nonEmpty || m.nonEmpty
-          val params    = if (hasParams) s"[${aliasStr(alias)}$tpe$len$m]" else ""
+          val params    = if (hasParams) s"[$alias$tpe$len$m]" else ""
           dir match {
             case Rel.Outgoing => s"-$params->"
             case Rel.Incoming => s"<-$params-"
@@ -558,8 +568,6 @@ object CypherFragment {
       case l   => l.mkString("{ ", ", ", " }")
     }
 
-    @deprecated // TODO ================================================================================================
-    private def aliasStr(alias: Option[String]) = alias.map(escapeName).getOrElse("")
     private def labelLikeStr(xs: List[String], sep: String) = xs match {
       case Nil => ""
       case _ => xs.map(escapeName).mkString(":", sep, "")

@@ -73,9 +73,45 @@ object CypherStatement {
     implicit def mkCompleteStatement[T]: MkStatement[Complete[T]] = Complete(_, _)
   }
 
+  trait Alias {
+    def name: String
+  }
+
+  trait Param {
+    def name: String
+  }
+
   abstract class Gen {
-    def nextAlias(prefix: String): (String, Gen)
-    def nextParam(prefix: String): (String, Gen)
+    def nextAlias(alias: Alias): (String, Gen)
+    def nextParam(prefix: Param): (String, Gen)
+  }
+  object Gen {
+    type Hash = Int
+    type Suffix = Int
+
+    final class Default protected (
+      hashedAliases: Map[Hash, String],
+      usedAliases: Map[String, Suffix],
+      hashedParams: Map[Hash, String],
+      usedParams: Map[String, Suffix]
+    ) extends Gen {
+      def nextAlias(alias: Alias): (String, Gen) = next(alias.##, alias.name, hashedAliases, usedAliases, new Default(_, _, hashedParams, usedParams))
+      def nextParam(prefix: Param): (String, Gen) = next(prefix.##, prefix.name, hashedParams,  usedParams, new Default(hashedAliases, usedAliases, _, _))
+
+      private def next(hash: Int, s0: String, mh: Map[Hash, String], mu: Map[String, Suffix], copy: (Map[Hash, String], Map[String, Suffix]) => Gen) = {
+        mh.get(hash)
+          .map(_ -> this)
+          .getOrElse {
+            val s = s0.trim
+            val suffix = mu.getOrElse(s, 0)
+            val s1 = s"$s$suffix"
+            s1 -> copy(mh.updated(hash, s1), mu.updated(s, suffix + 1))
+          }
+      }
+    }
+    object Default{
+      def apply(): Default = new Default(Map(), Map(), Map(), Map())
+    }
   }
 
   final class GenF[A](val f: Gen => (A, Gen)) extends AnyVal {
@@ -166,13 +202,19 @@ object CypherStatement {
     private object CompleteSequenceBuilder extends CompleteSequenceBuilder[Any]
 
 
-    def newParam(prefix: String, lift: LiftValue[_]): GenS[Part] = GenS(
+    def liftParam(param: Param, lift: LiftValue[_]): GenS[Part] = GenS(
       for {
-        param <- GenF(_.nextParam(prefix))
+        param <- GenF(_.nextParam(param))
       } yield Part(param, Map(param -> lift))
     )
 
-    def newAlias(prefix: String): GenS[Part] = GenS(GenF(_.nextAlias(prefix)).map(Part(_, Map())))
+    def liftAlias(alias: Alias): GenS[Part] = liftAlias(Option(alias))
+    def liftAlias(opt: Option[Alias]): GenS[Part] = opt
+      .map{
+        case wildcard if wildcard.name == "_" => part("")
+        case alias => GenS(GenF(_.nextAlias(alias)).map(a => Part(CypherFragment.escapeName(a), Map())))
+      }
+      .getOrElse(part(""))
   }
 
   implicit class GenSPartOps[C[_]: Functor: Foldable](gf: GenS0[C ,Part]) {

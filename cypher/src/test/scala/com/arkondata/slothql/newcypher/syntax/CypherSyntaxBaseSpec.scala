@@ -5,7 +5,7 @@ import org.scalatest.{ Assertion, Matchers, WordSpec }
 import com.arkondata.slothql.newcypher.{ CypherFragment, CypherStatement }
 
 trait CypherSyntaxBaseSpec extends WordSpec with Matchers {
-  protected def cypherGen: CypherStatement.Gen = new CypherSyntaxBaseSpec.StubIdGen
+  protected def cypherGen: CypherStatement.Gen = CypherStatement.Gen.Default()
 
   protected def test[A](query: CypherFragment.Query[A], expectedTemplate: String, expectedParams: Map[String, CypherStatement.LiftValue[_]] = Map()): Test[A] =
     new Test[A](query, expectedTemplate, expectedParams)
@@ -23,11 +23,4 @@ trait CypherSyntaxBaseSpec extends WordSpec with Matchers {
     def is[R](implicit correct: T <:< R): Assertion = succeed
   }
   private lazy val isOps = new IsOps[Any]
-}
-
-object CypherSyntaxBaseSpec {
-  class StubIdGen extends CypherStatement.Gen {
-    def nextAlias(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
-    def nextParam(prefix: String): (String, CypherStatement.Gen) = (prefix, this)
-  }
 }

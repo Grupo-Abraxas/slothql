@@ -46,12 +46,10 @@ package object syntax {
   // // // // // Matching Graph Paths // // // // //
   // // // // // // // // // // // // // // // // //
 
-  sealed trait GraphElem {
-    val name: String
-  }
+  sealed trait GraphElem extends CypherStatement.Alias
   object GraphElem {
-    sealed trait Node extends GraphElem { val name: String }
-    sealed trait Rel  extends GraphElem { val name: String; type Dir <: Rel.Direction }
+    sealed trait Node extends GraphElem
+    sealed trait Rel  extends GraphElem { type Dir <: Rel.Direction }
   }
   type Node = GraphElem.Node with CF.Expr[Map[String, Any]]
   type Rel  = GraphElem.Rel  with CF.Expr[Map[String, Any]]
@@ -59,8 +57,8 @@ package object syntax {
   // TODO: path!
 
   object CypherSyntaxFromMacro {
-    def mkNode(name: String): Node                          = new CF.Expr.Var(name) with GraphElem.Node
-    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Var(name) with GraphElem.Rel { type Dir = D }
+    def mkNode(name: String): Node                          = new CF.Expr.Alias(name) with GraphElem.Node
+    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Alias(name) with GraphElem.Rel { type Dir = D }
   }
 
   // // // // // //
@@ -161,7 +159,8 @@ package object syntax {
   implicit def cypherSyntaxReturnToQueryReturn[A](ret: CF.Return[A]): CF.Query.Return[A] = CF.Query.Return(ret)
 
   implicit final class CypherSyntaxReturnAsOps[A](expr: CF.Expr[A]) {
-    def as(alias: String): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
+    def as(alias: CypherStatement.Alias): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
+    def as(alias: String): CF.Return.Expr[A] = as(CF.Expr.Alias(alias))
   }
 
   implicit def cypherSyntaxTupleToReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Return[ret.Out] = ret(tuple)
