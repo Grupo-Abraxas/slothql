@@ -206,10 +206,14 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     }
     object Rel {
       def unapply(tree: Tree): Option[Elem] = PartialFunction.condOpt(tree) {
-        case pq"$name@$obj(..$args)" if obj.symbol == SyntaxRelObj =>
-          val dir = dirExpr(obj)
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(alias.splice, Nil, Map(), None, dir.splice) }
-          (stringName(name), Tpe.Rel(dir.staticType), expr)
+        case pq"$obj0(${UnApply(m, args)})" if obj0.tpe <:< typeOf[ClassTag[syntax.Rel]]
+                                            && m.symbol == SyntaxRelUnapplySeqSymbol =>
+          val (expr, relTpe) = relExprAndDirType(tree, args)
+          (None, relTpe, expr)
+        case pq"$name@$obj0(${UnApply(m, args)})" if obj0.tpe <:< typeOf[ClassTag[syntax.Rel]]
+                                                  && m.symbol == SyntaxRelUnapplySeqSymbol =>
+          val (expr, relTpe) = relExprAndDirType(tree, args)
+          (stringName(name), relTpe, expr)
         case pq"$name@$_" if tree.tpe <:< SyntaxRelType =>
           val dir = dirExpr(tree)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(alias.splice, Nil, Map(), None, dir.splice) }
@@ -218,6 +222,14 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val dir = dirExpr(tree)
           def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Rel(None, Nil, Map(), None, dir.splice) }
           (None, Tpe.Rel(dir.staticType), expr)
+      }
+
+      private def relExprAndDirType(tree: Tree, args: List[Tree]) = {
+        val dir = dirExpr(tree)
+        def expr(alias: c.Expr[Option[Alias]]) = reify {
+          P.Rel(alias.splice, collectLabels(args).splice, collectProps(args).splice, None, dir.splice)
+        }
+        expr _ -> Tpe.Rel(dir.staticType)
       }
     }
 
@@ -258,6 +270,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     lazy val Syntax_** = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$times$times")
 
     lazy val SyntaxNodeUnapplySeqSymbol = typeOf[syntax.Node.type].decl(TermName("unapplySeq")).asMethod
+    lazy val SyntaxRelUnapplySeqSymbol  = typeOf[syntax.Rel.type] .decl(TermName("unapplySeq")).asMethod
     lazy val Syntax_UnapplySeqSymbol_:= = Syntax_:=.typeSignature.decl(TermName("unapply")).asMethod
     lazy val SyntaxNodeType = typeOf[syntax.Node].typeConstructor
     lazy val SyntaxRelObj   = symbolOf[syntax.Rel.type]

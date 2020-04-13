@@ -165,5 +165,93 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       ).returns[Map[String, Any]]
     }
 
+    "match literal relationship type" in
+      test(
+        Match { case n -Rel("foo")> _ => n.props },
+        "MATCH (`n0`) -[:`foo`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match literal relationship type (1)" in
+      test(
+        Match { case n -(r@Rel("foo"))> _ => (n.props, r.prop[Int]("index")) },
+        "MATCH (`n0`) -[`r0`:`foo`]-> () RETURN `n0`, `r0`.`index`"
+      ).returns[(Map[String, Any], Int)]
+
+    "match alternative literal relationships types" in
+      test(
+        Match { case n -Rel("foo", "bar")> _ => n.props },
+        "MATCH (`n0`) -[:`foo`|`bar`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship type from string value" in {
+      val tpe = "baz"
+      test(
+        Match { case n -Rel(`tpe`)> _ => n.props },
+        "MATCH (`n0`) -[:`baz`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match alternative relationship types from multiple string values" in {
+      val foo = "foo"
+      val bar = "bar"
+      test(
+        Match { case n -Rel(`foo`, `bar`)> _ => n.props },
+        "MATCH (`n0`) -[:`foo`|`bar`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match alternative relationship types from string iterable values" in {
+      val types = Seq("foo", "bar")
+      test(
+        Match { case n -Rel(`types`)> _ => n.props },
+        "MATCH (`n0`) -[:`foo`|`bar`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match alternative relationship types from string values and iterable values" in {
+      val types = Seq("foo", "bar")
+      test(
+        Match { case n -Rel("baz", `types`)> _ => n.props },
+        "MATCH (`n0`) -[:`baz`|`foo`|`bar`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match alternative relationship types from string values, iterable values and literal values" in {
+      val types = Seq("foo", "bar")
+      val tpe = "baz"
+      test(
+        Match { case n -Rel(`tpe`, `types`, "Test")> _ => n.props },
+        "MATCH (`n0`) -[:`baz`|`foo`|`bar`|`Test`]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match relationship property from literal" in
+      test(
+        Match { case n -Rel("index" := 12)> _ => n.props },
+        "MATCH (`n0`) -[{ `index`: 12 }]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+
+    "match relationship property from value" in {
+      val flag = Random.nextBoolean()
+      test(
+        Match { case n -Rel("flag" := `flag`)> _ => n.props },
+        s"MATCH (`n0`) -[{ `flag`: $flag }]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match relationship types and properties" in {
+      val tpe = "Foo"
+      val index = Random.nextInt()
+      test(
+        Match { case n -Rel(`tpe`, "Bar", "flag" := true, "index" := `index`)> _ => n.props },
+        s"MATCH (`n0`) -[:`Foo`|`Bar`{ `flag`: true, `index`: $index }]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match relationship of variable length (no limits)" in pending
+    "match relationship of variable length (min length)" in pending
+    "match relationship of variable length (max length)" in pending
+    "match relationship of variable length (both limits)" in pending
+    "match relationship of variable length with types and properties" in pending
   }
 }
