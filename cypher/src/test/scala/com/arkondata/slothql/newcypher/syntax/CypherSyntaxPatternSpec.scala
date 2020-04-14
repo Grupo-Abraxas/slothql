@@ -158,6 +158,19 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
+    "match node property from expression" in {
+      test(
+        Match { case a =>
+          val foo = a.prop[Int]("foo")
+        Match { case b@Node("foo" := `foo`) =>
+          (a.props, b.props)
+        }},
+        "MATCH (`a0`) " +
+        "MATCH (`b0`{ `foo`: `a0`.`foo` }) " +
+        "RETURN `a0`, `b0`"
+      ).returns[(Map[String, Any], Map[String, Any])]
+    }
+
     "match node labels and properties" in {
       val label = "Foo"
       val id = "abcd"
@@ -238,6 +251,19 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n -Rel("flag" := `flag`)> _ => n.props },
         s"MATCH (`n0`) -[{ `flag`: $flag }]-> () RETURN `n0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "match relationship property from expression" in {
+      test(
+        Match { case a =>
+          val foo = a.prop[Int]("foo")
+        Match { case n -Rel("foo" := `foo`)> _ =>
+          n.props
+        }},
+        "MATCH (`a0`) " +
+        "MATCH (`n0`) -[{ `foo`: `a0`.`foo` }]-> () " +
+        "RETURN `n0`"
       ).returns[Map[String, Any]]
     }
 

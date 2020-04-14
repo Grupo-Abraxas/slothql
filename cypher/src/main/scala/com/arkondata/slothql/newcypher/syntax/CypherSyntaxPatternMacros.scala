@@ -304,13 +304,13 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
             case _ => c.abort(lhs.pos, "Property key must be a literal string")
           }
           val value = if (rhs.tpe <:< CypherExprType) rhs
-          else q"_root_.com.arkondata.slothql.newcypher.syntax.lit($rhs)"
+                      else q"_root_.com.arkondata.slothql.newcypher.syntax.lit($rhs)"
           key -> value
       }
       c.Expr[Map[String, CF.Expr[_]]](q"_root_.scala.Predef.Map(..$props0)")
     }
 
-    lazy val CypherExprType = typeOf[CF.Expr[_]].typeConstructor
+    lazy val CypherExprType = typeOf[CF.Expr[_]]
 
     lazy val Syntax_<  = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$less")
     lazy val Syntax_>  = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$greater")
