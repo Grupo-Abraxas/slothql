@@ -498,7 +498,7 @@ object CypherFragment {
     final lazy val toCypherF: GenF[Part] = Pattern.toCypher(this).f
   }
   object Pattern {
-    case class Let(alias: Alias, pattern: Pattern0) extends Pattern
+    case class Let(alias: CypherStatement.Alias, pattern: Pattern0) extends Pattern
 
     sealed trait Pattern0 extends Pattern
     sealed trait PatternA extends Pattern {

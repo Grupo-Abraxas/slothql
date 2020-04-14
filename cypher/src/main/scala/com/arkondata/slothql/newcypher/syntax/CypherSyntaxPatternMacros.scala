@@ -32,17 +32,26 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     case Function(List(_), Match(_, cases)) =>
       cases match {
         case List(CaseDef(pattern, guard, body)) =>
-          val Pattern(elems) = pattern
-          val bindDefs = elems.collect{
+          val PatternPlus(letAliasOpt, elems) = pattern
+          val bindDefsNodeRel = elems.collect{
             case (Some(nme), Pattern.Tpe.Node, _) =>
               q"val ${TermName(nme)} = _root_.com.arkondata.slothql.newcypher.syntax.CypherSyntaxFromMacro.mkNode($nme)"
             case (Some(nme), Pattern.Tpe.Rel(dir), _) =>
               q"val ${TermName(nme)} = _root_.com.arkondata.slothql.newcypher.syntax.CypherSyntaxFromMacro.mkRel[$dir]($nme)"
           }
-          val newBody = transformBody(elems, body)
+          val bindDefOptLet = letAliasOpt.map(nme =>
+            q"val ${TermName(nme)} = _root_.com.arkondata.slothql.newcypher.syntax.CypherSyntaxFromMacro.mkPath($nme)"
+          )
+          val letAliasExprOpt = letAliasOpt.map(nme => c.Expr[Alias](q"${TermName(nme)}"))
+
+          val rebind = elems.flatMap(_._1) ++ letAliasOpt.toSeq
+          val newBody = transformBody(rebind, body)
+
           val guardExpr = c.Expr[CF.Expr[Boolean]](guard)
           val qGuard = if (guard.nonEmpty) reify{ Some(guardExpr.splice) } else reify{ None }
-          (qGuard, mkPattern(elems), bindDefs, c.Expr[CF.Query.Query0[R]](newBody))
+          val patternExpr = maybeLetPattern(letAliasExprOpt, elems)
+          val bindDefs = bindDefsNodeRel ++ bindDefOptLet.toSeq
+          (qGuard, patternExpr, bindDefs, c.Expr[CF.Query.Query0[R]](newBody))
         case _ => c.abort(query.tree.pos, "Query must have a single case clause")
       }
     case other => c.abort(query.tree.pos, s"Unexpected query function: $other")
@@ -56,6 +65,10 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     }
     c.Expr[CF.Query.Query0[R]](q"..$defs; $clause")
   }
+
+  protected def maybeLetPattern(letOpt: Option[c.Expr[Alias]], elems: List[Pattern.Elem]): c.Expr[P] =
+    letOpt.map(let => reify{ P.Let(let.splice, mkPattern(elems).splice) })
+          .getOrElse(mkPattern(elems))
 
   protected def mkPattern(elems: List[Pattern.Elem]): c.Expr[P.Pattern0] = {
     val Pattern.Elem.Node(nme0, head) :: tail = elems.reverse
@@ -76,8 +89,8 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     val first = alias0.map{ a => head(reify{ Some(a.splice) }) }.getOrElse(head(reify{ None }))
     inner(tail, first)
   }
-  protected def transformBody(elems: List[Pattern.Elem], body: Tree): Tree = {
-    val newBody = new BodyTransformer(elems.flatMap(_._1)).transform(body)
+  protected def transformBody(elemNames: List[String], body: Tree): Tree = {
+    val newBody = new BodyTransformer(elemNames).transform(body)
     c.untypecheck(newBody)
   }
 
@@ -92,6 +105,25 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   implicit lazy val liftablePatternA: Liftable[P.PatternA] = {
     case P.Node(alias, labels, map) => reify{ P.Node(alias, labels, map) }.tree
     case P.Rel(alias, types, map, length, dir) => reify{ P.Rel(alias, types, map, length, dir) }.tree
+  }
+
+  object PatternPlus {
+    type LetAlias = String
+
+    def unapply(tree: Tree): Option[(Option[LetAlias], List[Pattern.Elem])] = (tree: @unchecked) match {
+      case UnApply(m, List(lhs, rhs)) if m.symbol == SyntaxUnapply_::= =>
+        val alias = lhs match {
+          case pq"$name@$_" => Pattern.stringName(name)
+          case _ => None
+        }
+        if (alias.isEmpty) c.abort(tree.pos, "Left hand side of `::=` match must be a binding.")
+        val Pattern(pattern) = rhs
+        Some(alias -> pattern)
+      case Pattern(pattern) => Some(None -> pattern)
+    }
+
+    lazy val SyntaxUnapply_::= = rootMirror.staticModule("com.arkondata.slothql.newcypher.syntax.$colon$colon$eq")
+                                           .typeSignature.decl(TermName("unapply"))
   }
 
   /**

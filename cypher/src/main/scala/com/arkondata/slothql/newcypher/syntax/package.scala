@@ -4,6 +4,8 @@ import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 import scala.language.implicitConversions
 
+import shapeless.tag.@@
+
 import com.arkondata.slothql.newcypher.{ CypherFragment => CF }
 
 package object syntax {
@@ -50,15 +52,20 @@ package object syntax {
   object GraphElem {
     sealed trait Node extends GraphElem
     sealed trait Rel  extends GraphElem { type Dir <: Rel.Direction }
-  }
-  type Node = GraphElem.Node with CF.Expr[Map[String, Any]]
-  type Rel  = GraphElem.Rel  with CF.Expr[Map[String, Any]]
 
-  // TODO: path!
+    type NodeElem = Map[String, Any] @@ GraphElem.Node
+    type RelElem  = Map[String, Any] @@ GraphElem.Rel
+  }
+  sealed trait GraphPath
+
+  type Node = CF.Expr[GraphElem.NodeElem] with CypherStatement.Alias
+  type Rel  = CF.Expr[GraphElem.RelElem]  with CypherStatement.Alias
+  type Path = CF.Expr[GraphPath]          with CypherStatement.Alias
 
   object CypherSyntaxFromMacro {
     def mkNode(name: String): Node                          = new CF.Expr.Alias(name) with GraphElem.Node
     def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Alias(name) with GraphElem.Rel { type Dir = D }
+    def mkPath(name: String): Path                          = new CF.Expr.Alias(name) with GraphPath
   }
 
   // // // // // //
@@ -145,9 +152,13 @@ package object syntax {
   object := {
     def unapply(any: Any): Option[(String, Any)] = ???
   }
-  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  @compileTimeOnly("Con only be used inside `Match`")
   object ** {
     def unapply(any: Any): Option[(Int, Int)] = ???
+  }
+  @compileTimeOnly("Con only be used inside `Match`")
+  object ::= {
+    def unapply(any: Any): Option[(Path, Node)] = ???
   }
 
   // // // // // // // // // // // // // // // // //
@@ -178,7 +189,7 @@ package object syntax {
   // // // // // Ops: Node & Rel & Path  // // // // //
   // // // // // // // // // // // // // // // // // //
 
-  implicit final class CypherSyntaxGraphElemOps(g: GraphElem) {
+  implicit final class CypherSyntaxGraphElemOps[E <: GraphElem](g: CF.Expr[Map[String, Any] @@ E]) {
     /** Select all vertex/edge properties */
     def props: CF.Expr[Map[String, Any]] = g.asInstanceOf[CF.Expr[Map[String, Any]]]
 
@@ -212,8 +223,11 @@ package object syntax {
     def `type`: CF.Expr[String] = tpe
   }
 
-  // TODO ==============================================================================================================
-  // implicit final class CypherSyntaxPathOps(p: Path)
+  implicit final class CypherSyntaxPathOps(p: Path) {
+    def nodes: CF.Expr[List[GraphElem.NodeElem]] = "nodes".func(p)
+    def relationships: CF.Expr[List[GraphElem.RelElem]] = "relationships".func(p)
+    def length: CF.Expr[Long] = "length".func(p)
+  }
 
   // // // // // // // // // // // // // // // // // // // // // // // // //
   // // // // // // Ops: Function & Procedure + common functions // // // //

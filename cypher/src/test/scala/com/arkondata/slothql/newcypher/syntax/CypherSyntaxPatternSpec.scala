@@ -2,6 +2,8 @@ package com.arkondata.slothql.newcypher.syntax
 
 import scala.util.Random
 
+import shapeless.tag.@@
+
 import com.arkondata.slothql.newcypher.CypherFragment
 
 /** Advanced pattern matching.
@@ -101,7 +103,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("id" := `id`) => n },
         "MATCH (`n0`{ `id`: \"foobar\" }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node property from value (Int)" in {
@@ -109,7 +111,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("index" := `idx`) => n },
         s"MATCH (`n0`{ `index`: $idx }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node property from value (Long)" in {
@@ -117,7 +119,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("id" := `id`) => n },
         s"MATCH (`n0`{ `id`: $id }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node property from value (Boolean)" in {
@@ -125,7 +127,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("enabled" := `enabled`) => n },
         s"MATCH (`n0`{ `enabled`: $enabled }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node property from value (String List)" in {
@@ -133,7 +135,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("chain" := `list`) => n },
         "MATCH (`n0`{ `chain`: [\"A\", \"B\", \"C\"] }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node property from value (Int List List)" in {
@@ -141,7 +143,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("data" := `list`) => n },
         "MATCH (`n0`{ `data`: [[1], [2, 3], []] }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node property from value (Map)" in {
@@ -153,7 +155,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node("data" := `map`) => n },
         "MATCH (`n0`{ `data`: {`bar`: 12, `baz`: \"abc\", `foo`: [true, false, true]} }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match node labels and properties" in {
@@ -162,7 +164,7 @@ class CypherSyntaxPatternSpec extends CypherSyntaxBaseSpec {
       test(
         Match { case n@Node(`label`, "Bar", "id" := `id`, "type" := "baz") => n },
         "MATCH (`n0`:`Foo`:`Bar`{ `id`: \"abcd\", `type`: \"baz\" }) RETURN `n0`"
-      ).returns[Map[String, Any]]
+      ).returns[Map[String, Any] @@ GraphElem.Node]
     }
 
     "match literal relationship type" in
