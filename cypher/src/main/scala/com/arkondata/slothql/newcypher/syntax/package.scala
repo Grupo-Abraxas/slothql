@@ -16,8 +16,19 @@ package object syntax {
 //  def maybe[R](opt: Boolean)(query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.maybe[R]
   }
 
+  // TODO: support *
+  // TODO: support WHERE
+  // TODO: support DISTINCT
+  // TODO: support ORDER BY
+  // TODO: support LIMIT/OFFSET
   object With {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.with_[R]
+    def apply[T1, R](t1: CF.Expr[T1])
+                    (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with1[T1, R]
+
+    def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])
+                        (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with2[T1, T2, R]
   }
 
   object Unwind {
@@ -379,4 +390,9 @@ package object syntax {
 
   def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
 
+  // // // // // // // // // // // // // // // //
+  // // // // Aggregation Functions // // // //
+  // // // // // // // // // // // // // // // //
+
+  def collect[A](a: CF.Expr[A]): CF.Expr[List[A]] = "collect".func(a)
 }
