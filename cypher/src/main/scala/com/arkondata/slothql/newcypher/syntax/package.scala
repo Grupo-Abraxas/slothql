@@ -19,11 +19,27 @@ package object syntax {
   }
 
   // TODO: support *
-  // TODO: support WHERE
-  // TODO: support DISTINCT
-  // TODO: support ORDER BY
-  // TODO: support LIMIT/OFFSET
-  object With {
+  object With extends {
+    @compileTimeOnly("would have been replaced at With.apply")
+    def where(cond: CF.Expr[Boolean]): Nothing = ???
+
+    @compileTimeOnly("would have been replaced at With.apply")
+    def distinct: Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def distinct(boolean: Boolean): Nothing = ???
+
+    @compileTimeOnly("would have been replaced at With.apply")
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order = CF.Return.Order.Ascending): Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order.type => CF.Return.Order): Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def orderBy(seq: Seq[(CF.Expr[_], CF.Return.Order)]): Nothing = ???
+
+    @compileTimeOnly("would have been replaced at With.apply")
+    def skip(n: CF.Expr.Input[Long]): Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def limit(n: CF.Expr.Input[Long]): Nothing = ???
+
     def apply[T1, R](t1: CF.Expr[T1])
                     (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with1[T1, R]

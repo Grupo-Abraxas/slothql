@@ -370,8 +370,9 @@ object CypherFragment {
   object Return {
     case object All extends Return[Map[String, Any]]
 
-    final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[Alias]) extends Return[A]
-    final case class Tuple[T <: Product](exprs: List[Expr[_]]) extends Return[T]
+    sealed trait Return0[+A] extends Return[A]
+    final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[Alias]) extends Return0[A]
+    final case class Tuple[T <: Product](exprs: List[Expr[_]]) extends Return0[T]
 
     // TODO ================================================================
     @deprecated("should be in Query.Return")
@@ -379,14 +380,18 @@ object CypherFragment {
 
     sealed trait Order
     object Order {
-      case object Ascending extends Order
-      case object Descending extends Order
+      case object Ascending extends Order {
+        override def toString: String = "ASC"
+      }
+      case object Descending extends Order {
+        override def toString: String = "DESC"
+      }
     }
 
     type OrderBy = List[(CypherFragment.Expr[_], Order)]
 
     final case class Options[+A](
-      ret: Return[A],
+      ret: Return0[A],
       distinct: Boolean,
       orderBy: OrderBy,
       skip: Option[CypherFragment.Expr[Long]],
@@ -413,9 +418,10 @@ object CypherFragment {
           skipOpt  <- partsSequence(skip0)
           limOpt   <- partsSequence(limit0)
           distinct <- part(if (distinct0) "DISTINCT " else "")
-          ord      <- part(ordList.zip(ordOs).map{ case (s, o) => s" $s $o" }.mkString(", "))
-          skip     <- part(skipOpt.map(s => s" $s").getOrElse(""))
-          lim      <- part(limOpt .map(s => s" $s").getOrElse(""))
+          ord0     <- part(ordList.zip(ordOs).map{ case (s, o) => s"$s $o" }.mkString(", "))
+          ord      <- part(if (ordList.nonEmpty) s" ORDER BY $ord0" else "")
+          skip     <- part(skipOpt.map(s => s" SKIP $s").getOrElse(""))
+          lim      <- part(limOpt .map(s => s" LIMIT $s").getOrElse(""))
         } yield s"$distinct$ret$ord$skip$lim"
     }
   }
