@@ -249,13 +249,12 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         }},
         "MATCH (`a0`) --> (`b0`) " +
         "WITH DISTINCT `a0`.`foo` AS `foo0`, `collect`(`b0`) AS `bs0` " +
-        "WHERE `foo0` STARTS WITH \"xyz\"" +
-        "ORDER BY `n0` DESC " +
-        "ORDER BY `foo0` ASC " +
+        "ORDER BY `size`(`bs0`) DESC, `foo0` ASC " +
         "SKIP 5 " +
         "LIMIT 20 " +
+        "WHERE `foo0` STARTS WITH \"xyz\" " +
         "RETURN `bs0`"
-      )
+      ).returns[List[GraphElem.NodeElem]]
 
     "require all WITH modifiers to be defined on top of WITH block" in
       illTyped(
