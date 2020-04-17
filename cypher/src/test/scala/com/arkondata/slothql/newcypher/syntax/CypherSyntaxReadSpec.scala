@@ -2,6 +2,8 @@ package com.arkondata.slothql.newcypher.syntax
 
 import shapeless.test.illTyped
 
+import com.arkondata.slothql.newcypher.CypherFragment
+
 /** Advanced [[CypherSyntax0Spec]]
  *  - Referencing paths
  *  - Clauses WITH, UNWIND and OPTIONAL MATCH
@@ -10,6 +12,31 @@ import shapeless.test.illTyped
  *  - Return: All, Nothing, Options
  */
 class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
+
+  "Slothql cypher syntax" should {
+    "support `if` guards" in
+      test(
+        Match { case a -_> b if a.prop[Int]("foo") === b.prop[Int]("bar") => b.props },
+        "MATCH (`a0`) --> (`b0`) WHERE `a0`.`foo` = `b0`.`bar` RETURN `b0`"
+      ).returns[Map[String, Any]]
+
+    "support optional `if` guards (defined)" in {
+      def condOpt(n: Node): Option[CypherFragment.Expr[Boolean]] = Some(n.prop[String]("key") === lit("foobar"))
+      test(
+        Match { case a -_> b if condOpt(a) => b.props },
+        "MATCH (`a0`) --> (`b0`) WHERE `a0`.`key` = \"foobar\" RETURN `b0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "support optional `if` guards (undefined)" in {
+      def condOpt(n: Node): Option[CypherFragment.Expr[Boolean]] = None
+      test(
+        Match { case a -_> b if condOpt(a) => b.props },
+        "MATCH (`a0`) --> (`b0`) RETURN `b0`"
+      ).returns[Map[String, Any]]
+    }
+  }
+
   "Slothql cypher syntax" should {
     "match paths" in
       test(

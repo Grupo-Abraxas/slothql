@@ -31,7 +31,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   protected def impl[R: WeakTypeTag](query: c.Expr[Node => CF.Query[R]]): (Guard, QPattern, QDefs, QInner[R]) = query.tree match {
     case Function(List(_), Match(_, cases)) =>
       cases match {
-        case List(CaseDef(pattern, guard, body)) =>
+        case List(CaseDef(pattern, guard0, body)) =>
           val PatternPlus(letAliasOpt, elems0) = pattern
           val (rebind0, bindDefsNodeRel) = elems0.collect{
             case (Some(nme), Pattern.Tpe.Node, _) =>
@@ -53,16 +53,24 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val rebind = (rebind0 ++ bindDefOptLet.map(_._1).toSeq).toMap
           val newBody = transformBody(rebind, body)
 
-          val guardExpr = c.Expr[CF.Expr[Boolean]](guard)
-          val qGuard = if (guard.nonEmpty) reify{ Some(guardExpr.splice) } else reify{ None }
+          val guardTree = guard0 match {
+            case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrap    => q"_root_.scala.Some($expr)"
+            case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrapOpt => expr
+            case _                                                  => q"_root_.scala.None"
+          }
+          val guard = c.Expr[Option[CF.Expr[Boolean]]](transformBody(rebind, guardTree))
           val elems = elems0.map{ case (nme, tpe, expr) => (nme.map(rebind), tpe, expr) }
           val patternExpr = maybeLetPattern(letAliasExprOpt, elems)
           val bindDefs = bindDefsNodeRel ++ bindDefOptLet.map(_._2).toSeq
-          (qGuard, patternExpr, bindDefs, c.Expr[CF.Query.Query0[R]](newBody))
+          (guard, patternExpr, bindDefs, c.Expr[CF.Query.Query0[R]](newBody))
         case _ => c.abort(query.tree.pos, "Query must have a single case clause")
       }
     case other => c.abort(query.tree.pos, s"Unexpected query function: $other")
   }
+
+  private lazy val SyntaxPackageTypeSignature = c.mirror.staticPackage("com.arkondata.slothql.newcypher.syntax").typeSignature
+  private lazy val SyntaxIfGuardUnwrap = SyntaxPackageTypeSignature.decl(TermName("booleanCypherExprToBooleanForIfGuard"))
+  private lazy val SyntaxIfGuardUnwrapOpt = SyntaxPackageTypeSignature.decl(TermName("optionalBooleanCypherExprToBooleanForIfGuard"))
 
   protected def qImpl[R: WeakTypeTag](query0: c.Expr[Node => CF.Query.Query0[R]])
                                      (mkClause: (Guard, QPattern) => c.Expr[CF.Clause]): c.Expr[CF.Query.Query0[R]] = {

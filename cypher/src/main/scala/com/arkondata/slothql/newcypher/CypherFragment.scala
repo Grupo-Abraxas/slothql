@@ -471,7 +471,7 @@ object CypherFragment {
           ps  <- partsSequence(pattern.toList)
           wh0 <- partsSequence(where)
           opt <- part{ if (optional) "OPTIONAL " else "" }
-          wh  <- part{ wh0.map(w => s"WHERE $w").getOrElse("") }
+          wh  <- part{ wh0.map(w => s" WHERE $w").getOrElse("") }
         } yield s"${opt}MATCH ${ps.mkString(", ")}$wh"
       case Unwind(expr, as) =>
         part(expr).map(e => s"$e AS ${escapeName(as)}")

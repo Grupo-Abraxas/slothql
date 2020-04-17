@@ -10,7 +10,7 @@ import shapeless.{ =:!=, |∨| }
 
 import com.arkondata.slothql.newcypher.{ CypherFragment => CF }
 
-package object syntax {
+package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   object Match {
     def apply[R]              (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]
