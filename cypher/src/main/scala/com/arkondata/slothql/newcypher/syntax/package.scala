@@ -14,8 +14,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   object Match {
     def apply[R]              (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]
-//  def optional[R]           (query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.optional[R]
-//  def maybe[R](opt: Boolean)(query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.maybe[R]
+    def optional[R]           (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.optional[R]
+    def maybe[R](opt: Boolean)(query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.maybe[R]
   }
 
   // TODO: support *

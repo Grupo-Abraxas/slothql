@@ -44,6 +44,33 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "MATCH `path0` = (:`Foo`) -[*]-> (:`Bar`) RETURN `length`(`path0`), `nodes`(`path0`), `relationships`(`path0`)"
       ).returns[(Long, List[GraphElem.NodeElem], List[GraphElem.RelElem])]
 
+    "support optional matches" in
+      test(
+        Match { case a =>
+        Match.optional { case `a` -_> b  =>
+          (a.prop[String]("id"), collect(b.prop[String]("id")))
+        }},
+        "MATCH (`a0`) " +
+        "OPTIONAL MATCH (`a0`) --> (`b0`) " +
+        "RETURN `a0`.`id`, `collect`(`b0`.`id`)"
+      ).returns[(String, List[String])]
+
+    "support conditionally optional matches (strict)" in {
+      def opt: Boolean = false
+      test(
+        Match.maybe(opt){ case a => a.props },
+        "MATCH (`a0`) RETURN `a0`"
+      ).returns[Map[String, Any]]
+    }
+
+    "support conditionally optional matches (optional)" in {
+      def opt: Boolean = true
+      test(
+        Match.maybe(opt){ case a => a.props },
+        "OPTIONAL MATCH (`a0`) RETURN `a0`"
+      ).returns[Map[String, Any]]
+    }
+
     "support WITH clause (1)" in
       test(
         With(lit(10)) { n => n + lit(1) },

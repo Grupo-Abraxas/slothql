@@ -13,15 +13,20 @@ import com.arkondata.slothql.newcypher.{ syntax, CypherFragment => CF }
 class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._
 
-  def match_[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = qImpl(query) {
-    (guard, pattern) => reify {
-      CF.Clause.Match(
-        NonEmptyList.one[P](pattern.splice),
-        optional = false,
-        where = guard.splice
-      )
+  def match_[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = matchImpl(query, reify(false))
+  def optional[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = matchImpl(query, reify(true))
+  def maybe[R: WeakTypeTag](opt: c.Expr[Boolean])(query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = matchImpl(query, opt)
+
+  protected def matchImpl[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]], optional: c.Expr[Boolean]): c.Expr[CF.Query.Query0[R]] =
+    qImpl(query) {
+      (guard, pattern) => reify {
+        CF.Clause.Match(
+          NonEmptyList.one[P](pattern.splice),
+          optional = optional.splice,
+          where = guard.splice
+        )
+      }
     }
-  }
 
   protected type Guard     = c.Expr[Option[CF.Expr[Boolean]]]
   protected type QPattern  = c.Expr[P]
