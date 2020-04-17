@@ -368,11 +368,11 @@ object CypherFragment {
     final lazy val toCypherF: GenF[Statement] = Return.toCypher(this).f
   }
   object Return {
-    case object All extends Return[Map[String, Any]]
-
     sealed trait Return0[+A] extends Return[A]
+    case object Wildcard extends Return0[Any]
     final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[Alias]) extends Return0[A]
     final case class Tuple[T <: Product](exprs: List[Expr[_]]) extends Return0[T]
+    final case class WildcardTuple(exprs: List[Expr[_]]) extends Return0[Any]
 
     // TODO ================================================================
     @deprecated("should be in Query.Return")
@@ -400,9 +400,10 @@ object CypherFragment {
 
 
     def toCypher(ret: Return[_]): GenS[Part] = ret match {
-      case All            => part("*")
-      case Tuple(exprs)   => partsSequence(exprs).map(_.mkString(", "))
-      case Nothing        => part("")
+      case Wildcard             => part("*")
+      case Tuple(exprs)         => partsSequence(exprs).map(_.mkString(", "))
+      case WildcardTuple(exprs) => partsSequence(exprs).map(xs => s"*, ${xs.mkString(", ")}")
+      case Nothing              => part("")
       case Expr(expr, as) =>
         as.map{ alias =>
           for {

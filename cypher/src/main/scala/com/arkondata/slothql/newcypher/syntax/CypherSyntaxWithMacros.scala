@@ -12,16 +12,29 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
 
   def with1[T1: WeakTypeTag, R: WeakTypeTag](t1: c.Expr[CF.Expr[T1]])
            (query: c.Expr[CF.Expr[T1] => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, t1.tree -> weakTypeOf[T1])
+    withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1])
 
   def with2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]])
            (query: c.Expr[(CF.Expr[T1], CF.Expr[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
+    withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
+
+  def withWild0[R: WeakTypeTag](wildcard: c.Expr[**.type])(query: c.Expr[CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = true)
+
+  def withWild1[T1: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]])
+               (query: c.Expr[CF.Expr[T1] => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1])
+
+  def withWild2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]])
+               (query: c.Expr[(CF.Expr[T1], CF.Expr[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
 
   protected type ExprWithInnerType = (Tree, Type)
-  protected def withImpl[R](queryFunc: Tree, expr0: ExprWithInnerType, exprs0: ExprWithInnerType*): c.Expr[CF.Query.Query0[R]] = {
-    val exprs = expr0 +: exprs0
-    val Function(args, body0) = queryFunc
+  protected def withImpl[R](query: Tree, wildcard: Boolean, exprs: ExprWithInnerType*): c.Expr[CF.Query.Query0[R]] = {
+    val (args, body0) = query match {
+      case Function(args, body) => args -> body
+      case _                    => Nil  -> query
+    }
     val argNames0 = args.map(_.name.toString)
     val (argNames, binds, returns) = exprs.zip(argNames0).map {
       case ((tree, tpe), nme) =>
@@ -32,9 +45,12 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
         ((nme, name), bind, ret)
     }.unzip3
     val rebind = argNames.toMap
-    val return0 = returns match {
-      case Seq(single) => single
-      case seq => q"_root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
+    val return0 = (wildcard, returns) match {
+      case (false, Seq())       => c.abort(c.enclosingPosition, "No variables bound at WITH clause")
+      case (false, Seq(single)) => single
+      case (false, seq)         => q"_root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
+      case (true, Seq())        => q"_root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Wildcard"
+      case (true, seq)          => q"_root_.com.arkondata.slothql.newcypher.CypherFragment.Return.WildcardTuple(_root_.scala.List(..$seq))"
     }
     val (ops, body1) = body0 match {
       case Block(trees, tree1) =>

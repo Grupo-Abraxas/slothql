@@ -90,6 +90,36 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "RETURN `x0`, `labels`(`x0`), `bs0`"
       ).returns[(Map[String, Any], List[String], List[GraphElem.NodeElem])]
 
+    "support wildcard at WITH clause (1)" in
+      test(
+        Match { case a =>
+        With(**, a.prop[Int]("x") + a.prop[Int]("y")) { n =>
+        Match { case c if c.prop[Int]("z") === n =>
+          (a.props, c.props)
+        }}},
+        "MATCH (`a0`) " +
+        "WITH *, `a0`.`x` + `a0`.`y` AS `n0` " +
+        "MATCH (`c0`) WHERE `c0`.`z` = `n0` " +
+        "RETURN `a0`, `c0`"
+      ).returns[(Map[String, Any], Map[String, Any])]
+
+    "support wildcard at WITH clause (2)" in
+      test(
+        Match { case a =>
+        With(**) {
+        With.orderBy(a.prop[Int]("time"), _.Descending)
+        With.limit(lit(1))
+        Match { case c if c.prop[Int]("z") === a.prop[Int]("xyz") =>
+          (a.props, c.props)
+        }}},
+        "MATCH (`a0`) " +
+        "WITH * " +
+          "ORDER BY `a0`.`time` DESC " +
+          "LIMIT 1 " +
+        "MATCH (`c0`) WHERE `c0`.`z` = `a0`.`xyz` " +
+        "RETURN `a0`, `c0`"
+      ).returns[(Map[String, Any], Map[String, Any])]
+
     "not allow to use identifiers excluded by WITH" in pending
 
     "support WHERE condition at WITH clause" in
@@ -255,6 +285,27 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "WHERE `foo0` STARTS WITH \"xyz\" " +
         "RETURN `bs0`"
       ).returns[List[GraphElem.NodeElem]]
+
+    "support WHERE, DISTINCT, ORDER BYs, SKIP AND LIMIT at wildcard WITH clause" in
+      test(
+        Match { case a -_> b =>
+        With(**, a.prop[String]("foo")){ foo =>
+        With.where(foo startsWith lit("xyz"))
+        With.orderBy(b.prop[String]("bar"), _.Descending)
+        With.orderBy(foo)
+        With.distinct
+        With.skip(lit(5))
+        With.limit(lit(20))
+          (a.props, b.props)
+        }},
+        "MATCH (`a0`) --> (`b0`) " +
+        "WITH DISTINCT *, `a0`.`foo` AS `foo0` " +
+        "ORDER BY `b0`.`bar` DESC, `foo0` ASC " +
+        "SKIP 5 " +
+        "LIMIT 20 " +
+        "WHERE `foo0` STARTS WITH \"xyz\" " +
+        "RETURN `a0`, `b0`"
+      ).returns[(Map[String, Any], Map[String, Any])]
 
     "require all WITH modifiers to be defined on top of WITH block" in
       illTyped(

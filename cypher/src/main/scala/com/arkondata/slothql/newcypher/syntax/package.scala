@@ -18,7 +18,6 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def maybe[R](opt: Boolean)(query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.maybe[R]
   }
 
-  // TODO: support *
   object With extends {
     @compileTimeOnly("would have been replaced at With.apply")
     def where(cond: CF.Expr[Boolean]): Nothing = ???
@@ -40,13 +39,24 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     @compileTimeOnly("would have been replaced at With.apply")
     def limit(n: CF.Expr.Input[Long]): Nothing = ???
 
+    def apply[R](wildcard: **.type)(query: CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild0[R]
+
     def apply[T1, R](t1: CF.Expr[T1])
                     (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with1[T1, R]
 
+    def apply[T1, R](wildcard: **.type, t1: CF.Expr[T1])
+                    (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild1[T1, R]
+
     def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])
                         (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with2[T1, T2, R]
+
+    def apply[T1, T2, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2])
+                        (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild2[T1, T2, R]
   }
 
   object Unwind {
