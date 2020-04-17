@@ -10,6 +10,7 @@ lazy val root = (project in file(".")).
     inThisBuild(List(
       organization := "com.arkondata",
       scalaVersion := scala212,
+      git.baseVersion := "0.2",
       git.gitHeadCommit := GitKeys.gitReader.value.withGit(
         _.asInstanceOf[com.typesafe.sbt.git.JGit]
           .headCommit.map(_.abbreviate(8).name)
@@ -27,7 +28,7 @@ lazy val root = (project in file(".")).
     name := "slothql"
   )
   .settings(ammSettings: _*)
-  .aggregate(cypher, cypherApoc, arrows, arrowsShow)
+  .aggregate(cypher)
 
 
 lazy val cypher = (project in file("cypher"))
@@ -51,37 +52,6 @@ lazy val cypher = (project in file("cypher"))
       """.stripMargin
   ).settings(ammSettings: _*)
 
-lazy val cypherApoc = (project in file("cypher-apoc"))
-  .settings(
-    name := "slothql-cypher-apoc"
-  ).dependsOn(cypher % "compile->compile;test->test")
-
-lazy val arrows = (project in file("arrows"))
-  .settings(
-    name := "slothql-arrows",
-    libraryDependencies ++= Seq(
-      Dependencies.Scala.reflect.value,
-      Dependencies.shapeless,
-      Dependencies.`cats-core`,
-      Dependencies.Test.scalatest
-    ),
-    initialCommands in console :=
-      """
-        |import com.arkondata.slothql.arrow._
-      """.stripMargin
-  ).settings(ammSettings: _*)
-
-
-lazy val arrowsShow = (project in file("arrows-show"))
-  .settings(
-    name := "slothql-arrows-show",
-    libraryDependencies += Dependencies.`droste-core`,
-    initialCommands in console := (initialCommands in (arrows, console)).value +
-      """
-        |import com.arkondata.slothql.arrow.show._
-      """.stripMargin
-  )
-  .dependsOn(arrows % "compile->compile;test->test")
 
 // // // Repository // // //
 
