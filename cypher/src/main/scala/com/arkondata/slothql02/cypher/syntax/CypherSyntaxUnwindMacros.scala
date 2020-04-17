@@ -1,8 +1,8 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import scala.reflect.macros.blackbox
 
-import com.arkondata.slothql02.newcypher.{ CypherFragment => CF }
+import com.arkondata.slothql02.cypher.{ CypherFragment => CF }
 
 class CypherSyntaxUnwindMacros(override val c: blackbox.Context) extends CypherSyntaxPatternMacros(c) {
   import c.universe._
@@ -15,9 +15,9 @@ class CypherSyntaxUnwindMacros(override val c: blackbox.Context) extends CypherS
         val rebind = Map(nme -> name)
         c.Expr[CF.Query.Query0[R]](
           q"""
-            val ${TermName(name)} = _root_.com.arkondata.slothql02.newcypher.CypherFragment.Expr.Alias[${weakTypeOf[A]}]($nme)
-            _root_.com.arkondata.slothql02.newcypher.CypherFragment.Query.Clause(
-              _root_.com.arkondata.slothql02.newcypher.CypherFragment.Clause.Unwind($list, ${TermName(name)}),
+            val ${TermName(name)} = _root_.com.arkondata.slothql02.cypher.CypherFragment.Expr.Alias[${weakTypeOf[A]}]($nme)
+            _root_.com.arkondata.slothql02.cypher.CypherFragment.Query.Clause(
+              _root_.com.arkondata.slothql02.cypher.CypherFragment.Clause.Unwind($list, ${TermName(name)}),
               ${transformBody(rebind, body)}
             )
           """

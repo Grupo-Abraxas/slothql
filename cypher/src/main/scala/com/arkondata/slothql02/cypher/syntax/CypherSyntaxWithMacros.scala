@@ -1,11 +1,11 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import scala.annotation.tailrec
 import scala.reflect.macros.blackbox
 
 import cats.data.NonEmptyList
 
-import com.arkondata.slothql02.newcypher.{ CypherFragment => CF }
+import com.arkondata.slothql02.cypher.{ CypherFragment => CF }
 
 class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyntaxPatternMacros(c) {
   import c.universe._
@@ -40,17 +40,17 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
       case ((tree, tpe), nme) =>
         val name = c.freshName(nme)
         val bindName = TermName(name)
-        val bind = q"val $bindName = _root_.com.arkondata.slothql02.newcypher.CypherFragment.Expr.Alias[$tpe]($nme)"
-        val ret = q"_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Expr($tree, _root_.scala.Some($bindName))"
+        val bind = q"val $bindName = _root_.com.arkondata.slothql02.cypher.CypherFragment.Expr.Alias[$tpe]($nme)"
+        val ret = q"_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Expr($tree, _root_.scala.Some($bindName))"
         ((nme, name), bind, ret)
     }.unzip3
     val rebind = argNames.toMap
     val return0 = (wildcard, returns) match {
       case (false, Seq())       => c.abort(c.enclosingPosition, "No variables bound at WITH clause")
       case (false, Seq(single)) => single
-      case (false, seq)         => q"_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
-      case (true, Seq())        => q"_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Wildcard"
-      case (true, seq)          => q"_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.WildcardTuple(_root_.scala.List(..$seq))"
+      case (false, seq)         => q"_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
+      case (true, Seq())        => q"_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Wildcard"
+      case (true, seq)          => q"_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.WildcardTuple(_root_.scala.List(..$seq))"
     }
     val (ops, body1) = body0 match {
       case Block(trees, tree1) =>
@@ -88,24 +88,24 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
         val hasOptions = Seq(distinctOpt, skipOpt, limitOpt).exists(_.isDefined) || orderSeq.nonEmpty
         lazy val distinct = distinctOpt.map(_.b).getOrElse(q"false")
         lazy val orderBy = orderSeq.map {
-          case Opt.OrderByExpr(expr)     => q"_root_.scala.List(($expr, _root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Order.Ascending))"
+          case Opt.OrderByExpr(expr)     => q"_root_.scala.List(($expr, _root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Order.Ascending))"
           case Opt.OrderByOrd(expr, ord) => q"_root_.scala.List(($expr, $ord))"
-          case Opt.OrderBySel(expr, ord) => q"_root_.scala.List(($expr, $ord(_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Order)))"
+          case Opt.OrderBySel(expr, ord) => q"_root_.scala.List(($expr, $ord(_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Order)))"
           case Opt.OrderBySeq(seq)       => seq
         }.map(transformBody(rebind, _))
          .reduceLeftOption((l, r) => q"$l ++ $r")
          .getOrElse(q"_root_.scala.Nil")
         lazy val skip = q"${skipOpt.map(_.n)}"
         lazy val limit = q"${limitOpt.map(_.n)}"
-        val ret = if (hasOptions) q"_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Options($return0, $distinct, $orderBy, $skip, $limit)"
+        val ret = if (hasOptions) q"_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Options($return0, $distinct, $orderBy, $skip, $limit)"
                   else return0
         ret -> q"${whereOpt.map(w => transformBody(rebind, w.cond))}"
     }
     c.Expr[CF.Query.Query0[R]](
       q"""
         ..$binds
-        _root_.com.arkondata.slothql02.newcypher.CypherFragment.Query.Clause(
-          _root_.com.arkondata.slothql02.newcypher.CypherFragment.Clause.With(
+        _root_.com.arkondata.slothql02.cypher.CypherFragment.Query.Clause(
+          _root_.com.arkondata.slothql02.cypher.CypherFragment.Clause.With(
             $returnTree,
             $whereTree
           ),
@@ -151,5 +151,5 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     private def isOrderBy = PartialFunction.cond(_: Opt) { case _: OrderBy => true }
   }
 
-  private val WithSyntax = c.mirror.staticModule("com.arkondata.slothql02.newcypher.syntax.With")
+  private val WithSyntax = c.mirror.staticModule("com.arkondata.slothql02.cypher.syntax.With")
 }

@@ -1,10 +1,10 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import scala.util.Random
 
 import shapeless.tag.@@
 
-import com.arkondata.slothql02.newcypher.CypherFragment
+import com.arkondata.slothql02.cypher.CypherFragment
 
 /** Advanced pattern matching.
  *  - Node: labels, props

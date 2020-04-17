@@ -1,3 +1,4 @@
+/*
 package com.arkondata.slothql02
 
 import scala.util.Random
@@ -56,3 +57,4 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
 
 
 }
+*/

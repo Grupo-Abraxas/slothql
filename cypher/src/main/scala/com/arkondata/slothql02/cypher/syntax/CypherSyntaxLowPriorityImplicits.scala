@@ -1,9 +1,9 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import scala.annotation.compileTimeOnly
 import scala.language.implicitConversions
 
-import com.arkondata.slothql02.newcypher.{ CypherFragment => CF }
+import com.arkondata.slothql02.cypher.{ CypherFragment => CF }
 
 trait CypherSyntaxLowPriorityImplicits {
   @compileTimeOnly("should have been replaced by cypher syntax macro")

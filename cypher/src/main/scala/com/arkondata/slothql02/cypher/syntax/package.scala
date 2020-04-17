@@ -1,733 +1,586 @@
 package com.arkondata.slothql02.cypher
 
-import scala.annotation.compileTimeOnly
+import scala.annotation.{ compileTimeOnly, implicitNotFound }
 import scala.language.experimental.macros
-import scala.language.{ higherKinds, implicitConversions }
-import scala.util.Random
+import scala.language.implicitConversions
 
 import cats.data.Ior
-import shapeless.{ <:!<, Generic, HList, Unpack1, |∨| }
+import shapeless.tag.@@
+import shapeless.{ ::, =:!=, HList, HNil, Refute, Unpack1, ops, |∨| }
 
-import com.arkondata.slothql02.cypher.CypherFragment.{ Expr, Known, Query, Return }
-import com.arkondata.slothql02.util.raiseCompilationError
+import com.arkondata.slothql02.cypher.{ CypherFragment => CF }
 
-package object syntax extends LowPriorityImplicits {
+package object syntax extends CypherSyntaxLowPriorityImplicits {
 
-  sealed trait Graph extends Expr.Var[Graph] with Graph.Path with Graph.Vertex
-  object Graph{
-    private[syntax] def apply(): Graph = new Impl[Root] with Graph {}
-    private[syntax] def path(): syntax.Path = new Impl[Path] with Path {}
+  object Match {
+    def apply[R]              (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]
+    def optional[R]           (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.optional[R]
+    def maybe[R](opt: Boolean)(query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.maybe[R]
+  }
 
+  object With extends {
+    @compileTimeOnly("would have been replaced at With.apply")
+    def where(cond: CF.Expr[Boolean]): Nothing = ???
 
-    sealed trait Pattern
-    sealed trait Atom   extends Pattern
-    sealed trait Root   extends Pattern
+    @compileTimeOnly("would have been replaced at With.apply")
+    def distinct: Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def distinct(boolean: Boolean): Nothing = ???
 
-    sealed trait Vertex extends Atom with Root
-    sealed trait Edge   extends Atom
-    sealed trait Path   extends Root
+    @compileTimeOnly("would have been replaced at With.apply")
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order = CF.Return.Order.Ascending): Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order.type => CF.Return.Order): Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def orderBy(seq: Seq[(CF.Expr[_], CF.Return.Order)]): Nothing = ???
 
+    @compileTimeOnly("would have been replaced at With.apply")
+    def skip(n: CF.Expr.Input[Long]): Nothing = ???
+    @compileTimeOnly("would have been replaced at With.apply")
+    def limit(n: CF.Expr.Input[Long]): Nothing = ???
 
-    private[syntax] sealed abstract class Impl[P <: Pattern] extends Expr.Var[P] {
-      self: P =>
+    def apply[R](wildcard: **.type)(query: CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild0[R]
 
-      private[syntax] var _alias: String = _ // This `var` should be set only once by a macro
-      lazy val name: String = _alias
+    def apply[T1, R](t1: CF.Expr[T1])
+                    (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with1[T1, R]
+
+    def apply[T1, R](wildcard: **.type, t1: CF.Expr[T1])
+                    (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild1[T1, R]
+
+    def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])
+                        (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with2[T1, T2, R]
+
+    def apply[T1, T2, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2])
+                        (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild2[T1, T2, R]
+  }
+
+  object Unwind {
+    def apply[A, R](list: CF.Expr[List[A]])(func: CF.Expr[A] => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxUnwindMacros.unwind[A, R]
+  }
+
+  object Call {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.call[R]
+  }
+
+  object Create {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.create[R]
+  }
+
+  object Merge {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.merge[R]
+  }
+
+  object Delete {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.delete[R]
+  }
+
+  object Foreach {
+    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.foreach[R]
+  }
+
+  // // // // // // // // // // // // // // // // //
+  // // // // // Matching Graph Paths // // // // //
+  // // // // // // // // // // // // // // // // //
+
+  sealed trait GraphElem extends CypherStatement.Alias
+  object GraphElem {
+    sealed trait Node extends GraphElem
+    sealed trait Rel  extends GraphElem { type Dir <: Rel.Direction }
+
+    type NodeElem = Map[String, Any] @@ GraphElem.Node
+    type RelElem  = Map[String, Any] @@ GraphElem.Rel
+  }
+  sealed trait GraphPath
+
+  type Node = CF.Expr[GraphElem.NodeElem] with CypherStatement.Alias
+  type Rel  = CF.Expr[GraphElem.RelElem]  with CypherStatement.Alias
+  type Path = CF.Expr[GraphPath]          with CypherStatement.Alias
+
+  object CypherSyntaxFromMacro {
+    def mkNode(name: String): Node                          = new CF.Expr.Alias(name) with GraphElem.Node
+    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Alias(name) with GraphElem.Rel { type Dir = D }
+    def mkPath(name: String): Path                          = new CF.Expr.Alias(name) with GraphPath
+  }
+
+  // // // // // //
+  // N = Node
+  // R = Rel
+  // N   => N < RN
+  // NR  => N < RNX
+  // N   => NR > N
+  // NR  => NR > NR
+  // NR  => N - R
+  // RN  => R - N
+  // RNX => RN - R
+  // RNX => RN
+
+  protected object CypherSyntaxInternal {
+    sealed trait NR {
+      type Dir <: Rel.Direction
+    }
+    sealed trait NRI extends NR { type Dir = Rel.Incoming }
+    sealed trait NRO extends NR { type Dir = Rel.Outgoing }
+
+    sealed trait RN{
+      type Dir <: Rel.Direction
+    }
+    sealed trait RNI extends RN { type Dir = Rel.Incoming }
+    sealed trait RNO extends RN { type Dir = Rel.Outgoing }
+
+    sealed trait RNX extends RN {
+      type Dir = DirRight
+      type DirLeft  <: Rel.Direction
+      type DirRight <: Rel.Direction
+    }
+    sealed trait RNXII { type DirLeft = Rel.Incoming; type DirRight = Rel.Incoming }
+    sealed trait RNXIO { type DirLeft = Rel.Incoming; type DirRight = Rel.Outgoing }
+//    sealed trait RNXOI { type DirLeft = Rel.Outgoing; type DirRight = Rel.Incoming }
+//    sealed trait RNXOO { type DirLeft = Rel.Outgoing; type DirRight = Rel.Outgoing }
+  }
+  import CypherSyntaxInternal._
+
+  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  object < {
+    def unapply(n: Node): Option[(Node, RNI)] = ???
+    def unapply(n: NRI): Option[(Node, RNXII)] = ???
+    def unapply(n: NRO): Option[(Node, RNXIO)] = ???
+  }
+
+  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  object > {
+    def unapply(n: Node): Option[(NRO, Node)] = ???
+    def unapply(n: NRI): Option[(NRO, NRI)] = ???
+    def unapply(n: NRO): Option[(NRO, NRO)] = ???
+  }
+
+  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  object - {
+    def unapply(r: NRI): Option[(Node, Rel.Aux[Rel.Incoming])] = ???
+    def unapply(r: NRO): Option[(Node, Rel.Aux[Rel.Outgoing])] = ???
+    def unapply(l: RNI): Option[(Rel.Aux[Rel.Incoming], Node)] = ???
+    def unapply(l: RNO): Option[(Rel.Aux[Rel.Outgoing], Node)] = ???
+    def unapply(l: RNXII): Option[(RNI, Rel.Aux[Rel.Incoming])] = ???
+    def unapply(l: RNXIO): Option[(RNI, Rel.Aux[Rel.Outgoing])] = ???
+//    def unapply(l: RNXOI): Option[(RNO, Rel[Rel.Incoming])] = ???
+//    def unapply(l: RNXOO): Option[(RNO, Rel[Rel.Outgoing])] = ???
+  }
+
+  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  object Node {
+    /** Supported params: {{{String}}}, {{{Iterable[String]}}}, {{{:=[_]}}}. */
+    def unapplySeq(n: Node): Option[Seq[Any]] = ???
+  }
+  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  object Rel {
+    type Aux[D <: Rel.Direction]  = Rel { type Dir = D }
+
+    type Direction = CF.Pattern.Rel.Direction
+    type Incoming  = CF.Pattern.Rel.Incoming.type
+    type Outgoing  = CF.Pattern.Rel.Outgoing.type
+
+    /** Supported params: {{{String}}}, {{{Iterable[String]}}}, {{{:=[_]}}}, {{{**}}}. */
+    def unapplySeq(r: Rel): Option[Seq[Any]] = ???
+  }
+
+  @compileTimeOnly("Con only be used inside `Match` / `Create`")
+  object := {
+    def unapply(any: Any): Option[(String, Any)] = ???
+  }
+  @compileTimeOnly("Con only be used inside `Match`")
+  object ** {
+    def unapply(any: Any): Option[(Int, Int)] = ???
+  }
+  @compileTimeOnly("Con only be used inside `Match`")
+  object ::= {
+    def unapply(any: Any): Option[(Path, Node)] = ???
+  }
+
+  // // // // // // // // // // // // // // // // //
+  // // // // //  Return Expressions  // // // // //
+  // // // // // // // // // // // // // // // // //
+
+  implicit def cypherSyntaxExprToReturn[A](expr: CF.Expr[A]): CF.Return[A] = CF.Return.Expr(expr, as = None)
+  implicit def cypherSyntaxExprToQueryReturn[A](expr: CF.Expr[A]): CF.Query.Return[A] = CF.Query.Return(expr)
+  implicit def cypherSyntaxReturnToQueryReturn[A](ret: CF.Return[A]): CF.Query.Return[A] = CF.Query.Return(ret)
+
+  implicit final class CypherSyntaxReturnAsOps[A](expr: CF.Expr[A]) {
+    def as(alias: CypherStatement.Alias): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
+    def as(alias: String): CF.Return.Expr[A] = as(CF.Expr.Alias(alias))
+  }
+
+  implicit def cypherSyntaxTupleToReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Return[ret.Out] = ret(tuple)
+  implicit def cypherSyntaxTupleToQueryReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] = CF.Query.Return(ret(tuple))
+
+  trait CypherSyntaxReturnTuple[T <: Product] {
+    type Out
+    def apply(t: T): CF.Return.Return0[Out]
+  }
+  object CypherSyntaxReturnTuple {
+    implicit def cypherSyntaxReturnTuple[T <: Product]: CypherSyntaxReturnTuple[T] = macro CypherSyntaxMacros.returnTuple[T]
+  }
+
+  implicit def toCypherSyntaxReturnOps[T](t: T)(implicit canReturn: CypherSyntaxReturnOps.CanReturn[T]): CypherSyntaxReturnOps[T, HNil, canReturn.Out] =
+    new CypherSyntaxReturnOps(t, false, Nil, None, None)(canReturn)
+
+  final class CypherSyntaxReturnOps[T, Done <: HList, R](
+    t: T,
+    distinct0: Boolean,
+    orderBy0: CF.Return.OrderBy,
+    skip0: Option[CF.Expr.Input[Long]],
+    limit0: Option[CF.Expr.Input[Long]]
+  )(implicit canReturn: CypherSyntaxReturnOps.CanReturn.Aux[T, R]) {
+    import CypherSyntaxReturnOps.{ NotYet, Opt }
+
+    def distinct(implicit notYet: NotYet[Done, Opt.Distinct]): CypherSyntaxReturnOps[T, Opt.Distinct :: Done, R] =
+      copy(distinct = true)
+
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order = CF.Return.Order.Ascending): CypherSyntaxReturnOps[T, Done, R] =
+      copy(orderBy = orderBy0 :+ (expr -> ord))
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order.type => CF.Return.Order): CypherSyntaxReturnOps[T, Done, R] =
+      orderBy(expr, ord(CF.Return.Order))
+
+    def skip[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])
+                                 (implicit notYet: NotYet[Done, Opt.Skip]): CypherSyntaxReturnOps[T, Opt.Skip :: Done, R] =
+      copy(skip = Some(inp.asInstanceOf[CF.Expr.Input[Long]]))
+
+    def limit[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])
+                                  (implicit notYet: NotYet[Done, Opt.Limit]): CypherSyntaxReturnOps[T, Opt.Limit :: Done, R] =
+      copy(limit = Some(inp.asInstanceOf[CF.Expr.Input[Long]]))
+
+    private def copy[Steps <: HList](
+      distinct: Boolean                  = distinct0,
+      orderBy: CF.Return.OrderBy         = orderBy0,
+      skip: Option[CF.Expr.Input[Long]]  = skip0,
+      limit: Option[CF.Expr.Input[Long]] = limit0
+    ): CypherSyntaxReturnOps[T, Steps, R] =
+      new CypherSyntaxReturnOps(t, distinct, orderBy, skip, limit)
+
+    def `return`: CF.Return[R] = {
+      val options = distinct0 || orderBy0.nonEmpty || skip0.nonEmpty || limit0.nonEmpty
+      val ret = canReturn(t)
+      if (options) CF.Return.Options(ret, distinct0, orderBy0, skip0, limit0) else ret
     }
   }
 
-  type Vertex    = Expr.Var[Graph.Vertex]
-  type Edge      = Expr.Var[Graph.Edge]
-  type Path      = Expr.Var[Graph.Path]
+  object CypherSyntaxReturnOps {
+    implicit def returnClauseFromCypherSyntaxReturnOps[T, L <: HList, R](ops: CypherSyntaxReturnOps[T, L, R]): CF.Return[R] = ops.`return`
+    implicit def query0FromCypherSyntaxReturnOps[T, L <: HList, R](ops: CypherSyntaxReturnOps[T, L, R]): CF.Query.Query0[R] = CF.Query.Return(ops.`return`)
 
+    sealed trait CanReturn[T] {
+      type Out
+      def apply(t: T): CF.Return.Return0[Out]
+    }
+    object CanReturn {
+      type Aux[T, R] = CanReturn[T] { type Out = R }
 
-  implicit class GraphPatternKnownOps(e: Known[Expr[Graph.Pattern]]) {
-    /** Call built-in function `func` passing `this` expression as first argument. */
-    def func[R](func: String, args: Known[Expr[_]]*): Expr.Func[R] =
-      Expr.Func(func, e :: args.toList)
+      implicit def canReturnSingle[T, A](implicit unpack: Unpack1[T, CF.Expr, A]): CanReturn.Aux[T, A] =
+        new CanReturn[T] {
+          type Out = A
+          def apply(t: T): CF.Return.Return0[A] = CF.Return.Expr(t.asInstanceOf[CF.Expr[A]], None)
+        }
+
+      implicit def canReturnTuple[T <: Product](implicit ev: CypherSyntaxReturnTuple[T]): CanReturn.Aux[T, ev.Out] =
+        new CanReturn[T] {
+          type Out = ev.Out
+          def apply(t: T): CF.Return.Return0[ev.Out] = ev(t)
+        }
+    }
+
+    sealed trait Opt
+    object Opt {
+      case object Distinct extends Opt
+      case object Skip     extends Opt
+      case object Limit    extends Opt
+
+      type Distinct = Distinct.type
+      type Skip     = Skip.type
+      type Limit    = Limit.type
+    }
+
+    @implicitNotFound("${S} has already been configured")
+    trait NotYet[Done <: HList, S <: Opt]
+    object NotYet {
+      implicit def notYet[Done <: HList, S <: Opt](
+        implicit not: Refute[ops.hlist.Selector[Done, S]]
+      ): NotYet[Done, S] = instance.asInstanceOf[NotYet[Done, S]]
+
+      private lazy val instance = new NotYet[HList, Opt] {}
+    }
   }
-  implicit class GraphPatternOps[E <: Expr[Graph.Pattern]: CypherFragment](e: E) extends GraphPatternKnownOps(e)
 
-  implicit class GraphAtomKnownOps(e: Known[Expr[Graph.Atom]]) {
-    def props: Known[Expr[Map[String, Any]]] = e.asInstanceOf[Known[Expr[Map[String, Any]]]]
+  // // // // // // // // // // // // // // // // // //
+  // // // // // Ops: Node & Rel & Path  // // // // //
+  // // // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxGraphElemOps[E <: GraphElem](g: CF.Expr[Map[String, Any] @@ E]) {
+    /** Select all vertex/edge properties */
+    def props: CF.Expr[Map[String, Any]] = g.asInstanceOf[CF.Expr[Map[String, Any]]]
 
     /** Select vertex/edge property. */
-    def prop[A](k: String): Expr.MapKey[A] = Expr.MapKey[A](props, k)
-    /** Select vertex/edge property as [[Option]]. */
-    def propOpt[A](k: String): Expr.MapKey[Option[A]] = prop[Option[A]](k)
+    def prop[A](k: String): CF.Expr[A] = CF.Expr.MapKey[A](props, k)
 
-    /** Alias for [[prop]]. */
-    @deprecated("seems to break query type resolution", since = "03.06.18")
-    def apply[A](k: String): Expr.MapKey[A] = prop(k)
-    /** Alias for [[propOpt]]. */
-    def opt[A](k: String): Expr.MapKey[Option[A]] = propOpt(k)
+    /** Select vertex/edge property as [[Option]]. */
+    def propOpt[A](k: String): CF.Expr[Option[A]] = prop[Option[A]](k)
+
+    /** Call built-in function `func` passing `this` expression as first argument. */
+    def func[R](func: String, args: CF.Expr[_]*): CF.Expr[R] = CF.Expr.Func(func, props :: args.toList)
 
     /** Call built-in `id` function. */
-    def id: Expr.Func[Long] = e.func("id")
+    def id: CF.Expr[Long] = func("id")
     /** Call built-in `count` function. */
-    def count: Expr.Func[Long] = e.func("count")
+    def count: CF.Expr[Long] = func("count")
     /** Call built-in `keys` function. */
-    def keys: Expr.Func[List[String]] = e.func("keys")
-
+    def keys: CF.Expr[List[String]] = func("keys")
   }
-  implicit class GraphAtomOps[E <: Expr[Graph.Atom]: CypherFragment](e: E) extends GraphAtomKnownOps(e)
 
-  implicit class VertexKnownOps(v: Known[Expr[Graph.Vertex]]) {
+  implicit final class CypherSyntaxNodeOps(n: Node) {
     /** Call built-in `labels` function. */
-    def labels: Expr.Func[List[String]] = v.func("labels")
+    def labels: CF.Expr[List[String]] = n.func("labels")
   }
-  implicit class VertexOps[E <: Expr[Graph.Vertex]: CypherFragment](v: E) extends VertexKnownOps(v)
 
-  implicit class EdgeKnownOps(e: Known[Expr[Graph.Edge]]) {
+  implicit final class CypherSyntaxRelOps(r: Rel) {
     /** Call built-in `type` function. */
-    def tpe: Expr.Func[String] = e.func("type")
+    def tpe: CF.Expr[String] = r.func("type")
+
     /** Call built-in `type` function. */
-    def `type`: Expr.Func[String] = tpe
-  }
-  implicit class EdgeOps[E <: Expr[Graph.Edge]: CypherFragment](e: E) extends EdgeKnownOps(e)
-
-  implicit class PathKnownOps(e: Known[Expr[Graph.Path]]) {
-    /** Call built-in `nodes` function. */
-    def nodes: Expr.Func[List[Graph.Vertex]] = e.func("nodes")
-    /** Call built-in `relationships` function. */
-    def edges: Expr.Func[List[Graph.Edge]] = e.func("relationships")
-    /** Call built-in `nodes` function. */
-    def length: Expr.Func[Long] = e.func("length")
-  }
-  implicit class PathOps[E <: Expr[Graph.Path]: CypherFragment](e: E) extends PathKnownOps(e)
-
-
-  object Vertex {
-    @inline private[syntax] def apply(): Vertex = new Graph.Impl[Graph.Vertex] with Graph.Vertex
-    def unapplySeq(v: Vertex): Option[Seq[AnyRef]] = Some(???)
-  }
-  object Edge {
-    @inline private[syntax] def apply(): Edge = new Graph.Impl[Graph.Edge] with Graph.Edge
-    def unapplySeq(v: Edge): Option[Seq[AnyRef]] = Some(???)
+    def `type`: CF.Expr[String] = tpe
   }
 
-
-  object := {
-    def unapply(arg: Any): Option[(String, Any)] = Some(???)
-  }
-  object :?= {
-    def unapply(arg: Any): Option[(String, Option[Any])] = Some(???)
+  implicit final class CypherSyntaxPathOps(p: Path) {
+    def nodes: CF.Expr[List[GraphElem.NodeElem]] = "nodes".func(p)
+    def relationships: CF.Expr[List[GraphElem.RelElem]] = "relationships".func(p)
+    def length: CF.Expr[Long] = "length".func(p)
   }
 
-  object ::= {
-    def unapply(arg: Graph): Option[(Path, Graph)] = Some(Graph.path() -> Graph())
-  }
-  object *: {
-    // TODO: Binding relationships to a list in a variable length pattern is deprecated by neo4j
-    def unapply(edge: Edge): Option[(Expr.Var[List[Graph.Edge]], -[Int, Int], Edge)] = Some(???)
+  // // // // // // // // // // // // // // // // // // // // // // // // //
+  // // // // // // Ops: Function & Procedure + common functions // // // //
+  // // // // // // // // // // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxFuncOps(func: String) {
+    def func[R](args: CF.Expr[_]*): CF.Expr[R] = CF.Expr.Func(func, args.toList)
   }
 
-  // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
-
-  implicit class FuncSymbolOps(func: Symbol) {
-    def func[R](args: Known[Expr[_]]*): Expr.Func[R] = Expr.Func(func.name, args.toList)
-  }
-  implicit class FuncStringOps(func: String) {
-    def func[R](args: Known[Expr[_]]*): Expr.Func[R] = Expr.Func(func, args.toList)
-  }
-
-  type Var[+A] = Expr.Var[A]
-
-  implicit class ProcedureSymbolOps(procedure: Symbol) {
-    def call(args: Known[Expr[_]]*): ProcedureOps.CallBuilder = new ProcedureOps.CallBuilder(procedure.name, args.toList)
-  }
-  implicit class ProcedureStringOps(procedure: String) {
-    def call(args: Known[Expr[_]]*): ProcedureOps.CallBuilder = new ProcedureOps.CallBuilder(procedure, args.toList)
+  implicit final class CypherSyntaxProcedureOps(procedure: String) {
+    def call(args: CF.Expr[_]*): CypherSyntaxProcedureOps.CallBuilder = new CypherSyntaxProcedureOps.CallBuilder(procedure, args.toList)
   }
   // specifying WHERE condition is not supported by this syntax helper
   // assigning aliases to procedure outputs is not supported by this syntax helper
-  protected[syntax] object ProcedureOps {
-    class CallBuilder(procedure: String, params: List[Known[Expr[_]]]) {
-      def void[R](res: Match.Result[R]): Match.Result[R] = impl.Call.void(procedure, params, res)
-      def yielding(f: Any): Match.Result[_] = macro impl.Call.impl
-      def yieldingAs(outputs: Symbol*)(f: Any): Match.Result[_] = macro impl.Call.implAs
+  protected[syntax] object CypherSyntaxProcedureOps {
+    class CallBuilder(procedure: String, params: List[CF.Expr[_]]) {
+      // TODO ==========================================================================================================
+//      def void[R](res: Match.Result[R]): Match.Result[R] = impl.Call.void(procedure, params, res)
+//      def yielding(f: Any): Match.Result[_] = macro impl.Call.impl
+//      def yieldingAs(outputs: Symbol*)(f: Any): Match.Result[_] = macro impl.Call.implAs
     }
   }
 
-
-  protected sealed abstract class AsStringKnownExprOps(expr: Known[Expr[_]]) {
-    def asString: Expr.Func[String] = Expr.Func("toString", List(expr))
+  implicit final class CypherSyntaxAsStringOps[A: CypherSyntaxAsString.Can](expr: CF.Expr[A]) {
+    /** Call built-in `toString` function. */
+    def asString: CF.Expr[String] = CF.Expr.Func("toString", List(expr))
   }
 
-  implicit class NumberAsStringKnownExprOps   [A: Numeric]               (expr: Known[Expr[A]]) extends AsStringKnownExprOps(expr)
-  implicit class NotNumberAsStringKnownExprOps[A: (String |∨| Boolean)#λ](expr: Known[Expr[A]]) extends AsStringKnownExprOps(expr)
+  object CypherSyntaxAsString {
+    trait Can[A]
+    private object Can extends Can[Any]
 
-  implicit class NumberAsStringExprOps   [E <: Expr[_], A](expr: E)(implicit unpack: Unpack1[E, Expr, A], frag: CypherFragment[E], ev: Numeric[A])                extends AsStringKnownExprOps(expr)
-  implicit class NotNumberAsStringExprOps[E <: Expr[_], A](expr: E)(implicit unpack: Unpack1[E, Expr, A], frag: CypherFragment[E], ev: (String |∨| Boolean)#λ[A]) extends AsStringKnownExprOps(expr)
-
-
-  implicit class BooleanKnownExprOps(expr0: Known[Expr[Boolean]]) {
-    def unary_! : Expr.LogicNegationExpr = Expr.LogicNegationExpr(expr0)
-
-    def and(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                  = binary(expr1, Expr.LogicExpr.And)
-    def and[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.And)
-
-    def or (expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                  = binary(expr1, Expr.LogicExpr.Or)
-    def or [E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Or)
-
-    def xor(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                  = binary(expr1, Expr.LogicExpr.Xor)
-    def xor[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr = binary(expr1, Expr.LogicExpr.Xor)
-
-    def &&(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                   = and(expr1)
-    def &&[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr  = and(expr1)
-
-    def ||(expr1: Known[Expr[Boolean]]): Expr.LogicBinaryExpr                   = or(expr1)
-    def ||[E <: Expr[Boolean]: CypherFragment](expr1: E): Expr.LogicBinaryExpr  = or(expr1)
-
-    private def binary[E1 <: Expr[Boolean]](expr1: Known[E1], op: Expr.LogicExpr.BinaryOp) =
-      Expr.LogicBinaryExpr(expr0, expr1, op)
-  }
-  implicit class BooleanExprOps[E0 <: Expr[Boolean]: CypherFragment](expr0: E0) extends BooleanKnownExprOps(expr0)
-
-  implicit class CompareAnyKnownOps(expr0: Known[Expr[_]]) {
-    def eq (expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = binary(expr1, Expr.CompareExpr.Eq)
-    def eq [E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = binary(expr1, Expr.CompareExpr.Eq)
-
-    def neq(expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = binary(expr1, Expr.CompareExpr.Neq)
-    def neq[E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = binary(expr1, Expr.CompareExpr.Neq)
-
-    def ===(expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = eq(expr1)
-    def ===[E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = eq(expr1)
-
-    def <> (expr1: Known[Expr[_]]): Expr.CompareBinaryAnyExpr                   = neq(expr1)
-    def <> [E <: Expr[_]: CypherFragment](expr1: E): Expr.CompareBinaryAnyExpr  = neq(expr1)
-
-    def isNull  : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.IsNull)
-    def notNull : Expr.CompareUnaryExpr = unary(Expr.CompareExpr.NotNull)
-
-    private def unary(op: Expr.CompareExpr.UnaryOp) = Expr.CompareUnaryExpr(expr0, op)
-    private def binary[E1 <: Expr[_]](expr1: Known[E1], op: Expr.CompareExpr.BinaryAnyOp) =
-      Expr.CompareBinaryAnyExpr(expr0, expr1, op)
-  }
-  implicit class CompareAnyOps[E0 <: Expr[_]: CypherFragment](expr0: E0) extends CompareAnyKnownOps(expr0)
-
-  implicit class CompareOps[A, E0[x] <: Expr[x]](expr0: E0[A])(implicit frag0: CypherFragment[E0[A]]) {
-    def lt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
-    def lte[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
-    def gte[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
-    def gt [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
-
-    def < [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lt)
-    def <=[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Lte)
-    def >=[E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gte)
-    def > [E1 <: Expr[A]: CypherFragment](expr1: E1): Expr.CompareBinaryExpr[A] = binary(expr1, Expr.CompareExpr.Gt)
-
-    def in[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.In[A] = Expr.In(expr0.known, expr1.known)
-
-    private def binary[E1 <: Expr[A]: CypherFragment](expr1: E1, op: Expr.CompareExpr.BinaryOp) =
-      Expr.CompareBinaryExpr(expr0.known, expr1.known, op)
+    implicit lazy val canString: Can[String] = Can.asInstanceOf[Can[String]]
+    implicit lazy val canBoolean: Can[Boolean] = Can.asInstanceOf[Can[Boolean]]
+    implicit def canNumeric[N: Numeric]: Can[N] = Can.asInstanceOf[Can[N]]
   }
 
-  implicit class StringKnownExprOps(expr0: Known[Expr[String]]) {
-    def contains(expr1: Known[Expr[String]]): Expr.StringExpr                     = binary(expr1, Expr.StringExpr.Contains)
-    def contains[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr    = binary(expr1, Expr.StringExpr.Contains)
+  // // // // // // // // // // // // // // // // //
+  // // // // Ops:  Logic and Comparison // // // //
+  // // // // // // // // // // // // // // // // //
 
-    def startsWith(expr1: Known[Expr[String]]): Expr.StringExpr                   = binary(expr1, Expr.StringExpr.StartsWith)
-    def startsWith[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr  = binary(expr1, Expr.StringExpr.StartsWith)
+  implicit final class CypherSyntaxLogicExprOps(expr0: CF.Expr[Boolean]) {
+    def unary_! : CF.Expr[Boolean] = CF.Expr.LogicUnaryExpr(expr0, CF.Expr.LogicExpr.Negate)
 
-    def endsWith(expr1: Known[Expr[String]]): Expr.StringExpr                     = binary(expr1, Expr.StringExpr.EndsWith)
-    def endsWith[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr    = binary(expr1, Expr.StringExpr.EndsWith)
+    def and(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.And)
+    def && (expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = and(expr1)
 
+    def or (expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Or)
+    def || (expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = or(expr1)
+
+    def xor(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Xor)
+
+    private def binary(expr1: CF.Expr[Boolean], op: CF.Expr.LogicExpr.BinaryOp) = CF.Expr.LogicBinaryExpr(expr0, expr1, op)
+  }
+
+  implicit final class CypherSyntaxCompareExprOps[A](expr0: CF.Expr[A]) {
+    def eq (expr1: CF.Expr[_]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Eq)
+    def ===(expr1: CF.Expr[_]): CF.Expr[Boolean] = eq(expr1)
+
+    def neq(expr1: CF.Expr[_]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Neq)
+    def <> (expr1: CF.Expr[_]): CF.Expr[Boolean] = neq(expr1)
+
+    def isNull : CF.Expr[Boolean] = unary(CF.Expr.CompareExpr.IsNull)
+    def notNull: CF.Expr[Boolean] = unary(CF.Expr.CompareExpr.NotNull)
+
+    def lt (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
+    def <  (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
+
+    def lte(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lte)
+    def <= (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lte)
+
+    def gte(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gte)
+    def >= (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gte)
+
+    def gt (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
+    def > (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
+
+    def in(expr1: CF.Expr[List[A]]): CF.Expr[Boolean] = CF.Expr.InList(expr1, expr0)
+
+    private def unary(op: CF.Expr.CompareExpr.UnaryOp) = CF.Expr.CompareUnaryExpr(expr0, op)
+    private def binary(expr1: CF.Expr[_], op: CF.Expr.CompareExpr.BinaryOp) = CF.Expr.CompareBinaryExpr(expr0, expr1, op)
+  }
+
+  // // // // // // // // // // // // // // // //
+  // // // // Ops:  Strings and Numeric  // // //
+  // // // // // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxStringExprOps(expr0: CF.Expr[String]) {
     /** Regular expression match */
-    def matches(expr1: Known[Expr[String]]): Expr.StringExpr                      = binary(expr1, Expr.StringExpr.Regex)
-    /** Regular expression match */
-    def matches[E <: Expr[String]: CypherFragment](expr1: E): Expr.StringExpr     = binary(expr1, Expr.StringExpr.Regex)
+    def matches   (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.Regex)
+    def contains  (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.Contains)
+    def startsWith(expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.StartsWith)
+    def endsWith  (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.EndsWith)
 
+    def toLower: CF.Expr[String] = "toLower".func(expr0)
+    def toUpper: CF.Expr[String] = "toUpper".func(expr0)
+    def size:    CF.Expr[Long]   = "size".func(expr0)
 
-    def toLower: Expr.Func[String] = 'toLower.func(expr0)
-    def toUpper: Expr.Func[String] = 'toUpper.func(expr0)
-    def size:    Expr.Func[Long]   = 'size.func(expr0)
-
-    def toBoolean: Expr.Func[Boolean] = 'toBoolean.func(expr0)
-    def toDouble:  Expr.Func[Double]  = 'toFloat.func(expr0)
-    def toLong:    Expr.Func[Long]    = 'toInteger.func(expr0)
+    def toBoolean: CF.Expr[Boolean] = "toBoolean".func(expr0)
+    def toDouble:  CF.Expr[Double]  = "toFloat".func(expr0)
+    def toLong:    CF.Expr[Long]    = "toInteger".func(expr0)
 
     /** Returns a string containing the specified number of leftmost characters of the original string. */
-    def takeLeft(n: Known[Expr[Long]]): Expr.Func[String]                   = 'left.func(expr0, n)
-    def takeLeft[E <: Expr[Long]: CypherFragment](n: E): Expr.Func[String]  = 'left.func(expr0, n)
+    def takeLeft(n: CF.Expr[Long]): CF.Expr[String] = "left".func(expr0, n)
 
     /** Returns a string containing the specified number of rightmost characters of the original string. */
-    def takeRight(n: Known[Expr[Long]]): Expr.Func[String]                  = 'right.func(expr0, n)
-    def takeRight[E <: Expr[Long]: CypherFragment](n: E): Expr.Func[String] = 'right.func(expr0, n)
+    def takeRight(n: CF.Expr[Long]): CF.Expr[String] = "right".func(expr0, n)
 
     /** Returns a string in which all occurrences of a specified string in the original string have been replaced by another (specified) string. */
-    def replace(search: Known[Expr[String]], replace: Known[Expr[String]]): Expr.Func[String]                                       = 'replace.func(expr0, search, replace)
-    def replace[E1 <: Expr[String]: CypherFragment, E2 <: Expr[String]: CypherFragment](search: E1, replace: E2): Expr.Func[String] = 'replace.func(expr0, search, replace)
+    def replace(search: CF.Expr[String], replace: CF.Expr[String]): CF.Expr[String] = "replace".func(expr0, search, replace)
 
-    def reverse: Expr.Func[String] = 'reverse.func(expr0)
+    def reverse: CF.Expr[String] = "reverse".func(expr0)
 
     /** Returns a list of strings resulting from the splitting of the original string around matches of the given delimiter. */
-    def split(delimiter: Known[Expr[String]]): Expr.Func[List[String]]                  = 'split.func(expr0, delimiter)
-    def split[E <: Expr[String]: CypherFragment](delimiter: E): Expr.Func[List[String]] = 'split.func(expr0, delimiter)
+    def split(delimiter: CF.Expr[String]): CF.Expr[List[String]] = "split".func(expr0, delimiter)
 
     /** Returns a substring of the original string, beginning with a 0-based index start. */
-    def substring(start: Known[Expr[Long]]): Expr.Func[String]                  = 'substring.func(expr0, start)
-    def substring[E <: Expr[Long]: CypherFragment](start: E): Expr.Func[String] = 'substring.func(expr0, start)
+    def substring(start: CF.Expr[Long]): CF.Expr[String] = "substring".func(expr0, start)
 
     /** Returns a substring of the original string, beginning with a 0-based index start and length. */
-    def substring(start: Known[Expr[Long]], length: Known[Expr[Long]]): Expr.Func[String]                                       = 'substring.func(expr0, start, length)
-    def substring[E1 <: Expr[Long]: CypherFragment, E2 <: Expr[Long]: CypherFragment](start: E1, length: E2): Expr.Func[String] = 'substring.func(expr0, start, length)
+    def substring(start: CF.Expr[Long], length: CF.Expr[Long]): CF.Expr[String] = "substring".func(expr0, start, length)
 
     /** Returns the original string with leading and trailing whitespace removed. */
-    def trim: Expr.Func[String] = 'trim.func(expr0)
+    def trim: CF.Expr[String] = "trim".func(expr0)
     /** Returns the original string with leading whitespace removed. */
-    def trimLeft: Expr.Func[String] = 'lTrim.func(expr0)
+    def trimLeft: CF.Expr[String] = "lTrim".func(expr0)
     /** Returns the original string with trailing whitespace removed. */
-    def trimRight: Expr.Func[String] = 'rTrim.func(expr0)
+    def trimRight: CF.Expr[String] = "rTrim".func(expr0)
 
-    private def binary(expr1: Known[Expr[String]], op: Expr.StringExpr.Op) = Expr.StringExpr(expr0, expr1, op)
+    private def binary(expr1: CF.Expr[String], op: CF.Expr.StringExpr.Op) = CF.Expr.StringExpr(expr0, expr1, op)
   }
 
-  implicit class StringExprOps[E0 <: Expr[String]: CypherFragment](expr0: E0) extends StringKnownExprOps(expr0)
+  implicit final class CypherSyntaxMathematicalExprOps[N: Numeric](expr0: CF.Expr[N]) {
+    def unary_- : CF.Expr[N] = CF.Expr.MathematicalUnaryExpr(expr0, CF.Expr.MathematicalExpr.Negation)
 
+    def +(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Addition)
+    def -(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Subtraction)
+    def *(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Multiplication)
+    def /(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Division)
+    def %(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.ModuloDivision)
+    def ^(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Exponentiation)
 
-  implicit class NumericKnownExprOps[N: Numeric](expr0: Known[Expr[N]]) {
-    def +(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Addition)
-    def +[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Addition)
-
-    def -(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Subtraction)
-    def -[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Subtraction)
-
-    def *(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Multiplication)
-    def *[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Multiplication)
-
-    def /(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Division)
-    def /[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Division)
-
-    def %(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.ModuloDivision)
-    def %[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.ModuloDivision)
-
-    def ^(expr1: Known[Expr[N]]): Expr.MathematicalBinaryExpr[N]                  = binary(expr1, Expr.MathematicalExpr.Exponentiation)
-    def ^[E <: Expr[N]: CypherFragment](expr1: E): Expr.MathematicalBinaryExpr[N] = binary(expr1, Expr.MathematicalExpr.Exponentiation)
-
-    def unary_- : Expr.MathematicalUnaryExpr[N] = Expr.MathematicalUnaryExpr(expr0, Expr.MathematicalExpr.Negation)
-
-    private def binary(expr1: Known[Expr[N]], op: Expr.MathematicalExpr.BinaryOp) = Expr.MathematicalBinaryExpr(expr0, expr1, op)
+    private def binary(expr1: CF.Expr[N], op: CF.Expr.MathematicalExpr.BinaryOp) = CF.Expr.MathematicalBinaryExpr(expr0, expr1, op)
   }
 
-  implicit class NumericExprOps[E0 <: Expr[_], N](expr0: E0)
-                                                 (implicit
-                                                  unpack: Unpack1[E0, Expr, N],
-                                                  frag: CypherFragment[E0],
-                                                  numeric: Numeric[N]
-                                                 ) extends NumericKnownExprOps[N](Known(expr0).asInstanceOf[Known[Expr[N]]])
+  // // // // // // // // // // // // // // // //
+  // // // //  //  Lists and Maps  // // // // //
+  // // // // // // // // // // // // // // // //
 
+  implicit final class ListOps[A](list: CF.Expr[List[A]]) {
+    def concat(that: CF.Expr[List[A]]): CF.Expr[List[A]] = CF.Expr.Concat(list, that)
+    def ++(that: CF.Expr[List[A]]): CF.Expr[List[A]] = concat(that)
 
-  protected sealed class ListMapOps[A](list: => Known[Expr[List[A]]], filter: Option[Expr.Var[A] => Known[Expr[Boolean]]]) {
-    def map[B](f: Expr.Var[A] => Known[Expr[B]]): Expr.ListComprehension[A, B] = {
-      val (arg, expr) = ListOps.applyExprVar(f)
-      Expr.ListComprehension(list, arg.name, filter = filter.map(_(arg)), map = Some(expr))
-    }
-  }
-  implicit class ListOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[List[A]])
-    extends ListMapOps[A](expr0.known.widen, None)
-  {
-    private lazy val listExpr: Known[Expr[List[A]]] = expr0.known.widen
+    def at[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[A] = CF.Expr.AtIndex(list, i.asInstanceOf[CF.Expr[Long]])
 
-    def concat[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] =
-      Expr.Concat(listExpr, expr1.known)
-    def ++[E1 <: Expr[List[A]]: CypherFragment](expr1: E1): Expr.Concat[A] = concat(expr1)
+    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](l: CF.Expr[I1], r: CF.Expr[I2]): CF.Expr[List[A]] = slice(Ior.Both(l, r))
+    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](range: Ior[CF.Expr[I1], CF.Expr[I2]]): CF.Expr[List[A]] =
+      CF.Expr.AtRange(list, range.asInstanceOf[Ior[CF.Expr[Long], CF.Expr[Long]]])
 
-    def at[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[Long]]): Expr.AtIndex[A] =
-      Expr.AtIndex(listExpr, i.asInstanceOf[E1[Long]].known)
+    def from[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]] = slice[I, I](Ior.Left(i))
+    def to  [I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]] = slice[I, I](Ior.Right(i))
 
-    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](
-      range: Ior[E1[I1], E2[I2]]
-    )(
-      implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
-    ): Expr.AtRange[A] =
-      Expr.AtRange(listExpr, range.bimap(_.known.asInstanceOf[Known[Expr[Long]]], _.known.asInstanceOf[Known[Expr[Long]]]))
+    def head: CF.Expr[A]       = "head".func(list)
+    def tail: CF.Expr[List[A]] = "tail".func(list)
+    def size: CF.Expr[Long]    = "size".func(list)
 
-    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](range: Ior[Known[Expr[I1]], Known[Expr[I2]]]): Expr.AtRange[A] =
-      Expr.AtRange(listExpr, range.bimap(_.asInstanceOf[Known[Expr[Long]]], _.asInstanceOf[Known[Expr[Long]]]))
+    def withFilter(f: CF.Expr[A] => CF.Expr[Boolean]): ListOps.WithFilter[A] = new ListOps.WithFilter(list, f)
+    def filter(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[List[A]] = CF.Expr.ListComprehension(list, Some(f), None)
 
-    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](l: E1[I1], r: E2[I2])(
-      implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
-    ): Expr.AtRange[A] = at(Ior.Both(l, r))
+    def map[B](f: CF.Expr[A] => CF.Expr[B]): CF.Expr[List[B]] = CF.Expr.ListComprehension(list, None, Some(f))
 
-    def at[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](l: Known[Expr[I1]], r: Known[Expr[I2]]): Expr.AtRange[A] = at(Ior.Both(l, r))
-
-    def from[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[I]]): Expr.AtRange[A] = at[I, I, E1, E1](Ior.Left(i))
-    def from[I: (Int |∨| Long)#λ](known: Known[Expr[I]]): Expr.AtRange[A] = at[I, I](Ior.Left(known))
-
-    def to[I: (Int |∨| Long)#λ, E1[x] <: Expr[x]](i: E1[I])(implicit frag1: CypherFragment[E1[I]]): Expr.AtRange[A] = at[I, I, E1, E1](Ior.Right(i))
-    def to[I: (Int |∨| Long)#λ](i: Known[Expr[I]]): Expr.AtRange[A] = at[I, I](Ior.Right(i))
-
-    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ, E1[x] <: Expr[x], E2[x] <: Expr[x]](
-      rangeOpt: Option[Ior[E1[I1], E2[I2]]]
-    )(
-      implicit frag1: CypherFragment[E1[I1]], frag2: CypherFragment[E2[I2]]
-    ): Known[Expr[List[A]]] = rangeOpt.map(at(_).known) getOrElse listExpr
-
-    def size: Expr.Func[Long] = Expr.Func("size", List(expr0))
-
-    def withFilter(f: Expr.Var[A] => Known[Expr[Boolean]]): ListOps.WithFilter[A] = new ListOps.WithFilter(listExpr, f)
-
-    def filter(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListComprehension[A, A] = {
-      val (arg, expr) = ListOps.applyExprVar(f)
-      Expr.ListComprehension(listExpr, arg.name, filter = Some(expr), map = None)
-    }
-    def filter0(expr: Known[Expr[Boolean]]): Expr.ListComprehension[A, A] =
-      Expr.ListComprehension(listExpr, "_", filter = Some(expr), map = None)
-
-    def reduce[B](b: Known[Expr[B]])(f: (Expr.Var[A], Expr.Var[B]) => Known[Expr[B]]): Expr.ReduceList[A, B] = {
-      val elemAlias, accAlias = randomAlias()
-      val expr = f(Expr.Var[A](elemAlias), Expr.Var[B](accAlias))
-      Expr.ReduceList(listExpr, elemAlias, b, accAlias, expr)
-    }
+    def reduce[B](b: CF.Expr[B])(f: (CF.Expr[B], CF.Expr[A]) => CF.Expr[B]): CF.Expr[B] = CF.Expr.Reduce(list, b, f)
 
     // predicates
-    def all   (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.All, f)
-    def any   (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Any, f)
-    def none  (f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.None, f)
-    def single(f: Expr.Var[A] => Known[Expr[Boolean]]): Expr.ListPredicate[A] = predicate(Expr.ListPredicate.Single, f)
+    def all   (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.All, f)
+    def any   (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.Any, f)
+    def none  (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.None, f)
+    def single(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.Single, f)
 
-    private def predicate(pred: Expr.ListPredicate.Predicate, f: Expr.Var[A] => Known[Expr[Boolean]]) = {
-      val (arg, expr) = ListOps.applyExprVar(f)
-      Expr.ListPredicate(listExpr, arg.name, pred, expr)
-    }
+    private def predicate(pred: CF.Expr.ListPredicate.Predicate, f: CF.Expr[A] => CF.Expr[Boolean]) =
+      CF.Expr.ListPredicate(list, pred, f)
   }
+
   object ListOps {
-    protected class WithFilter[A](list: Known[Expr[List[A]]], filter: Expr.Var[A] => Known[Expr[Boolean]]) extends ListMapOps(list, Some(filter))
-
-    protected[syntax] def applyExprVar[A, B](f: Expr.Var[A] => Known[Expr[B]]): (Expr.Var[A], Known[Expr[B]]) = {
-      val arg = Expr.Var[A](randomAlias())
-      val expr = f(arg)
-      arg -> expr
+    protected final class WithFilter[A](list: CF.Expr[List[A]], filter: CF.Expr[A] => CF.Expr[Boolean]) {
+      def map[B](f: CF.Expr[A] => CF.Expr[B]): CF.Expr[List[B]] = CF.Expr.ListComprehension(list, Some(filter), Some(f))
     }
   }
 
-  implicit class MapKnownOps[A](expr0: Known[Expr[Map[String, A]]]) {
-    def keys: Expr.Func[List[String]] = "keys".func(expr0)
-
-    def value[V](key: String): Expr.MapKey[V] = Expr.MapKey(expr0, key)
-    def value[V](key: Known[Expr[String]]): Expr.MapDynKey[V] = Expr.MapDynKey(expr0, key)
-
-    def add(entries: MapEntry[A]*): Expr.MapAdd[A] = Expr.MapAdd(expr0, entries.map(_.toPair).toMap)
-    def add(map: Map[String, Known[Expr[A]]]): Expr.MapAdd[A] = Expr.MapAdd(expr0, map)
-  }
-  implicit class MapOps[A, E0 <: Expr[_]](expr0: E0)(implicit frag0: CypherFragment[E0], ev: E0 <:< Expr[Map[String, A]])
-    extends MapKnownOps[A](expr0.known.widen)
-
-
-  implicit class SimpleCaseKnownExprOps[A](expr: Known[Expr[A]]) {
-    /** Simple case expression. */
-    def whenUnsafe[B](case0: SimpleCaseSyntax.Case[A, B], cases: SimpleCaseSyntax.Case[A, B]*): Expr.SimpleCaseExpr[A, B] = SimpleCaseSyntax.make(expr, case0 +: cases, None)
-    /** Simple case expression. */
-    def when[B](case0: SimpleCaseSyntax.Case[A, B], cases: SimpleCaseSyntax.Case[A, B]*): SimpleCaseSyntax.Builder[A, B] = new SimpleCaseSyntax.Builder(expr, case0 +: cases)
-  }
-  implicit class SimpleCaseExprOps[E <: Expr[_], A](expr: E)(implicit unpack: Unpack1[E, Expr, A], frag: CypherFragment[E])
-    extends SimpleCaseKnownExprOps[A](expr.known.asInstanceOf[Known[Expr[A]]])
-
-  object SimpleCaseSyntax {
-    protected[syntax] class Builder[A, B](value: Known[Expr[A]], cases: Seq[Case[A, B]]) {
-      def otherwise(default: Known[Expr[B]]): Expr.SimpleCaseExpr[A, B] = make(value, cases, Some(default))
-    }
-    protected[syntax] def make[A, B](value: Known[Expr[A]], cases: Seq[Case[A, B]], default: Option[Known[Expr[B]]]): Expr.SimpleCaseExpr[A, B] =
-      Expr.SimpleCaseExpr(value, cases.map(_.toPair).toMap, default)
-
-    protected[syntax] case class Case[A, B](value: Known[Expr[A]], result: Known[Expr[B]]) {
-      def toPair: (Known[Expr[A]], Known[Expr[B]]) = value -> result
-    }
-    object Case {
-      implicit def pairKnownToCase[A, B](pair: (Known[Expr[A]], Known[Expr[B]])): Case[A, B] = Case(pair._1, pair._2)
-      implicit def pairToCase[A, EA[_] <: Expr[_], B, EB[_] <: Expr[_]](pair: (EA[A], EB[B]))
-                                                                       (implicit fragA: CypherFragment[EA[A]], fragB: CypherFragment[EB[B]]): Case[A, B] =
-        Case(Known(pair._1)(fragA).asInstanceOf[Known[Expr[A]]], Known(pair._2)(fragB).asInstanceOf[Known[Expr[B]]])
-    }
+  implicit final class MapOps[A](map: CF.Expr[Map[String, A]]) {
+    def keys: CF.Expr[List[String]] = "keys".func(map)
   }
 
-  /** Generic case expression. */
-  def whenUnsafe[A](case0: GenericCaseSyntax.Case[A], cases: GenericCaseSyntax.Case[A]*): Expr.GenericCaseExpr[A] = GenericCaseSyntax.make(case0 +: cases, None)
-  /** Generic case expression. */
-  def when[A](case0: GenericCaseSyntax.Case[A], cases: GenericCaseSyntax.Case[A]*): GenericCaseSyntax.Builder[A] = new GenericCaseSyntax.Builder(case0 +: cases)
+  implicit final class MapNotAnyOps[A](map: CF.Expr[Map[String, A]])(implicit ev: A =:!= Any) {
+    def value(key: String): CF.Expr[A] = CF.Expr.MapKey(map, key)
+    def value(key: CF.Expr[String]): CF.Expr[A] = CF.Expr.MapDynKey(map, key)
 
-  object GenericCaseSyntax {
-    protected[syntax] class Builder[A](cases: Seq[Case[A]]) {
-      def otherwise(default: Known[Expr[A]]): Expr.GenericCaseExpr[A] = make(cases, Some(default))
-    }
-    protected[syntax] def make[A](cases: Seq[Case[A]], default: Option[Known[Expr[A]]]): Expr.GenericCaseExpr[A] =
-      Expr.GenericCaseExpr(cases.map(_.toPair).toMap, default)
-
-    protected[syntax] case class Case[A](value: Known[Expr[Boolean]], result: Known[Expr[A]]) {
-      def toPair: (Known[Expr[Boolean]], Known[Expr[A]]) = value -> result
-    }
-    object Case {
-      implicit def pairKnownToCase[A](pair: (Known[Expr[Boolean]], Known[Expr[A]])): Case[A] = Case(pair._1, pair._2)
-      implicit def pairToCase[EB <: Expr[Boolean], A, EA[_] <: Expr[_]](pair: (EB, EA[A]))
-                                                                       (implicit fragA: CypherFragment[EA[A]], fragB: CypherFragment[EB]): Case[A] =
-        Case(Known(pair._1)(fragB).widen, Known(pair._2)(fragA).asInstanceOf[Known[Expr[A]]])
-    }
+    def add(entries: (String, CF.Expr[A])*): CF.Expr[Map[String, A]] = CF.Expr.MapAdd(map, entries.toMap)
+    def add(map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapAdd(this.map, map)
   }
 
+  implicit final class MapAnyOps[A](map: CF.Expr[Map[String, A]])(implicit ev: A =:= Any) {
+    def value[V](key: String): CF.Expr[V] = CF.Expr.MapKey(map, key)
+    def value[V](key: CF.Expr[String]): CF.Expr[V] = CF.Expr.MapDynKey(map, key)
 
-  private def randomAlias(): String = Random.alphanumeric.take(20).mkString
-
-  // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
-
-
-  object -> {
-    def unapply(g: Graph): Option[(Vertex, Vertex)] = Some(Vertex() -> Vertex())
-    def unapply(v: Vertex): Option[(Vertex, Vertex)] = Some(Vertex() -> Vertex())
-  }
-  object `<-` {
-    def unapply(g: Graph): Option[(Vertex, Vertex)] = Some(Vertex() -> Vertex())
-    def unapply(v: Vertex): Option[(Vertex, Vertex)] = Some(Vertex() -> Vertex())
+    def add(entries: (String, CF.Expr[Any])*): CF.Expr[Map[String, Any]] = CF.Expr.MapAdd(map, entries.toMap)
+    def add(map: Map[String, CF.Expr[Any]]): CF.Expr[Map[String, Any]] = CF.Expr.MapAdd(this.map, map)
   }
 
-  case class -[A, B](a: A, b: B)
-//  object - {
-//    def unapply(g: Graph): Option[(Vertex - Edge, Vertex)] = ???
-//    def unapply(v: Vertex): Option[(Vertex - Edge, Vertex)] = ???
-//  }
+  def list[A](elems: CF.Expr[A]*): CF.Expr[List[A]] = CF.Expr.ListDef(elems.toList)
 
-  object > {
-    def unapply(g: Graph): Option[(Vertex - Edge, Vertex)] = Some(new -(Vertex(), Edge()) -> Vertex())
-    def unapply(v: Vertex): Option[(Vertex - Edge, Vertex)] = Some(new -(Vertex(), Edge()) -> Vertex())
+  /** Literal map constructor */
+  def dict[A](entries: (String, CF.Expr[A])*): CF.Expr[Map[String, A]] = CF.Expr.MapDef(entries.toMap)
+  /** Literal map constructor */
+  def dict[A](map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapDef(map)
 
-    def unapply(path: Vertex - Edge): Option[(Vertex - Edge, Vertex - Edge)] = Some(new -(Vertex(), Edge()) -> new -(Vertex(), Edge()))
-  }
-  object < {
-    def unapply(g: Graph): Option[(Vertex, Edge - Vertex)] = Some(Vertex() -> new -(Edge(), Vertex()))
-    def unapply(v: Vertex): Option[(Vertex, Edge - Vertex)] = Some(Vertex() -> new -(Edge(), Vertex()))
-  }
+  // // // // // // // // // // // // // // // //
+  // // // // Literals and Parameters // // // //
+  // // // // // // // // // // // // // // // //
 
-  object -- {
-    def unapply(g: Graph): Option[(Vertex, Vertex)] = Some(Vertex() -> Vertex())
-    def unapply(v: Vertex): Option[(Vertex, Vertex)] = Some(Vertex() -> Vertex())
-  }
+  def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
 
+  // // // // // // // // // // // // // // // //
+  // // // // Aggregation Functions // // // //
+  // // // // // // // // // // // // // // // //
 
-  lazy val ⟶ : ->.type = ->
-  lazy val ⟵ : `<-`.type = `<-`
-  lazy val ⟷ : --.type = --
-
-
-  implicit def lit[A](a: A): Expr.Lit[A] = Expr.Lit[A](a)
-  implicit def knownLit[A](a: A)(implicit frag: CypherFragment[Expr.Lit[A]]): Known[Expr.Lit[A]] = Expr.Lit[A](a).known
-
-  def cypherNull[A]: Expr.Null[A] = Expr.Null[A]
-  def returnNothing: Match.OptionalResult[Unit] = Match.Result.None
-
-  def list[A](exprs: Known[Expr[A]]*): Expr.List[A] = Expr.List[A](exprs.toList)
-
-  def distinct[A](expr: Known[Expr[A]]): Known[Expr[A]] = Expr.Distinct(expr)
-  def collect[A](expr: Known[Expr[A]]): Expr.Func[List[A]] = 'collect.func[List[A]](expr)
-
-  def exists(pattern: syntax.Graph => Unit): Expr.Exists = macro impl.Exists.impl
-
-  def dict(entries: MapEntry[Any]*): Expr.Map[Any] = Expr.Map(entries.map(_.toPair).toMap)
-  def dict(map: Map[String, Known[Expr[Any]]]): Expr.Map[Any] = Expr.Map(map)
-
-  case class MapEntry[+A](key: String, value: Known[Expr[A]]) { def toPair: (String, Known[Expr[A]]) = key -> value }
-  object MapEntry {
-    implicit def pairKnownToMapEntry[A](pair: (String, Known[Expr[A]])): MapEntry[A] = MapEntry(pair._1, pair._2)
-    implicit def pairToMapEntry[A, E[_] <: Expr[_]](pair: (String, E[A]))(implicit frag: CypherFragment[E[A]]): MapEntry[A] =
-      MapEntry(pair._1, Known(pair._2)(frag).asInstanceOf[Known[Expr[A]]])
-  }
-
-
-  implicit class ReturnAsOps[A, E <: Expr[_]](expr: E)(implicit frag: CypherFragment[E], tpe: E <:< Expr[A]) {
-    def as(alias: String): Return.Expr[A] = Return.Expr(expr.known.widen[Expr[A]], as = Option(alias))
-  }
-
-  implicit class ReturnAsKnownOps[A](expr: Known[Expr[A]]) {
-    def as(alias: String): Return.Expr[A] = Return.Expr(expr, as = Option(alias))
-  }
-
-  sealed trait QueryReturn[T]{
-    type Ret
-    type Out <: Return[Ret]
-    def apply(t: T): Out
-  }
-  object QueryReturn {
-    type Aux   [T, R]                 = QueryReturn[T] { type Ret = R; type Out <: Return.Return0[R] }
-    type AuxOut[T, R, O <: Return[R]] = QueryReturn[T] { type Ret = R; type Out = O }
-
-    implicit def returnExpr[A, E <: Expr[_]](
-      implicit
-      ev: E <:< Expr.Inv[A],
-      fragment: CypherFragment[E]
-    ): AuxOut[E, A, Return.Expr[A]] =
-      new QueryReturn[E] {
-        type Ret = A
-        type Out = Return.Expr[A]
-        def apply(e: E): Return.Expr[A] = Return.Expr(Known(e).widen, as = None)
-      }
-
-    implicit def returnKnownExpr[A, KE <: Known[Expr[_]]](
-      implicit ev: KE <:< Known[Expr[A]]
-    ): AuxOut[KE, A, Return.Expr[A]] =
-      new QueryReturn[KE] {
-        type Ret = A
-        type Out = Return.Expr[A]
-        def apply(e: KE): Return.Expr[A] = Return.Expr(e, as = None)
-      }
-
-    implicit def returnReturnExpr[A, E <: Return.Expr[_]](
-      implicit
-      unpack: Unpack1[E, Return.Expr, A],
-      fragment: CypherFragment[E]
-    ): AuxOut[E, A, Return.Expr[A]] =
-      new QueryReturn[E] {
-        type Ret = A
-        type Out = Return.Expr[A]
-        def apply(e: E): Return.Expr[A] = e.asInstanceOf[Return.Expr[A]]
-      }
-
-    implicit def returnTuple[P <: Product, L <: HList, R <: HList](
-      implicit
-      ev: P <:!< Expr[_],
-      gen: Generic.Aux[P, L],
-      build: Return.Tuple.FromHList.Aux[L, R]
-    ): AuxOut[P, R, Return.Tuple[R]] =
-      new QueryReturn[P] {
-        type Ret = R
-        type Out = Return.Tuple[R]
-        def apply(p: P): Return.Tuple[R] = build(gen.to(p))
-      }
-
-    implicit lazy val returnUntyped: AuxOut[Return.Untyped, List[Any], Return.Untyped] =
-      new QueryReturn[Return.Untyped] {
-        type Ret = List[Any]
-        type Out = Return.Untyped
-        @inline def apply(t: Return.Untyped): Return.Untyped = t
-      }
-
-    implicit def returnOptions[A, E <: Return.Options[_]](implicit ev: E <:< Return.Options.Inv[A]): AuxOut[E, A, Return.Options[A]] =
-      _retOptions.asInstanceOf[AuxOut[E, A, Return.Options[A]]]
-    private lazy val _retOptions = new QueryReturn[Return.Options[_]] {
-      type Ret = Any
-      type Out = Return.Options[_]
-      def apply(t: Return.Options[_]): Return.Options[_] = t
-    }
-  }
-
-
-  def returnTuple(exprs: Iterable[Known[Expr[_]]]): Return.Untyped = CypherFragment.Return.Untyped(exprs)
-
-  implicit def toReturnOps[E, A](e: E)(implicit rq: QueryReturn.Aux[E, A]): ReturnOps[A] = ReturnOps(rq(e))
-  implicit def toQueryMatchResult[R](q: Query.Clause[R]): Match.Result.Clause[R] = new Match.Result.Clause[R]{ protected[syntax] def clause: Query.Clause[R] = q }
-
-
-  def unwind[A, R](expr: Known[Expr[Seq[A]]])(f: Expr.Var[A] => Match.Result[R]): Match.Result[R] =
-    macro impl.Unwind.instanceImpl[A, R]
-
-  /** Generates {{{ WITH * WHERE ... }}} */
-  def filter[R](f: Known[Expr[Boolean]])(res: Match.Result[R]): Match.Result[R] = impl.With.filter(f, res)
-
-  object `with` {
-    def apply[R](wildcard: Boolean, ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: impl.With.Var*)
-                (res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implWOV[R]
-
-    def apply[R](wildcard: Boolean, vars: impl.With.Var*)(res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implWV[R]
-
-    /** wildcard = false */
-    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], vars: impl.With.Var*)
-                (res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implFOV[R]
-
-    /** wildcard = false */
-    def apply[R](vars: impl.With.Var*)(res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implFV[R]
-  }
-
-  object withWildcard {
-    /** wildcard = true */
-    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any])
-                (res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implTO[R]
-
-    /** wildcard = true */
-    def apply[R](ops: syntax.ReturnOps[Any] => syntax.ReturnOps[Any], var0: impl.With.Var, vars: impl.With.Var*)
-                (res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implTOV[R]
-
-    /** wildcard = true */
-    def apply[R](vars: impl.With.Var*)(res: Match.Result[R]): Match.Result[R] =
-      macro impl.With.WithMacros.implTV[R]
-  }
-
-
-  type Param[+A] = Expr.Param[A]
-  def parameterized(f: Any): Match.ParameterizedQuery[_, _] = macro Match.ParameterizedQuery.impl
-
-  final case class ReturnOps[A] protected (
-      private val _ret: Known[Return.Return0[A]],
-      private val _distinct: Boolean    = false,
-      private val _order: Return.Order  = Nil,
-      private val _skip: Option[Known[CypherFragment.Expr.Input[Long]]]   = None,
-      private val _limit: Option[Known[CypherFragment.Expr.Input[Long]]]  = None
-  ) extends Match.Result.Ret[A]
-  {
-    protected[syntax] def ret: Known[Return[A]] = Return.Options(_ret, _distinct, _order, _skip, _limit).known
-
-    def orderBy(by: ReturnOps.OrderBy*): ReturnOps[A] = copy(_order = _order ++ by.map(_.asPair).toMap)
-    def skip(n: Long): ReturnOps[A] = copy(_skip = Some(n))
-    def skip(n: Option[Long]): ReturnOps[A] = copy(_skip = n.map(Expr.Lit(_)))
-    def skip(n: Param[Long]): ReturnOps[A] = copy(_skip = Some(n))
-    def limit(n: Long): ReturnOps[A] = copy(_limit = Some(n))
-    def limit(n: Option[Long]): ReturnOps[A] = copy(_limit = n.map(Expr.Lit(_)))
-    def limit(n: Param[Long]): ReturnOps[A] = copy(_limit = Some(n))
-    def distinct: ReturnOps[A] = copy(_distinct = true)
-    def distinct(b: Boolean): ReturnOps[A] = copy(_distinct = b)
-
-    @inline def `return`: Match.Result[A] = this
-  }
-
-  object ReturnOps {
-    sealed trait OrderBy{
-      val expr: Known[Expr[_]]
-      def isAscending: Boolean = this.isInstanceOf[Ascending]
-      def asPair: (Known[Expr[_]], Boolean) = expr -> isAscending
-    }
-    case class Ascending(expr: Known[Expr[_]]) extends OrderBy
-    case class Descending(expr: Known[Expr[_]]) extends OrderBy
-
-    implicit def defaultOrderingIsAscending[E <: Expr[_]](e: E)(implicit frag: CypherFragment[E]): Ascending = Ascending(e)
-  }
-
-  implicit class OrderDescendingOps[E <: Expr[_]: CypherFragment](e: E) {
-    def desc: ReturnOps.Descending = ReturnOps.Descending(e)
-  }
-
-
-  implicit class QueryOps[R0](q0: Query[R0]) {
-    def union   [R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = false)
-    def unionAll[R1 >: R0](query: Query[R1]): Query[R1] = Query.Union(q0, query, all = true)
-  }
-
-  implicit class SetPropOps[E <: Expr[Graph.Atom]: CypherFragment](elem: E) {
-    def set: SetPropOps.Assign = new SetPropOps.Assign(elem.known)
-  }
-  object SetPropOps {
-    protected class Assign(elem: Known[Expr[Graph.Atom]]) {
-      import SetProp.Internal.Set
-
-      def update(key: String, value: Known[Expr[_]]): Set = Set(elem, key, value)
-      def update[E <: Expr[_]: CypherFragment](key: String, value: E): Set = Set(elem, key, value)
-    }
-  }
-}
-
-trait LowPriorityImplicits {
-  @compileTimeOnly("`unwrapBooleanExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
-  implicit def unwrapBooleanExprInIfGuard(e: Expr[Boolean]): Boolean = unexpected
-  @compileTimeOnly("`unwrapKnownBooleanExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
-  implicit def unwrapKnownBooleanExprInIfGuard(e: Known[Expr[Boolean]]): Boolean = unexpected
-
-  @compileTimeOnly("`unwrapBooleanOptionExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
-  @raiseCompilationError("Cannot use unknown optional expressions in `if` guard, make it Option[Known[Expr[Boolean]]]")
-  implicit def unwrapBooleanOptionExprInIfGuard(e: Option[Expr[Boolean]]): Boolean = unexpected
-  @compileTimeOnly("`unwrapKnownBooleanOptionExprInIfGuard` is being used outside of `slothql.cypher.syntax.Match` macro")
-  implicit def unwrapKnownBooleanOptionExprInIfGuard(e: Option[Known[Expr[Boolean]]]): Boolean = unexpected
-
-  private def unexpected: Nothing = sys.error("This call should have been replaced by macro")
+  def collect[A](a: CF.Expr[A]): CF.Expr[List[A]] = "collect".func(a)
 }

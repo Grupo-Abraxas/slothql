@@ -1,3 +1,4 @@
+/*
 package com.arkondata.slothql02
 
 import cats.data.NonEmptyList
@@ -292,3 +293,4 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     super.afterAll()
   }
 }
+*/

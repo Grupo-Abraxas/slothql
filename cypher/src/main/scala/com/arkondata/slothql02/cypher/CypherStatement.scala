@@ -1,4 +1,4 @@
-package com.arkondata.slothql02.newcypher
+package com.arkondata.slothql02.cypher
 
 import scala.collection.JavaConverters
 import scala.language.{ higherKinds, implicitConversions }

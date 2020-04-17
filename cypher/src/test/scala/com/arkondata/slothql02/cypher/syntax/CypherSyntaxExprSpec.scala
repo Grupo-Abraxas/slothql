@@ -1,6 +1,6 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
-/** Variety of [[com.arkondata.slothql02.newcypher.CypherFragment.Expr]].
+/** Variety of [[com.arkondata.slothql02.cypher.CypherFragment.Expr]].
  *  - Input
  *  - Param
  *  - Lit

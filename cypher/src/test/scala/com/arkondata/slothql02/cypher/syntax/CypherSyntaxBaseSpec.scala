@@ -1,8 +1,8 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import org.scalatest.{ Assertion, Matchers, WordSpec }
 
-import com.arkondata.slothql02.newcypher.{ CypherFragment, CypherStatement }
+import com.arkondata.slothql02.cypher.{ CypherFragment, CypherStatement }
 
 trait CypherSyntaxBaseSpec extends WordSpec with Matchers {
   protected def cypherGen: CypherStatement.Gen = CypherStatement.Gen.Default()

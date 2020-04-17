@@ -1,4 +1,4 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -6,9 +6,9 @@ import scala.reflect.macros.blackbox
 
 import cats.data.{ Ior, NonEmptyList }
 
-import com.arkondata.slothql02.newcypher.CypherFragment.{ Pattern => P }
-import com.arkondata.slothql02.newcypher.CypherStatement.Alias
-import com.arkondata.slothql02.newcypher.{ syntax, CypherFragment => CF }
+import com.arkondata.slothql02.cypher.CypherFragment.{ Pattern => P }
+import com.arkondata.slothql02.cypher.CypherStatement.Alias
+import com.arkondata.slothql02.cypher.{ syntax, CypherFragment => CF }
 
 class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._
@@ -41,16 +41,16 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val (rebind0, bindDefsNodeRel) = elems0.collect{
             case (Some(nme), Pattern.Tpe.Node, _) =>
               val name = c.freshName(nme)
-              val tree = q"val ${TermName(name)} = _root_.com.arkondata.slothql02.newcypher.syntax.CypherSyntaxFromMacro.mkNode($nme)"
+              val tree = q"val ${TermName(name)} = _root_.com.arkondata.slothql02.cypher.syntax.CypherSyntaxFromMacro.mkNode($nme)"
               (nme, name) -> tree
             case (Some(nme), Pattern.Tpe.Rel(dir), _) =>
               val name = c.freshName(nme)
-              val tree = q"val ${TermName(name)} = _root_.com.arkondata.slothql02.newcypher.syntax.CypherSyntaxFromMacro.mkRel[$dir]($nme)"
+              val tree = q"val ${TermName(name)} = _root_.com.arkondata.slothql02.cypher.syntax.CypherSyntaxFromMacro.mkRel[$dir]($nme)"
               (nme, name) -> tree
           }.unzip
           val bindDefOptLet = letAliasOpt.map{ nme =>
             val name = c.freshName(nme)
-            val tree = q"val ${TermName(name)} = _root_.com.arkondata.slothql02.newcypher.syntax.CypherSyntaxFromMacro.mkPath($nme)"
+            val tree = q"val ${TermName(name)} = _root_.com.arkondata.slothql02.cypher.syntax.CypherSyntaxFromMacro.mkPath($nme)"
             (nme, name) -> tree
           }
           val letAliasExprOpt = bindDefOptLet.map{ case ((_, name), _) => c.Expr[Alias](q"${TermName(name)}") }
@@ -73,7 +73,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     case other => c.abort(query.tree.pos, s"Unexpected query function: $other")
   }
 
-  private lazy val SyntaxPackageTypeSignature = c.mirror.staticPackage("com.arkondata.slothql02.newcypher.syntax").typeSignature
+  private lazy val SyntaxPackageTypeSignature = c.mirror.staticPackage("com.arkondata.slothql02.cypher.syntax").typeSignature
   private lazy val SyntaxIfGuardUnwrap = SyntaxPackageTypeSignature.decl(TermName("booleanCypherExprToBooleanForIfGuard"))
   private lazy val SyntaxIfGuardUnwrapOpt = SyntaxPackageTypeSignature.decl(TermName("optionalBooleanCypherExprToBooleanForIfGuard"))
 
@@ -142,7 +142,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
       case Pattern(pattern) => Some(None -> pattern)
     }
 
-    lazy val SyntaxUnapply_::= = rootMirror.staticModule("com.arkondata.slothql02.newcypher.syntax.$colon$colon$eq")
+    lazy val SyntaxUnapply_::= = rootMirror.staticModule("com.arkondata.slothql02.cypher.syntax.$colon$colon$eq")
                                            .typeSignature.decl(TermName("unapply"))
   }
 
@@ -324,7 +324,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
             case _ => c.abort(lhs.pos, "Property key must be a literal string")
           }
           val value = if (rhs.tpe <:< CypherExprType) rhs
-                      else q"_root_.com.arkondata.slothql02.newcypher.syntax.lit($rhs)"
+                      else q"_root_.com.arkondata.slothql02.cypher.syntax.lit($rhs)"
           key -> value
       }
       c.Expr[Map[String, CF.Expr[_]]](q"_root_.scala.Predef.Map(..$props0)")
@@ -332,11 +332,11 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
 
     lazy val CypherExprType = typeOf[CF.Expr[_]]
 
-    lazy val Syntax_<  = rootMirror.staticModule("com.arkondata.slothql02.newcypher.syntax.$less")
-    lazy val Syntax_>  = rootMirror.staticModule("com.arkondata.slothql02.newcypher.syntax.$greater")
-    lazy val Syntax_-  = rootMirror.staticModule("com.arkondata.slothql02.newcypher.syntax.$minus")
-    lazy val Syntax_:= = rootMirror.staticModule("com.arkondata.slothql02.newcypher.syntax.$colon$eq")
-    lazy val Syntax_** = rootMirror.staticModule("com.arkondata.slothql02.newcypher.syntax.$times$times")
+    lazy val Syntax_<  = rootMirror.staticModule("com.arkondata.slothql02.cypher.syntax.$less")
+    lazy val Syntax_>  = rootMirror.staticModule("com.arkondata.slothql02.cypher.syntax.$greater")
+    lazy val Syntax_-  = rootMirror.staticModule("com.arkondata.slothql02.cypher.syntax.$minus")
+    lazy val Syntax_:= = rootMirror.staticModule("com.arkondata.slothql02.cypher.syntax.$colon$eq")
+    lazy val Syntax_** = rootMirror.staticModule("com.arkondata.slothql02.cypher.syntax.$times$times")
 
     lazy val SyntaxNodeUnapplySeqSymbol = typeOf[syntax.Node.type].decl(TermName("unapplySeq")).asMethod
     lazy val SyntaxRelUnapplySeqSymbol  = typeOf[syntax.Rel.type] .decl(TermName("unapplySeq")).asMethod

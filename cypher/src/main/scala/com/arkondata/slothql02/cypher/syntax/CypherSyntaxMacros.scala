@@ -1,8 +1,8 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import scala.reflect.macros.whitebox
 
-import com.arkondata.slothql02.newcypher.{ CypherFragment => CF }
+import com.arkondata.slothql02.cypher.{ CypherFragment => CF }
 
 class CypherSyntaxMacros(val c: whitebox.Context) {
   import c.universe._
@@ -21,16 +21,16 @@ class CypherSyntaxMacros(val c: whitebox.Context) {
       case other => c.abort(c.enclosingPosition, s"Returning type $other is not supported")
     }.unzip
     q"""
-      new _root_.com.arkondata.slothql02.newcypher.syntax.CypherSyntaxReturnTuple[$T] {
+      new _root_.com.arkondata.slothql02.cypher.syntax.CypherSyntaxReturnTuple[$T] {
         type Out = ${mkTupleType(outTypes)}
-        def apply($arg: $T): _root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Return0[Out] =
-          _root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Tuple[Out](_root_.scala.List(..$returns))
+        def apply($arg: $T): _root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Return0[Out] =
+          _root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Tuple[Out](_root_.scala.List(..$returns))
       }
      """
   }
 
   private def returnExprTree(tpe: Type, expr: Tree) =
-    q"_root_.com.arkondata.slothql02.newcypher.CypherFragment.Return.Expr[$tpe]($expr, as = _root_.scala.None)"
+    q"_root_.com.arkondata.slothql02.cypher.CypherFragment.Return.Expr[$tpe]($expr, as = _root_.scala.None)"
 
   protected lazy val ScalaPackageType = c.internal.thisType(rootMirror.staticPackage("scala").moduleClass)
 

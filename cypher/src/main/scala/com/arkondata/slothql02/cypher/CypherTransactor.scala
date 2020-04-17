@@ -1,3 +1,4 @@
+/*
 package com.arkondata.slothql02.cypher
 
 import scala.collection.JavaConverters._
@@ -240,4 +241,4 @@ trait CypherTxBuilder {
       define(_.mapValues(underlying(_)).asJava)
   }
 
-}
+}*/

@@ -1,4 +1,4 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 /** Writing.
  *  - Writing clauses: CREATE, DELETE, SET

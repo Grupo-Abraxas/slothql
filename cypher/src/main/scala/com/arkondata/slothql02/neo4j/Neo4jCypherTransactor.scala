@@ -1,3 +1,4 @@
+/*
 package com.arkondata.slothql02.neo4j
 
 import scala.collection.JavaConverters._
@@ -11,7 +12,8 @@ import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
 import shapeless.{ :: => #:, _ }
 
-import com.arkondata.slothql02.cypher.{ CypherFragment, CypherTransactor, CypherTxBuilder }
+import com.arkondata.slothql02.cypher.{ CypherTransactor, CypherTxBuilder }
+import com.arkondata.slothql02.cypher.CypherFragment
 import com.arkondata.slothql02.neo4j.util.ioTraverseMonadIsMonad
 
 
@@ -254,4 +256,4 @@ object Neo4jCypherTransactor extends CypherTxBuilder {
     def toCells: CypherFragment.Return.Return0[List[Cell]] = ul.asInstanceOf[CypherFragment.Return.Return0[List[Cell]]]
   }
 
-}
+}*/

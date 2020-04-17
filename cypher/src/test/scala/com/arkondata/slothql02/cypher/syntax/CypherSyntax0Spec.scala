@@ -1,6 +1,6 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
-import com.arkondata.slothql02.newcypher.CypherFragment
+import com.arkondata.slothql02.cypher.CypherFragment
 
 /** Simplest spec: match and return.
  *  - Basic matching

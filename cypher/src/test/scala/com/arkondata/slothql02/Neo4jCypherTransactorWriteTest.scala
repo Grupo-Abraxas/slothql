@@ -1,3 +1,4 @@
+/*
 package com.arkondata.slothql02
 
 import cats.instances.vector._
@@ -43,3 +44,4 @@ class Neo4jCypherTransactorWriteTest extends WordSpec with Matchers {
     )
   }
 }
+*/

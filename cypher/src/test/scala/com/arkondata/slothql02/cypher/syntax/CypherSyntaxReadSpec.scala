@@ -1,8 +1,8 @@
-package com.arkondata.slothql02.newcypher.syntax
+package com.arkondata.slothql02.cypher.syntax
 
 import shapeless.test.illTyped
 
-import com.arkondata.slothql02.newcypher.CypherFragment
+import com.arkondata.slothql02.cypher.CypherFragment
 
 /** Advanced [[CypherSyntax0Spec]]
  *  - Referencing paths
@@ -310,7 +310,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
     "require all WITH modifiers to be defined on top of WITH block" in
       illTyped(
         """With(lit(10)) { n =>
-           val x: com.arkondata.slothql02.newcypher.CypherFragment.Expr[Int] = lit(100)
+           val x: com.arkondata.slothql02.cypher.CypherFragment.Expr[Int] = lit(100)
            With.where(lit(true))
            Match { case a =>
              (a.props, n, x)
