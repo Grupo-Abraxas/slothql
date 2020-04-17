@@ -19,19 +19,20 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
   protected def withImpl[R](queryFunc: Tree, expr0: ExprWithInnerType, exprs0: ExprWithInnerType*): c.Expr[CF.Query.Query0[R]] = {
     val exprs = expr0 +: exprs0
     val Function(args, body) = queryFunc
-    val argNames = args.map(_.name.toString)
-    val (binds, returns) = exprs.zip(argNames).map {
-      case ((tree, tpe), name) =>
+    val argNames0 = args.map(_.name.toString)
+    val (argNames, binds, returns) = exprs.zip(argNames0).map {
+      case ((tree, tpe), nme) =>
+        val name = c.freshName(nme)
         val bindName = TermName(name)
-        val bind = q"val $bindName = _root_.com.arkondata.slothql.newcypher.CypherFragment.Expr.Alias[$tpe]($name)"
+        val bind = q"val $bindName = _root_.com.arkondata.slothql.newcypher.CypherFragment.Expr.Alias[$tpe]($nme)"
         val ret = q"_root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Expr($tree, _root_.scala.Some($bindName))"
-        bind -> ret
-    }.unzip
+        ((nme, name), bind, ret)
+    }.unzip3
     val returnTree = returns match {
       case Seq(single) => single
       case seq => q"_root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
     }
-    val newBody = transformBody(argNames, body)
+    val newBody = transformBody(argNames.toMap, body)
     c.Expr[CF.Query.Query0[R]](
       q"""
         ..$binds
