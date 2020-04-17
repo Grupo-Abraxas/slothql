@@ -50,7 +50,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Unwind {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.unwind[R]
+    def apply[A, R](list: CF.Expr[List[A]])(func: CF.Expr[A] => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxUnwindMacros.unwind[A, R]
   }
 
   object Call {

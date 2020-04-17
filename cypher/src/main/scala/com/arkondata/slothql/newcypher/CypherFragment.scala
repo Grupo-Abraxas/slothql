@@ -441,7 +441,7 @@ object CypherFragment {
 
     case class Match(pattern: PatternTuple, optional: Boolean, where: Option[Expr[Boolean]]) extends Read
     case class With(ret: Return[_], where: Option[Expr[Boolean]]) extends Read
-    case class Unwind(expr: Expr[Seq[_]], as: String) extends Read
+    case class Unwind(expr: Expr[Seq[_]], as: Alias) extends Read
     case class Call(
       procedure: String,
       params: List[Expr[_]],
@@ -474,7 +474,10 @@ object CypherFragment {
           wh  <- part{ wh0.map(w => s" WHERE $w").getOrElse("") }
         } yield s"${opt}MATCH ${ps.mkString(", ")}$wh"
       case Unwind(expr, as) =>
-        part(expr).map(e => s"$e AS ${escapeName(as)}")
+        for {
+          expr  <- part(expr)
+          alias <- liftAlias(as)
+        } yield s"UNWIND $expr AS $alias"
       case With(ret0, where0) =>
         for {
           ret      <- part(ret0)

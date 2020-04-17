@@ -267,5 +267,19 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
            }}""",
         "All WITH modifiers must be defined at the beginning of the block"
       )
+
+    "support UNWIND clauses" in
+      test(
+        Match { case a =>
+        Unwind(a.prop[List[Int]]("xs")) { x =>
+        Match { case `a` -e> b if e.prop[Int]("x") === x =>
+          b.prop[String]("id")
+        }}},
+        "MATCH (`a0`) " +
+        "UNWIND `a0`.`xs` AS `x0` " +
+        "MATCH (`a0`) -[`e0`]-> (`b0`) " +
+          "WHERE `e0`.`x` = `x0` " +
+        "RETURN `b0`.`id`"
+      ).returns[String]
   }
 }
