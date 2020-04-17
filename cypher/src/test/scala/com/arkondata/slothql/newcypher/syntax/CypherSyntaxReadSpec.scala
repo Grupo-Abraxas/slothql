@@ -35,9 +35,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "MATCH (`a0`) --> (`b0`) RETURN `b0`"
       ).returns[Map[String, Any]]
     }
-  }
 
-  "Slothql cypher syntax" should {
     "match paths" in
       test(
         Match { case path ::= (Node("Foo") -Rel(`**`)> Node("Bar")) =>
