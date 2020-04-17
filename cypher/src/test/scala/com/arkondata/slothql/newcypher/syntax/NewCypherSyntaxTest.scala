@@ -727,7 +727,6 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
       Match { case v =>
         CypherFragment.Expr.ListComprehension[Long, Long](
           v.prop[List[Long]]("data"),
-          CypherFragment.Expr.Alias("x"),
           filter = None,
           map = None
         )

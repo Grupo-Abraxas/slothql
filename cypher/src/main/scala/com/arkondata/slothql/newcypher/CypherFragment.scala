@@ -129,22 +129,18 @@ object CypherFragment {
 
     final case class Reduce[A, B](
       list: Expr[List[A]],
-      elemAlias: Alias[A],
       initial: Expr[B],
-      accAlias: Alias[B],
       reduce: (Alias[B], Alias[A]) => Expr[B]
     ) extends ListExpr[B]
 
     final case class ListComprehension[A, B](
       list: Expr[List[A]],
-      elemAlias: Alias[A],
       filter: Option[Alias[A] => Expr[Boolean]],
       map: Option[Alias[A] => Expr[B]]
     ) extends ListExpr[List[B]]
 
     final case class ListPredicate[A](
       list: Expr[List[A]],
-      elemAlias: Alias[A],
       predicate: ListPredicate.Predicate,
       cond: Alias[A] => Expr[Boolean]
     ) extends ListExpr[Boolean]
@@ -159,35 +155,39 @@ object CypherFragment {
     }
 
     def toCypher(expr: ListExpr[_]): GenS[Part] = expr match {
-      case ListDef(values)     => partsSequence(values).map(_.mkString("[ ", ", ", " ]"))
-      case InList(list, elem)  => part2op(list, elem, "IN")
+      case ListDef(values)     => partsSequence(values).map(_.mkString("[", ", ", "]"))
+      case InList(list, elem)  => part2op(elem, list, "IN")
       case AtIndex(list, idx)  => part2(list, idx)((l, i) => s"$l[$i]")
       case AtRange(list, lim)  => part2(list, rangePart(lim))((l, r) => s"$l[$r]")
       case Concat(pref, suff)  => part2op(pref, suff, "+")
-      case Reduce(list, elemAlias, initial, accAlias, reduce) =>
+      case Reduce(list, initial, reduce) =>
+        val elemAlias = defaultAlias
+        val accAlias = defaultAlias
         for {
           lst  <- part(list)
+          acc  <- liftAlias(accAlias)
           elem <- liftAlias(elemAlias)
           init <- part(initial)
-          acc  <- liftAlias(accAlias)
-          expr <- part(reduce(Alias(acc), Alias(elem)))
+          expr <- part(reduce(accAlias, elemAlias))
         } yield s"reduce($acc = $init, $elem IN $lst | $expr)"
-      case ListComprehension(list, _, None, None) =>
+      case ListComprehension(list, None, None) =>
         part(list)
-      case ListComprehension(list, elemAlias, filter, map) =>
+      case ListComprehension(list, filter, map) =>
+        val elemAlias = defaultAlias
         for {
           lst  <- part(list)
           elem <- liftAlias(elemAlias)
-          fOpt <- partsSequence(filter.map(_(Alias(elem))))
-          mOpt <- partsSequence(map.map(_(Alias(elem))))
+          fOpt <- partsSequence(filter.map(_(elemAlias)))
+          mOpt <- partsSequence(map.map(_(elemAlias)))
           f    <- part(fOpt.map(f => s" WHERE $f").getOrElse(""))
           m    <- part(mOpt.map(m => s" | $m").getOrElse(""))
         } yield s"[$elem IN $lst$f$m]"
-      case ListPredicate(list, elemAlias, predicate, cond) =>
+      case ListPredicate(list, predicate, cond) =>
+        val elemAlias = defaultAlias
         for {
           lst  <- part(list)
           elem <- liftAlias(elemAlias)
-          expr <- part(cond(Alias(elem)))
+          expr <- part(cond(elemAlias))
         } yield s"${predicate.cypher}($elem IN $lst WHERE $expr)"
     }
 
@@ -329,6 +329,8 @@ object CypherFragment {
       case Distinct(expr)      => part(expr).map(e => s"DISTINCT $e")
       case Exists(pattern)     => part(pattern).map(p => s"EXISTS ($p})")
     }
+
+    private def defaultAlias[R] = Expr.Alias[R]("#")
   }
 
   // // // // // // // // // // // // // //

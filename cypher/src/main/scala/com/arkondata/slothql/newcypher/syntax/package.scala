@@ -4,7 +4,9 @@ import scala.annotation.compileTimeOnly
 import scala.language.experimental.macros
 import scala.language.implicitConversions
 
+import cats.data.Ior
 import shapeless.tag.@@
+import shapeless.|∨|
 
 import com.arkondata.slothql.newcypher.{ CypherFragment => CF }
 
@@ -383,6 +385,52 @@ package object syntax {
 
     private def binary(expr1: CF.Expr[N], op: CF.Expr.MathematicalExpr.BinaryOp) = CF.Expr.MathematicalBinaryExpr(expr0, expr1, op)
   }
+
+  // // // // // // // // // // // // // // // //
+  // // // //  //  Lists and Maps  // // // // //
+  // // // // // // // // // // // // // // // //
+
+  implicit final class ListOps[A](list: CF.Expr[List[A]]) {
+    def concat(that: CF.Expr[List[A]]): CF.Expr[List[A]] = CF.Expr.Concat(list, that)
+    def ++(that: CF.Expr[List[A]]): CF.Expr[List[A]] = concat(that)
+
+    def at[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[A] = CF.Expr.AtIndex(list, i.asInstanceOf[CF.Expr[Long]])
+
+    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](l: CF.Expr[I1], r: CF.Expr[I2]): CF.Expr[List[A]] = slice(Ior.Both(l, r))
+    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](range: Ior[CF.Expr[I1], CF.Expr[I2]]): CF.Expr[List[A]] =
+      CF.Expr.AtRange(list, range.asInstanceOf[Ior[CF.Expr[Long], CF.Expr[Long]]])
+
+    def from[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]] = slice[I, I](Ior.Left(i))
+    def to  [I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]] = slice[I, I](Ior.Right(i))
+
+    def head: CF.Expr[A]       = "head".func(list)
+    def tail: CF.Expr[List[A]] = "tail".func(list)
+    def size: CF.Expr[Long]    = "size".func(list)
+
+    def withFilter(f: CF.Expr[A] => CF.Expr[Boolean]): ListOps.WithFilter[A] = new ListOps.WithFilter(list, f)
+    def filter(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[List[A]] = CF.Expr.ListComprehension(list, Some(f), None)
+
+    def map[B](f: CF.Expr[A] => CF.Expr[B]): CF.Expr[List[B]] = CF.Expr.ListComprehension(list, None, Some(f))
+
+    def reduce[B](b: CF.Expr[B])(f: (CF.Expr[B], CF.Expr[A]) => CF.Expr[B]): CF.Expr[B] = CF.Expr.Reduce(list, b, f)
+
+    // predicates
+    def all   (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.All, f)
+    def any   (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.Any, f)
+    def none  (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.None, f)
+    def single(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.Single, f)
+
+    private def predicate(pred: CF.Expr.ListPredicate.Predicate, f: CF.Expr[A] => CF.Expr[Boolean]) =
+      CF.Expr.ListPredicate(list, pred, f)
+  }
+
+  object ListOps {
+    protected final class WithFilter[A](list: CF.Expr[List[A]], filter: CF.Expr[A] => CF.Expr[Boolean]) {
+      def map[B](f: CF.Expr[A] => CF.Expr[B]): CF.Expr[List[B]] = CF.Expr.ListComprehension(list, Some(filter), Some(f))
+    }
+  }
+
+  def list[A](elems: CF.Expr[A]*): CF.Expr[List[A]] = CF.Expr.ListDef(elems.toList)
 
   // // // // // // // // // // // // // // // //
   // // // // Literals and Parameters // // // //
