@@ -1,12 +1,12 @@
 package com.arkondata.slothql.newcypher
 
-import scala.annotation.compileTimeOnly
+import scala.annotation.{ compileTimeOnly, implicitNotFound }
 import scala.language.experimental.macros
 import scala.language.implicitConversions
 
 import cats.data.Ior
 import shapeless.tag.@@
-import shapeless.{ =:!=, |∨| }
+import shapeless.{ ::, =:!=, HList, HNil, Refute, Unpack1, ops, |∨| }
 
 import com.arkondata.slothql.newcypher.{ CypherFragment => CF }
 
@@ -218,10 +218,99 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   trait CypherSyntaxReturnTuple[T <: Product] {
     type Out
-    def apply(t: T): CF.Return[Out]
+    def apply(t: T): CF.Return.Return0[Out]
   }
   object CypherSyntaxReturnTuple {
     implicit def cypherSyntaxReturnTuple[T <: Product]: CypherSyntaxReturnTuple[T] = macro CypherSyntaxMacros.returnTuple[T]
+  }
+
+  implicit def toCypherSyntaxReturnOps[T](t: T)(implicit canReturn: CypherSyntaxReturnOps.CanReturn[T]): CypherSyntaxReturnOps[T, HNil, canReturn.Out] =
+    new CypherSyntaxReturnOps(t, false, Nil, None, None)(canReturn)
+
+  final class CypherSyntaxReturnOps[T, Done <: HList, R](
+    t: T,
+    distinct0: Boolean,
+    orderBy0: CF.Return.OrderBy,
+    skip0: Option[CF.Expr.Input[Long]],
+    limit0: Option[CF.Expr.Input[Long]]
+  )(implicit canReturn: CypherSyntaxReturnOps.CanReturn.Aux[T, R]) {
+    import CypherSyntaxReturnOps.{ NotYet, Opt }
+
+    def distinct(implicit notYet: NotYet[Done, Opt.Distinct]): CypherSyntaxReturnOps[T, Opt.Distinct :: Done, R] =
+      copy(distinct = true)
+
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order = CF.Return.Order.Ascending): CypherSyntaxReturnOps[T, Done, R] =
+      copy(orderBy = orderBy0 :+ (expr -> ord))
+    def orderBy(expr: CF.Expr[_], ord: CF.Return.Order.type => CF.Return.Order): CypherSyntaxReturnOps[T, Done, R] =
+      orderBy(expr, ord(CF.Return.Order))
+
+    def skip[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])
+                                 (implicit notYet: NotYet[Done, Opt.Skip]): CypherSyntaxReturnOps[T, Opt.Skip :: Done, R] =
+      copy(skip = Some(inp.asInstanceOf[CF.Expr.Input[Long]]))
+
+    def limit[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])
+                                  (implicit notYet: NotYet[Done, Opt.Limit]): CypherSyntaxReturnOps[T, Opt.Limit :: Done, R] =
+      copy(limit = Some(inp.asInstanceOf[CF.Expr.Input[Long]]))
+
+    private def copy[Steps <: HList](
+      distinct: Boolean                  = distinct0,
+      orderBy: CF.Return.OrderBy         = orderBy0,
+      skip: Option[CF.Expr.Input[Long]]  = skip0,
+      limit: Option[CF.Expr.Input[Long]] = limit0
+    ): CypherSyntaxReturnOps[T, Steps, R] =
+      new CypherSyntaxReturnOps(t, distinct, orderBy, skip, limit)
+
+    def `return`: CF.Return[R] = {
+      val options = distinct0 || orderBy0.nonEmpty || skip0.nonEmpty || limit0.nonEmpty
+      val ret = canReturn(t)
+      if (options) CF.Return.Options(ret, distinct0, orderBy0, skip0, limit0) else ret
+    }
+  }
+
+  object CypherSyntaxReturnOps {
+    implicit def returnClauseFromCypherSyntaxReturnOps[T, L <: HList, R](ops: CypherSyntaxReturnOps[T, L, R]): CF.Return[R] = ops.`return`
+    implicit def query0FromCypherSyntaxReturnOps[T, L <: HList, R](ops: CypherSyntaxReturnOps[T, L, R]): CF.Query.Query0[R] = CF.Query.Return(ops.`return`)
+
+    sealed trait CanReturn[T] {
+      type Out
+      def apply(t: T): CF.Return.Return0[Out]
+    }
+    object CanReturn {
+      type Aux[T, R] = CanReturn[T] { type Out = R }
+
+      implicit def canReturnSingle[T, A](implicit unpack: Unpack1[T, CF.Expr, A]): CanReturn.Aux[T, A] =
+        new CanReturn[T] {
+          type Out = A
+          def apply(t: T): CF.Return.Return0[A] = CF.Return.Expr(t.asInstanceOf[CF.Expr[A]], None)
+        }
+
+      implicit def canReturnTuple[T <: Product](implicit ev: CypherSyntaxReturnTuple[T]): CanReturn.Aux[T, ev.Out] =
+        new CanReturn[T] {
+          type Out = ev.Out
+          def apply(t: T): CF.Return.Return0[ev.Out] = ev(t)
+        }
+    }
+
+    sealed trait Opt
+    object Opt {
+      case object Distinct extends Opt
+      case object Skip     extends Opt
+      case object Limit    extends Opt
+
+      type Distinct = Distinct.type
+      type Skip     = Skip.type
+      type Limit    = Limit.type
+    }
+
+    @implicitNotFound("${S} has already been configured")
+    trait NotYet[Done <: HList, S <: Opt]
+    object NotYet {
+      implicit def notYet[Done <: HList, S <: Opt](
+        implicit not: Refute[ops.hlist.Selector[Done, S]]
+      ): NotYet[Done, S] = instance.asInstanceOf[NotYet[Done, S]]
+
+      private lazy val instance = new NotYet[HList, Opt] {}
+    }
   }
 
   // // // // // // // // // // // // // // // // // //

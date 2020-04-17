@@ -23,7 +23,7 @@ class CypherSyntaxMacros(val c: whitebox.Context) {
     q"""
       new _root_.com.arkondata.slothql.newcypher.syntax.CypherSyntaxReturnTuple[$T] {
         type Out = ${mkTupleType(outTypes)}
-        def apply($arg: $T): _root_.com.arkondata.slothql.newcypher.CypherFragment.Return[Out] =
+        def apply($arg: $T): _root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Return0[Out] =
           _root_.com.arkondata.slothql.newcypher.CypherFragment.Return.Tuple[Out](_root_.scala.List(..$returns))
       }
      """

@@ -331,5 +331,77 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
           "WHERE `e0`.`x` = `x0` " +
         "RETURN `b0`.`id`"
       ).returns[String]
+
+    "support distincting results" in
+      test(
+        Match { case a => a.prop[String]("id").distinct },
+        "MATCH (`a0`) RETURN DISTINCT `a0`.`id`"
+      ).returns[String]
+
+    "not allow to distinct results twice" in
+      illTyped(
+        """Match { case a => a.prop[String]("id").distinct.distinct }""",
+        ".*Distinct has already been configured"
+      )
+
+    "support ordering results" in
+      test(
+        Match { case a =>
+          a.prop[String]("id")
+           .orderBy(a.prop[Int]("x"))
+        },
+        "MATCH (`a0`) RETURN `a0`.`id` ORDER BY `a0`.`x` ASC"
+      ).returns[String]
+
+    "support ordering results multiple times" in
+      test(
+        Match { case a =>
+          a.prop[String]("id")
+            .orderBy(a.prop[Int]("x"), _.Descending)
+            .orderBy(a.prop[String]("foo"))
+        },
+        "MATCH (`a0`) RETURN `a0`.`id` ORDER BY `a0`.`x` DESC, `a0`.`foo` ASC"
+      ).returns[String]
+
+    "support limiting results" in
+      test(
+        Match { case a => a.prop[String]("id").limit(lit(10)) },
+        "MATCH (`a0`) RETURN `a0`.`id` LIMIT 10"
+      ).returns[String]
+
+    "not allow to limit results twice" in
+      illTyped(
+        """Match { case a => a.prop[String]("id").limit(lit(10)).limit(lit(20)) }""",
+        ".*Limit has already been configured"
+      )
+
+    "support skipping results" in
+      test(
+        Match { case a => a.prop[String]("id").skip(lit(10)) },
+        "MATCH (`a0`) RETURN `a0`.`id` SKIP 10"
+      ).returns[String]
+
+    "not allow to skip results twice" in
+      illTyped(
+        """Match { case a => a.prop[String]("id").skip(lit(10)).skip(lit(20)) }""",
+        ".*Skip has already been configured"
+      )
+
+    "support distincting, ordering and paginating results" in
+      test(
+        Match { case a =>
+          a.prop[String]("id")
+            .orderBy(a.prop[Int]("x"), _.Descending)
+            .orderBy(a.prop[String]("foo"))
+            .distinct
+            .skip(lit(100))
+            .limit(lit(10))
+        },
+        "MATCH (`a0`) RETURN DISTINCT `a0`.`id` " +
+          "ORDER BY `a0`.`x` DESC, `a0`.`foo` ASC " +
+          "SKIP 100 " +
+          "LIMIT 10"
+      ).returns[String]
+
   }
 }
