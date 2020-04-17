@@ -108,7 +108,7 @@ object CypherFragment {
     sealed trait MapExpr[+A] extends Expr[A]
     final case class MapDef[+A](get: Map[String, Expr[A]]) extends MapExpr[Map[String, A]]
     final case class MapKey[+A](map: Expr[Map[String, Any]], key: String) extends MapExpr[A]
-    final case class MapDynKey[+A](map: Expr[Map[String, A]], key: Expr[String]) extends MapExpr[A]
+    final case class MapDynKey[+A](map: Expr[Map[String, Any]], key: Expr[String]) extends MapExpr[A]
     final case class MapAdd[+A](map: Expr[Map[String, A]], values: Map[String, Expr[A]]) extends MapExpr[Map[String, A]]
 
     def toCypher(expr: MapExpr[_]): GenS[Part] = expr match {

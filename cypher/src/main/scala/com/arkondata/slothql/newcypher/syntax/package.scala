@@ -6,7 +6,7 @@ import scala.language.implicitConversions
 
 import cats.data.Ior
 import shapeless.tag.@@
-import shapeless.|∨|
+import shapeless.{ =:!=, |∨| }
 
 import com.arkondata.slothql.newcypher.{ CypherFragment => CF }
 
@@ -430,7 +430,32 @@ package object syntax {
     }
   }
 
+  implicit final class MapOps[A](map: CF.Expr[Map[String, A]]) {
+    def keys: CF.Expr[List[String]] = "keys".func(map)
+  }
+
+  implicit final class MapNotAnyOps[A](map: CF.Expr[Map[String, A]])(implicit ev: A =:!= Any) {
+    def value(key: String): CF.Expr[A] = CF.Expr.MapKey(map, key)
+    def value(key: CF.Expr[String]): CF.Expr[A] = CF.Expr.MapDynKey(map, key)
+
+    def add(entries: (String, CF.Expr[A])*): CF.Expr[Map[String, A]] = CF.Expr.MapAdd(map, entries.toMap)
+    def add(map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapAdd(this.map, map)
+  }
+
+  implicit final class MapAnyOps[A](map: CF.Expr[Map[String, A]])(implicit ev: A =:= Any) {
+    def value[V](key: String): CF.Expr[V] = CF.Expr.MapKey(map, key)
+    def value[V](key: CF.Expr[String]): CF.Expr[V] = CF.Expr.MapDynKey(map, key)
+
+    def add(entries: (String, CF.Expr[Any])*): CF.Expr[Map[String, Any]] = CF.Expr.MapAdd(map, entries.toMap)
+    def add(map: Map[String, CF.Expr[Any]]): CF.Expr[Map[String, Any]] = CF.Expr.MapAdd(this.map, map)
+  }
+
   def list[A](elems: CF.Expr[A]*): CF.Expr[List[A]] = CF.Expr.ListDef(elems.toList)
+
+  /** Literal map constructor */
+  def dict[A](entries: (String, CF.Expr[A])*): CF.Expr[Map[String, A]] = CF.Expr.MapDef(entries.toMap)
+  /** Literal map constructor */
+  def dict[A](map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapDef(map)
 
   // // // // // // // // // // // // // // // //
   // // // // Literals and Parameters // // // //

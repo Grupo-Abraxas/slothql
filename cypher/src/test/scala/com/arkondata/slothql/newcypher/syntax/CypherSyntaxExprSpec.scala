@@ -141,4 +141,69 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
 
   }
 
+  "Slothql cypher syntax for maps" should {
+    "support defining maps (by entry)" in
+      test(
+        Match { case a => dict("x" -> a.prop[Int]("x"), "y" -> a.prop[Int]("y")) },
+        "MATCH (`a0`) RETURN { `x`: `a0`.`x`, `y`: `a0`.`y` }"
+      ).returns[Map[String, Int]]
+
+    "support defining maps (from Map)" in
+      test(
+        Match { case a =>
+          val m = Map("x" -> a.prop[Int]("x"), "y" -> a.prop[Int]("y"))
+          dict(m)
+        },
+        "MATCH (`a0`) RETURN { `x`: `a0`.`x`, `y`: `a0`.`y` }"
+      ).returns[Map[String, Int]]
+
+    "support selecting map key" in
+      test(
+        Match{ case a => a.prop[Map[String, Boolean]]("flags").value("1") },
+        "MATCH (`a0`) RETURN `a0`.`flags`.`1`"
+      ).returns[Boolean]
+
+    "support selecting typed map key (from Map[String, Any])" in
+      test(
+        Match{ case a => a.value[Int]("x") * lit(-1) },
+        "MATCH (`a0`) RETURN `a0`.`x` * -1"
+      ).returns[Int]
+
+    "support selecting dynamic map key" in
+      test(
+        Match{ case a => a.prop[Map[String, Int]]("vals").value(a.prop[String]("key")) },
+        "MATCH (`a0`) RETURN `a0`.`vals`[`a0`.`key`]"
+      ).returns[Int]
+
+    "support selecting dynamic typed map key (from Map[String, Any])" in
+      test(
+        Match{ case a => a.value[Long](a.prop[String]("key")) },
+        "MATCH (`a0`) RETURN `a0`[`a0`.`key`]"
+      ).returns[Long]
+
+    "support adding entries to maps" in
+      test(
+        Match{ case a => a.add("foo" -> lit(1)) },
+        "MATCH (`a0`) RETURN `a0`{.*, `foo`: 1}"
+      ).returns[Map[String, Any]]
+
+    "support adding entries maps (from Map)" in
+      test(
+        Match{ case a =>
+          val m = Map(
+            "foo" -> lit(1),
+            "bar" -> lit(2)
+          )
+          a.prop[Map[String, Any]]("data") add m
+        },
+        "MATCH (`a0`) RETURN `a0`.`data`{.*, `foo`: 1, `bar`: 2}"
+      ).returns[Map[String, Any]]
+
+    "support listing map keys" in
+      test(
+        Match{ case a => a.keys },
+        "MATCH (`a0`) RETURN `keys`(`a0`)"
+      ).returns[List[String]]
+  }
+
 }
