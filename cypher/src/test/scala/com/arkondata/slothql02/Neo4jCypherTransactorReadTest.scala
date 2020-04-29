@@ -1,8 +1,10 @@
-/*
 package com.arkondata.slothql02
 
+import scala.concurrent.ExecutionContext
+
 import cats.data.NonEmptyList
-import cats.instances.vector._
+import cats.effect.IO
+import cats.instances.list._
 import cats.syntax.traverse._
 import org.scalactic.source.Position
 import org.scalatest.{ Assertion, BeforeAndAfterAll, Matchers, WordSpec }
@@ -13,10 +15,14 @@ import com.arkondata.slothql02.neo4j.Neo4jCypherTransactor
 
 // DB should contain `populate-1.cypher`
 class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAndAfterAll {
-  val tx = new Neo4jCypherTransactor(Connection.driver)
+  implicit val cs = IO.contextShift(ExecutionContext.global)
 
-  private def test[R](read: tx.txBuilder.Tx[Vector, R], expected: Seq[R])(implicit pos: Position): Assertion =
-    tx.runRead(read).unsafeRunSync() should contain theSameElementsAs expected
+  val tx = Neo4jCypherTransactor[IO](Connection.driver)
+  import tx.readers._
+  import tx.ops._
+
+  private def test[R](read: tx.Tx[R], expected: Seq[R])(implicit pos: Position): Assertion =
+    tx.runRead(read).compile.toList.unsafeRunSync() should contain theSameElementsAs expected
 
   private lazy val allVertices = Seq(
     Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1"),
@@ -28,19 +34,21 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
 
   "Neo4jCypherTransactor" should {
     "execute single query (1)" in {
-      val pattern = Pattern.Node(alias = Some("n"), labels = Nil, map = Map())
+      val n = Expr.Alias("n")
+      val pattern = Pattern.Node(alias = Some(n), labels = Nil, props = Map())
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
           optional = false,
           where = None
         ),
-        Query.Return(Return.Expr(Expr.Var[Any]("n"), as = None))
+        Query.Return(Return.Expr(n, as = None))
       )
       test[Any](tx.query(query), allVertices)
     }
+
     "execute single query (2)" in {
-      val pattern = Pattern.Node(alias = Some("n"), labels = Nil, map = Map())
+      val pattern = Pattern.Node(alias = Some(Expr.Alias("n")), labels = Nil, props = Map())
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
@@ -51,9 +59,10 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       )
       test[Any](tx.query(query), allVertices)
     }
+
     "execute single query (3)" in {
-      val pattern = Pattern.Node(alias = Some("n"), labels = List("User"), map = Map())
-      val n = Expr.Var[Map[String, Any]]("n")
+      val n = Expr.Alias("n")
+      val pattern = Pattern.Node(alias = Some(n), labels = List("User"), props = Map())
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
@@ -62,9 +71,10 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
         ),
         Query.Return(
           Return.Tuple(
-            Expr.MapKey[String](n, "email"),
-            Expr.MapKey[String](n, "name")
-          ).known
+            Return.Expr(Expr.MapKey[String](n, "email"), as = None) ::
+            Return.Expr(Expr.MapKey[String](n, "name"),  as = None) ::
+            Nil
+          )
         )
       )
       test[(String, String)](tx.query(query), Seq(
@@ -73,31 +83,18 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "execute single query (4)" in {
-      val query = Match{ case x < Edge("foo") - Vertex("User", "id" := "u1") => collect(x.prop[String]("name")) }
+      val query = Match{ case x < Rel("foo") - Node("User", "id" := "u1") => collect(x.prop[String]("name")) }
       test[List[String]](tx.query(query), Seq(Nil))
     }
 
-    "read tuple results" in {
-      val query = tx.query[Vector](Match {
-        case u@Vertex("User") =>
-          u.labels -> (
-            u.prop[String]("id"),
-            (u.prop[String]("name"), u.prop[Int]("age")),
-            u.prop[Boolean]("confirmed")
-          )
-      })
-      test[(List[String], (String, (String, Int), Boolean))](query, Seq(
-        List("User") -> ("u1", ("John", 28), true)
-      ))
-    }
 
     "assign paths to variables" in {
-      val query = tx.query[Vector](Match {
-        case ps ::= (Vertex("Group") - _ *:(0 - _, _) > Vertex("User")) =>
+      val query = tx.query(Match {
+        case ps ::= (Node("Group") - Rel(0 ** _) > Node("User")) =>
           (
             ps.length,
-            ps.nodes.map(n => dict("labels" -> n.labels, "id" -> n.prop[String]("id"))),
-            ps.edges.map(_.tpe)
+            ps.nodes.map(n => dict[Any]("labels" -> n.labels, "id" -> n.prop[String]("id"))),
+            ps.relationships.map(_.tpe)
           )
       })
       test[(Long, List[Map[String, Any]], List[String])](query, Seq(
@@ -130,20 +127,24 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     object ChainAndGatherTest {
-      val userQuery = Match { case u@Vertex("User") => u.prop[String]("id") }
+      val userQuery = Match { case u@Node("User") => u.prop[String]("id") }
       def groupDepQuery(id: String) = Match {
-        case (g@Vertex("Group")) -> _ -> u if u.prop[String]("id") === lit(id) => g.props orderBy g.prop[String]("id")
+        case (g@Node("Group")) -_> _ -_> u if u.prop[String]("id") === lit(id) => g.props orderBy g.prop[String]("id")
       }
 
-      val groupQuery = Match { case g@Vertex("Group") => g.prop[String]("id") }
+      val groupQuery = Match { case g@Node("Group") => g.prop[String]("id") }
       def userDepQuery(id: String) = Match {
-        case (u@Vertex("User")) `<-` _ `<-` g if g.prop[String]("id") === lit(id) => u.props orderBy u.prop[String]("id")
+        case (u@Node("User")) < _ - _ < _ - g if g.prop[String]("id") === lit(id) => u.props orderBy u.prop[String]("id")
+      }
+
+      def groupByIdQuery(id: String) = Match {
+        case g@Node("Group", "id" := `id`) => g.props orderBy g.prop[String]("id")
       }
     }
 
     "chain dependent queries in transaction (1)" in {
       val query = for {
-        userId <- tx.query[Vector](ChainAndGatherTest.userQuery)
+        userId <- tx.query(ChainAndGatherTest.userQuery)
         q2i = ChainAndGatherTest.groupDepQuery(userId)
         group <- tx.query(q2i)
       } yield (userId, group)
@@ -154,11 +155,32 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
-    "`gather` query results to Vector (1)" in {
+    "`gather` query results to fs2 Stream" in {
       val query = for {
         userId <- tx.query(ChainAndGatherTest.userQuery)
         q2i = ChainAndGatherTest.groupDepQuery(userId)
         groups <- tx.query(q2i).gather
+      } yield (userId, groups)
+
+      val io = for {
+        l <- tx.runRead(query).compile.toList
+        (ids, gs) = l.unzip
+        groups <- gs.flatTraverse(_.compile.toList)
+      } yield (ids, groups)
+
+      val (userIds, groups) = io.unsafeRunSync()
+      userIds shouldBe List("u1")
+      groups should contain theSameElementsAs Seq(
+        Map("name" -> "Root Group", "id" -> "g1"),
+        Map("name" -> "Sub Group",  "id" -> "g2")
+      )
+    }
+
+    "`gather` query results to Vector" in {
+      val query = for {
+        userId <- tx.query(ChainAndGatherTest.userQuery)
+        q2i = ChainAndGatherTest.groupDepQuery(userId)
+        groups <- tx.query(q2i).gatherStream(_.toVector)
       } yield (userId, groups)
 
       test[(String, Vector[Map[String, Any]])](query, Seq(
@@ -169,27 +191,25 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
-    "`gather` query results to Vector (2)" in {
+    "`unwind` stream" in {
+      val ids = Seq("g1", "g2")
       val query = for {
-        groupIds <- tx.query[Vector](ChainAndGatherTest.groupQuery).gather
-        q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
-        users <- q2is.traverse(tx.query[Vector](_))
-      } yield (groupIds, users)
+        id <- tx.unwind(fs2.Stream.emits(ids))
+        group <- tx.query(ChainAndGatherTest.groupByIdQuery(id))
+      } yield group("name").asInstanceOf[String]
 
-      test[(Vector[String], Vector[Map[String, Any]])](query, Seq(
-        Vector("g1", "g2") -> Vector(
-          Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1"),
-          Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1")
-        )
+      test[String](query, Seq(
+        "Root Group",
+        "Sub Group"
       ))
     }
 
     "`unwind` gathered results" in {
       val query = for {
-        groupIds <- tx.query[Vector](ChainAndGatherTest.groupQuery).gather
+        groupIds <- tx.query(ChainAndGatherTest.groupQuery).gather
         q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
-        users <- q2is.traverse(tx.query[Vector](_))
-        user <- tx.Op.unwind(users.map(_("name").asInstanceOf[String]))
+        users <- q2is.traverseTx(tx.query(_))
+        user <- tx.unwind(users.map(_("name").asInstanceOf[String]))
       } yield user
 
       test[String](query, Seq(
@@ -199,9 +219,10 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "`unwind` and `gather` empty sequence" in {
-      val q0 = tx.Op.nothing[Vector, Int]
+      val q0 = tx.nothing[Int]
       val query = for {
-        x <- q0.gather
+        x0 <- q0.gather
+        x <- tx.liftF(x0.compile.toVector)
       } yield (x, "foo")
 
       test[(Vector[Int], String)](query, Seq(
@@ -209,8 +230,39 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
+
+    "`traverseTx` streams" in {
+      val query = for {
+        groupIds <- tx.query(ChainAndGatherTest.groupQuery).gather
+        q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
+        users <- q2is.traverseTx(tx.query(_))
+        groupsV <- tx.liftF(groupIds.compile.toVector)
+        usersV <- tx.liftF(users.compile.toVector)
+      } yield (groupsV, usersV)
+
+      test[(Vector[String], Vector[Map[String, Any]])](query, Seq(
+        Vector("g1", "g2") -> Vector(
+          Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1"),
+          Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1")
+        )
+      ))
+    }
+
+    "`flatTraverseTx` streams" in {
+      val query = for {
+        groupIds <- tx.query(ChainAndGatherTest.groupQuery).gather
+        q2is = groupIds.map(ChainAndGatherTest.userDepQuery)
+        users <- q2is.flatTraverseTx(tx.query(_))
+      } yield users
+
+      test[Map[String, Any]](query, Seq(
+        Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1"),
+        Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1")
+      ))
+    }
+
     "`filter` results" in {
-      val q = Match { case g@Vertex("Group") => g.prop[String]("name") }
+      val q = Match { case g@Node("Group") => g.prop[String]("name") }
       val query = for {
         name <- tx.query(q)
         if name contains "Root"
@@ -221,9 +273,9 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
       ))
     }
 
-    "`filterOpt` results" in {
-      val q = Match { case g@Vertex("Group") => g.prop[String]("name") }
-      val query = tx.query(q).filterOpt {
+    "`mapOpt` results" in {
+      val q = Match { case g@Node("Group") => g.prop[String]("name") }
+      val query = tx.query(q).mapOpt {
         case name if name contains "Root" => Some(name)
         case _ => None
       }
@@ -234,8 +286,8 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "filter results with another read transaction" in {
-      val idsTx              = tx query[Vector] Match { case g@Vertex("Group")      => g.prop[String]("id")                        }
-      def predTx(id: String) = tx query[Vector] Match { case g@Vertex("id" := `id`) => g.prop[String]("name") contains lit("Root") }
+      val idsTx              = tx query Match { case g@Node("Group")      => g.prop[String]("id")                        }
+      def predTx(id: String) = tx query Match { case g@Node("id" := `id`) => g.prop[String]("name") contains lit("Root") }
       val query = idsTx.filtering(predTx)
 
       test[String](query, Seq(
@@ -244,8 +296,8 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "build cartesian product of two queries' results" in {
-      val q1 = tx.query[Vector](Match { case g@Vertex("Group") => g.prop[String]("name") })
-      val q2 = tx.query[Vector](unwind(lit(List(1, 2))) { i => i }.result)
+      val q1 = tx.query(Match { case g@Node("Group") => g.prop[String]("name") })
+      val q2 = tx.query(Unwind(lit(List(1, 2))) { i => i })
       val q = q1 x q2
 
       test[(String, Int)](q, Seq(
@@ -257,12 +309,12 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "`zip` results of two queries" in {
-      val q1 = tx.query[Vector](Match {
-        case g@Vertex("Group") =>
+      val q1 = tx.query(Match {
+        case g@Node("Group") =>
           g.prop[String]("name")
             .orderBy(g.prop[String]("name"))
       })
-      val q2 = tx.query[Vector](unwind(lit(List(1, 2))) { i => i }.result)
+      val q2 = tx.query(Unwind(lit(List(1, 2))) { i => i })
       val q = q1 zip q2
 
       test[(String, Int)](q, Seq(
@@ -272,14 +324,14 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     }
 
     "`zip3` results of three queries" in {
-      val q1 = tx.query[Vector](Match {
-        case g@Vertex("Group") =>
+      val q1 = tx.query(Match {
+        case g@Node("Group") =>
           g.prop[String]("name")
             .orderBy(g.prop[String]("name"))
       })
-      val q2 = tx.query[Vector](unwind(lit(List(1, 2))) { i => i }.result)
-      val q3 = tx.query[Vector](unwind(lit(Vector("A", "B"))) { i => i }.result)
-      val q = tx.Op.zip3(q1, q2, q3)
+      val q2 = tx.query(Unwind(lit(List(1, 2))) { i => i })
+      val q3 = tx.query(Unwind(lit(List("A", "B"))) { i => i })
+      val q = tx.zip3(q1, q2, q3)
 
       test[(String, Int, String)](q, Seq(
         ("Root Group", 1, "A"),
@@ -293,4 +345,3 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
     super.afterAll()
   }
 }
-*/

@@ -338,12 +338,12 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def keys: CF.Expr[List[String]] = func("keys")
   }
 
-  implicit final class CypherSyntaxNodeOps(n: Node) {
+  implicit final class CypherSyntaxNodeOps(n: CF.Expr[GraphElem.NodeElem]) {
     /** Call built-in `labels` function. */
     def labels: CF.Expr[List[String]] = n.func("labels")
   }
 
-  implicit final class CypherSyntaxRelOps(r: Rel) {
+  implicit final class CypherSyntaxRelOps(r: CF.Expr[GraphElem.RelElem]) {
     /** Call built-in `type` function. */
     def tpe: CF.Expr[String] = r.func("type")
 

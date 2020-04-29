@@ -40,6 +40,7 @@ lazy val cypher = (project in file("cypher"))
       Dependencies.`cats-core`,
       Dependencies.`cats-free`,
       Dependencies.`cats-effect`,
+      Dependencies.`fs2-core`,
       Dependencies.`neo4j-driver`,
       Dependencies.Test.scalatest
     ),

@@ -19,6 +19,12 @@ sealed trait CypherStatement {
   val params: Map[String, CypherStatement.LiftValue[_]]
 
   def copy(template: String = this.template, params: Map[String, CypherStatement.LiftValue[_]] = this.params): this.type
+
+  def unsafeApplyParams(params: Map[String, Any]): Map[String, AnyRef] = {
+    assert(this.params.keys == params.keys,
+           s"Wrong query parameters: got ${params.keys.mkString(", ")}; expected: ${this.params.keys.mkString(", ")}")
+    params.map { case (k, v) => k -> this.params(k).asInstanceOf[CypherStatement.LiftValue[Any]].asParam(v) }
+  }
 }
 
 object CypherStatement {
@@ -128,6 +134,8 @@ object CypherStatement {
     object Default{
       def apply(): Default = new Default(Map(), Map(), Map(), Map())
     }
+
+    implicit def default: Gen = Default()
   }
 
   final class GenF[A](val f: Gen => (A, Gen)) extends AnyVal {
