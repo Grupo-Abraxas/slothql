@@ -2,7 +2,7 @@ package com.arkondata.slothql02.cypher.syntax
 
 import shapeless.test.illTyped
 
-import com.arkondata.slothql02.cypher.CypherFragment
+import com.arkondata.slothql02.cypher.{ CypherFragment, GraphElem }
 
 /** Advanced [[CypherSyntax0Spec]]
  *  - Referencing paths
@@ -42,7 +42,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
           (path.length, path.nodes, path.relationships)
         },
         "MATCH `path0` = (:`Foo`) -[*]-> (:`Bar`) RETURN `length`(`path0`), `nodes`(`path0`), `relationships`(`path0`)"
-      ).returns[(Long, List[GraphElem.NodeElem], List[GraphElem.RelElem])]
+      ).returns[(Long, List[GraphElem.Node], List[GraphElem.Rel])]
 
     "support optional matches" in
       test(
@@ -88,7 +88,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "WITH `a0`.`id` AS `id0`, `collect`(`b0`) AS `bs0` " +
         "MATCH (`x0`:`Connected`{ `to`: `id0` }) " +
         "RETURN `x0`, `labels`(`x0`), `bs0`"
-      ).returns[(Map[String, Any], List[String], List[GraphElem.NodeElem])]
+      ).returns[(Map[String, Any], List[String], List[GraphElem.Node])]
 
     "support wildcard at WITH clause (1)" in
       test(
@@ -133,7 +133,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "WITH `a0` AS `a1`, `collect`(`b0`) AS `bs0` " +
         "WHERE `a1`.`x` >= 10 " +
         "RETURN `a1`, `bs0`"
-      ).returns[(Map[String, Any], List[GraphElem.NodeElem])]
+      ).returns[(Map[String, Any], List[GraphElem.Node])]
 
     "not allow to set WHERE condition more than once at WITH clause" in
       illTyped(
@@ -213,7 +213,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "WITH `a0`.`foo` AS `foo0`, `collect`(`b0`) AS `bs0` " +
         "LIMIT 10 " +
         "RETURN `bs0`"
-      ).returns[List[GraphElem.NodeElem]]
+      ).returns[List[GraphElem.Node]]
 
     "not allow to set LIMIT more than once at WITH clause" in
       illTyped(
@@ -237,7 +237,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "WITH `a0`.`foo` AS `foo0`, `collect`(`b0`) AS `bs0` " +
         "SKIP 10 " +
         "RETURN `bs0`"
-      ).returns[List[GraphElem.NodeElem]]
+      ).returns[List[GraphElem.Node]]
 
     "not allow to set SKIP more than once at WITH clause" in
       illTyped(
@@ -263,7 +263,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "SKIP 100 " +
         "LIMIT 10 " +
         "RETURN `bs0`"
-      ).returns[List[GraphElem.NodeElem]]
+      ).returns[List[GraphElem.Node]]
 
     "support WHERE, DISTINCT, ORDER BYs, SKIP AND LIMIT at WITH clause" in
       test(
@@ -284,7 +284,7 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
         "LIMIT 20 " +
         "WHERE `foo0` STARTS WITH \"xyz\" " +
         "RETURN `bs0`"
-      ).returns[List[GraphElem.NodeElem]]
+      ).returns[List[GraphElem.Node]]
 
     "support WHERE, DISTINCT, ORDER BYs, SKIP AND LIMIT at wildcard WITH clause" in
       test(

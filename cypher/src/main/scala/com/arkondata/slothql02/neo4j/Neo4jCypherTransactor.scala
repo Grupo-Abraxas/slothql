@@ -15,9 +15,10 @@ import cats.syntax.apply._
 import cats.syntax.parallel._
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
-import org.neo4j.driver.v1.types.Type
+import org.neo4j.driver.v1.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
 import shapeless._
 
+import com.arkondata.slothql02.cypher
 import com.arkondata.slothql02.cypher.CypherTransactor
 import com.arkondata.slothql02.cypher.CypherTransactor._
 import com.arkondata.slothql02.neo4j.util.{ fs2StreamTxCMonad, javaStreamToFs2 }
@@ -118,16 +119,14 @@ object Neo4jCypherTransactor {
     }
   }
 
-  object RootReader extends RootReaderLowPriorityImplicits {
+  object RootReader {
     implicit def singleReader[A](implicit read: ValueReader[A]): RootReader[A] =
       RootReader(read.name, StateT { case h +: t => t -> read(h) })
-  }
-
-  trait RootReaderLowPriorityImplicits {
 
     implicit def productReader[T <: Product, Repr <: HList](
       implicit gen: Generic.Aux[T, Repr],
-               reader: ProductReader[Repr]
+               reader: ProductReader[Repr],
+               lowPriority: LowPriority
     ): RootReader[T] = {
       val name = reader.names.mkString("(", ",", ")")
       RootReader[T](name, StateT[cats.Id, Seq[Value], T](reader.apply _ andThen Arrow[Function1].second(gen.from)))
@@ -182,10 +181,9 @@ object Neo4jCypherTransactor {
       Type.NULL()    -> ValueReader("null", _ => None), // `null` wouldn't cause class cast exception
       Type.LIST()    -> defaultNeo4jListReader(defaultNeo4jAnyReader),
       Type.MAP()     -> defaultNeo4jMapReader(defaultNeo4jAnyReader),
-      // TODO: models for reading Node, Rel and Path
-       Type.NODE()         -> defaultNeo4jMapReader(defaultNeo4jAnyReader),
-       Type.RELATIONSHIP() -> defaultNeo4jMapReader(defaultNeo4jAnyReader),
-       Type.PATH()         -> defaultNeo4jMapReader(defaultNeo4jAnyReader)
+      Type.NODE()         -> defaultNeo4jNodeReader,
+      Type.RELATIONSHIP() -> defaultNeo4jRelReader,
+      Type.PATH()         -> defaultNeo4jPathReader
     )
 
     implicit lazy val defaultNeo4jStringReader : ValueReader[String]      = ValueReader("String",      _.asString())
@@ -200,11 +198,36 @@ object Neo4jCypherTransactor {
     implicit lazy val defaultNeo4jBigDecReader : ValueReader[BigDecimal]  = ValueReader("BigDecimal",  BigDecimal apply _.asString())
     implicit lazy val defaultNeo4jBigIntReader : ValueReader[BigInt]      = ValueReader("BigInt",      BigInt     apply _.asString())
 
+    implicit lazy val defaultNeo4jNodeReader: ValueReader[cypher.GraphElem.Node] = ValueReader("Node", v => mkNode(v.asNode()))
+    implicit lazy val defaultNeo4jRelReader : ValueReader[cypher.GraphElem.Rel]  = ValueReader("Rel",  v => mkRel (v.asRelationship()))
+    implicit lazy val defaultNeo4jPathReader: ValueReader[cypher.GraphPath]      = ValueReader("Path", v => mkPath(v.asPath()))
+
     implicit def defaultNeo4jListReader[A](implicit read: ValueReader[A]): ValueReader[List[A]] =
       ValueReader(s"List[${read.name}]", _.asList(read(_)).asScala.toList)
 
     implicit def defaultNeo4jMapReader[A](implicit read: ValueReader[A]): ValueReader[Map[String, A]] =
       ValueReader(s"Map[String, ${read.name}]", _.asMap(read(_)).asScala.toMap)
+
+
+    private def mkNode(node: NNode) =
+      cypher.GraphElem.Node(
+        node.id(),
+        node.labels().asScala.toList,
+        node.asMap(readValue).asScala.toMap
+      )
+    private def mkRel(rel: NRelationship) =
+      cypher.GraphElem.Rel(
+        rel.id(),
+        rel.`type`(),
+        rel.startNodeId(),
+        rel.endNodeId(),
+        rel.asMap(readValue).asScala.toMap
+      )
+    private def mkPath(path: NPath) =
+      cypher.GraphPath(
+        path.nodes().asScala.toList.map(mkNode),
+        path.relationships().asScala.toList.map(mkRel)
+      )
   }
 
   trait Readers extends DefaultValueReaders {

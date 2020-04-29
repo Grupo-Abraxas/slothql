@@ -10,6 +10,7 @@ import org.scalactic.source.Position
 import org.scalatest.{ Assertion, BeforeAndAfterAll, Matchers, WordSpec }
 
 import com.arkondata.slothql02.cypher.CypherFragment.{ Clause, Expr, Pattern, Query, Return }
+import com.arkondata.slothql02.cypher.GraphElem
 import com.arkondata.slothql02.cypher.syntax._
 import com.arkondata.slothql02.neo4j.Neo4jCypherTransactor
 
@@ -24,17 +25,25 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
   private def test[R](read: tx.Tx[R], expected: Seq[R])(implicit pos: Position): Assertion =
     tx.runRead(read).compile.toList.unsafeRunSync() should contain theSameElementsAs expected
 
+  private def resetId(node: GraphElem.Node): GraphElem.Node = node.copy(id = 0)
+
   private lazy val allVertices = Seq(
-    Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1"),
-    Map("name" -> "Root Group", "id" -> "g1"),
-    Map("name" -> "Sub Group", "id" -> "g2"),
-    Map(), // Members 1
-    Map()  // Members 2
+    GraphElem.Node(0, List("User"),
+      Map("name" -> "John", "email" -> "john@example.com", "confirmed" -> true, "age" -> 28, "id" -> "u1")
+    ),
+    GraphElem.Node(0, List("Group"),
+      Map("name" -> "Root Group", "id" -> "g1")
+    ),
+    GraphElem.Node(0, List("Group"),
+      Map("name" -> "Sub Group", "id" -> "g2")
+    ),
+    GraphElem.Node(0, List("Members"), Map()),
+    GraphElem.Node(0, List("Members"), Map())
   )
 
   "Neo4jCypherTransactor" should {
     "execute single query (1)" in {
-      val n = Expr.Alias("n")
+      val n = Expr.Alias[GraphElem.Node]("n")
       val pattern = Pattern.Node(alias = Some(n), labels = Nil, props = Map())
       val query = Query.Clause(
         Clause.Match(
@@ -44,7 +53,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
         ),
         Query.Return(Return.Expr(n, as = None))
       )
-      test[Any](tx.query(query), allVertices)
+      test[GraphElem.Node](tx.query(query).map(resetId), allVertices)
     }
 
     "execute single query (2)" in {
@@ -57,7 +66,7 @@ class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAn
         ),
         Query.Return(Return.Wildcard)
       )
-      test[Any](tx.query(query), allVertices)
+      test[GraphElem.Node](tx.query(query).map(v => resetId(v.asInstanceOf[GraphElem.Node])), allVertices)
     }
 
     "execute single query (3)" in {

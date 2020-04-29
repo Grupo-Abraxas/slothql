@@ -165,7 +165,7 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
 
     "support selecting typed map key (from Map[String, Any])" in
       test(
-        Match{ case a => a.value[Int]("x") * lit(-1) },
+        Match{ case a => a.props.value[Int]("x") * lit(-1) },
         "MATCH (`a0`) RETURN `a0`.`x` * -1"
       ).returns[Int]
 
@@ -177,13 +177,13 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
 
     "support selecting dynamic typed map key (from Map[String, Any])" in
       test(
-        Match{ case a => a.value[Long](a.prop[String]("key")) },
+        Match{ case a => a.props.value[Long](a.prop[String]("key")) },
         "MATCH (`a0`) RETURN `a0`[`a0`.`key`]"
       ).returns[Long]
 
     "support adding entries to maps" in
       test(
-        Match{ case a => a.add("foo" -> lit(1)) },
+        Match{ case a => a.props.add("foo" -> lit(1)) },
         "MATCH (`a0`) RETURN `a0`{.*, `foo`: 1}"
       ).returns[Map[String, Any]]
 

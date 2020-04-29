@@ -87,24 +87,14 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // Matching Graph Paths // // // // //
   // // // // // // // // // // // // // // // // //
 
-  sealed trait GraphElem extends CypherStatement.Alias
-  object GraphElem {
-    sealed trait Node extends GraphElem
-    sealed trait Rel  extends GraphElem { type Dir <: Rel.Direction }
-
-    type NodeElem = Map[String, Any] @@ GraphElem.Node
-    type RelElem  = Map[String, Any] @@ GraphElem.Rel
-  }
-  sealed trait GraphPath
-
-  type Node = CF.Expr[GraphElem.NodeElem] with CypherStatement.Alias
-  type Rel  = CF.Expr[GraphElem.RelElem]  with CypherStatement.Alias
-  type Path = CF.Expr[GraphPath]          with CypherStatement.Alias
+  type Node = CF.Expr[GraphElem.Node] with CypherStatement.Alias
+  type Rel  = CF.Expr[GraphElem.Rel]  with CypherStatement.Alias
+  type Path = CF.Expr[GraphPath]      with CypherStatement.Alias
 
   object CypherSyntaxFromMacro {
-    def mkNode(name: String): Node                          = new CF.Expr.Alias(name) with GraphElem.Node
-    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Alias(name) with GraphElem.Rel { type Dir = D }
-    def mkPath(name: String): Path                          = new CF.Expr.Alias(name) with GraphPath
+    def mkNode(name: String): Node                          =     CF.Expr.Alias[GraphElem.Node](name)
+    def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Alias[GraphElem.Rel](name) { type Dir = D }
+    def mkPath(name: String): Path                          =     CF.Expr.Alias[GraphPath](name)
   }
 
   // // // // // //
@@ -317,7 +307,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // Ops: Node & Rel & Path  // // // // //
   // // // // // // // // // // // // // // // // // //
 
-  implicit final class CypherSyntaxGraphElemOps[E <: GraphElem](g: CF.Expr[Map[String, Any] @@ E]) {
+  implicit final class CypherSyntaxGraphElemOps(g: CF.Expr[GraphElem]) {
     /** Select all vertex/edge properties */
     def props: CF.Expr[Map[String, Any]] = g.asInstanceOf[CF.Expr[Map[String, Any]]]
 
@@ -338,12 +328,12 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def keys: CF.Expr[List[String]] = func("keys")
   }
 
-  implicit final class CypherSyntaxNodeOps(n: CF.Expr[GraphElem.NodeElem]) {
+  implicit final class CypherSyntaxNodeOps(n: CF.Expr[GraphElem.Node]) {
     /** Call built-in `labels` function. */
     def labels: CF.Expr[List[String]] = n.func("labels")
   }
 
-  implicit final class CypherSyntaxRelOps(r: CF.Expr[GraphElem.RelElem]) {
+  implicit final class CypherSyntaxRelOps(r: CF.Expr[GraphElem.Rel]) {
     /** Call built-in `type` function. */
     def tpe: CF.Expr[String] = r.func("type")
 
@@ -352,8 +342,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   implicit final class CypherSyntaxPathOps(p: Path) {
-    def nodes: CF.Expr[List[GraphElem.NodeElem]] = "nodes".func(p)
-    def relationships: CF.Expr[List[GraphElem.RelElem]] = "relationships".func(p)
+    def nodes: CF.Expr[List[GraphElem.Node]] = "nodes".func(p)
+    def relationships: CF.Expr[List[GraphElem.Rel]] = "relationships".func(p)
     def length: CF.Expr[Long] = "length".func(p)
   }
 
