@@ -32,6 +32,6 @@ object Dependencies {
 
     lazy val neo4jDriver = "4.0.1"
 
-    lazy val scalatest = "3.0.5"
+    lazy val scalatest = "3.1.1"
   }
 }

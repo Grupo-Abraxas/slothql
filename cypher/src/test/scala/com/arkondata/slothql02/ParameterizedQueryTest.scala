@@ -5,13 +5,15 @@ import scala.concurrent.ExecutionContext
 import scala.util.Random
 
 import cats.effect.IO
-import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpec }
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
-import com.arkondata.slothql02.cypher.{ CypherFragment, CypherStatement }
+import com.arkondata.slothql02.cypher.CypherStatement
 import com.arkondata.slothql02.cypher.syntax._
 import com.arkondata.slothql02.neo4j.Neo4jCypherTransactor
 
-class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterAll {
+class ParameterizedQueryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   implicit val cs = IO.contextShift(ExecutionContext.global)
 
   val tx = Neo4jCypherTransactor[IO](Connection.driver)

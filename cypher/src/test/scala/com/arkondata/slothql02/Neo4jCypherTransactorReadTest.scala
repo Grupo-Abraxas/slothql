@@ -7,7 +7,9 @@ import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.traverse._
 import org.scalactic.source.Position
-import org.scalatest.{ Assertion, BeforeAndAfterAll, Matchers, WordSpec }
+import org.scalatest.{ Assertion, BeforeAndAfterAll }
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
 import com.arkondata.slothql02.cypher.CypherFragment.{ Clause, Expr, Pattern, Query, Return }
 import com.arkondata.slothql02.cypher.GraphElem
@@ -15,7 +17,7 @@ import com.arkondata.slothql02.cypher.syntax._
 import com.arkondata.slothql02.neo4j.Neo4jCypherTransactor
 
 // DB should contain `populate-1.cypher`
-class Neo4jCypherTransactorReadTest extends WordSpec with Matchers with BeforeAndAfterAll {
+class Neo4jCypherTransactorReadTest extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   implicit val cs = IO.contextShift(ExecutionContext.global)
 
   val tx = Neo4jCypherTransactor[IO](Connection.driver)

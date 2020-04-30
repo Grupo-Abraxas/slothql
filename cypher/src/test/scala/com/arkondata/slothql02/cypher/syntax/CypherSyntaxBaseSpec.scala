@@ -1,10 +1,12 @@
 package com.arkondata.slothql02.cypher.syntax
 
-import org.scalatest.{ Assertion, Matchers, WordSpec }
+import org.scalatest.Assertion
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
 import com.arkondata.slothql02.cypher.{ CypherFragment, CypherStatement }
 
-trait CypherSyntaxBaseSpec extends WordSpec with Matchers {
+trait CypherSyntaxBaseSpec extends AnyWordSpec with Matchers {
   protected def cypherGen: CypherStatement.Gen = CypherStatement.Gen.Default()
 
   protected def test[A](query: CypherFragment.Query[A], expectedTemplate: String, expectedParams: Map[String, CypherStatement.LiftValue[_]] = Map()): Test[A] =
