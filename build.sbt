@@ -21,7 +21,7 @@ lazy val root = (project in file(".")).
       scalacOptions in Compile += "-Ypartial-unification",
 
       resolvers += Resolver.sonatypeRepo("releases"),
-      addCompilerPlugin(Dependencies.`kind-projector`)
+      addCompilerPlugin(Dependencies.`kind-projector` cross CrossVersion.full)
     ) ++ versionWithGit),
 
     crossScalaVersions := Nil,
