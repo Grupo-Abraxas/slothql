@@ -1,5 +1,6 @@
 package com.arkondata.slothql02.cypher
 
+import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.JavaConverters
 import scala.language.{ higherKinds, implicitConversions }
 
@@ -19,21 +20,20 @@ sealed trait CypherStatement {
   val params: Map[String, CypherStatement.LiftValue[_]]
 
   def copy(template: String = this.template, params: Map[String, CypherStatement.LiftValue[_]] = this.params): this.type
-
-  def unsafeApplyParams(params: Map[String, Any]): Map[String, AnyRef] = {
-    assert(this.params.keys == params.keys,
-           s"Wrong query parameters: got ${params.keys.mkString(", ")}; expected: ${this.params.keys.mkString(", ")}")
-    params.map { case (k, v) => k -> this.params(k).asInstanceOf[CypherStatement.LiftValue[Any]].asParam(v) }
-  }
 }
 
 object CypherStatement {
+
+  final case class Prepared[R](template: String, params: Map[String, AnyRef])
+
   trait LiftValue[A] {
     def asParam(a: A): AnyRef
     def asLiteral(a: A): String
   }
 
   object LiftValue {
+    def apply[A](implicit lift: LiftValue[A]): LiftValue[A] = lift
+
     implicit lazy val liftLongValue: LiftValue[Long] = new LiftValue[Long] {
       def asParam(a: Long): AnyRef = Long.box(a)
       def asLiteral(a: Long): String = a.toString
@@ -83,8 +83,21 @@ object CypherStatement {
   final case class Part(template: String, params: Map[String, LiftValue[_]]) extends CypherStatement {
     def copy(template0: String, params0: Map[String, LiftValue[_]]): this.type = Part(template0, params0).asInstanceOf[this.type]
   }
+
   final case class Complete[+T](template: String, params: Map[String, LiftValue[_]]) extends CypherStatement {
     def copy(template0: String, params0: Map[String, LiftValue[_]]): this.type = Complete(template0, params0).asInstanceOf[this.type]
+
+    def withParams(params: Map[String, Any]): Prepared[T @ uncheckedVariance] =
+      withParamsUnchecked(params)
+        .ensuring(this.params.keys == params.keys,
+                  s"Wrong query parameters: got ${params.keys.mkString(", ")}; expected: ${this.params.keys.mkString(", ")}")
+
+    private[cypher] def withParamsUnchecked(params: Map[String, Any]): Prepared[T @ uncheckedVariance] = {
+      Prepared(
+        template,
+        this.params.map { case (k, lift: CypherStatement.LiftValue[Any]) => k -> lift.asParam(params(k)) }
+      )
+    }
   }
 
   trait MkStatement[S] {
@@ -105,7 +118,7 @@ object CypherStatement {
 
   abstract class Gen {
     def nextAlias(alias: Alias): (String, Gen)
-    def nextParam(prefix: Param): (String, Gen)
+    def nextParam(param: Param): (String, Gen)
   }
   object Gen {
     type Hash = Int
@@ -114,25 +127,26 @@ object CypherStatement {
     final class Default protected (
       hashedAliases: Map[Hash, String],
       usedAliases: Map[String, Suffix],
-      hashedParams: Map[Hash, String],
-      usedParams: Map[String, Suffix]
+      hashedParams: Set[Hash],
+      usedParams: Set[String]
     ) extends Gen {
-      def nextAlias(alias: Alias): (String, Gen) = next(alias.##, alias.name, hashedAliases, usedAliases, new Default(_, _, hashedParams, usedParams))
-      def nextParam(prefix: Param): (String, Gen) = next(prefix.##, prefix.name, hashedParams,  usedParams, new Default(hashedAliases, usedAliases, _, _))
-
-      private def next(hash: Int, s0: String, mh: Map[Hash, String], mu: Map[String, Suffix], copy: (Map[Hash, String], Map[String, Suffix]) => Gen) = {
-        mh.get(hash)
+      def nextAlias(alias: Alias): (String, Gen) =
+        hashedAliases.get(alias.##)
           .map(_ -> this)
           .getOrElse {
-            val s = s0.trim
-            val suffix = mu.getOrElse(s, 0)
+            val s = alias.name.trim
+            val suffix = usedAliases.getOrElse(s, 0)
             val s1 = s"$s$suffix"
-            s1 -> copy(mh.updated(hash, s1), mu.updated(s, suffix + 1))
+            s1 -> new Default(hashedAliases.updated(alias.##, s1), usedAliases.updated(s, suffix + 1), hashedParams, usedParams)
           }
+      def nextParam(param: Param): (String, Gen) = () match {
+        case _ if hashedParams contains param.## => param.name -> this
+        case _ if usedParams contains param.name => sys.error(s"Parameter '$param' has already been used")
+        case _ => param.name -> new Default(hashedAliases, usedAliases, hashedParams + param.##, usedParams + param.name)
       }
     }
     object Default{
-      def apply(): Default = new Default(Map(), Map(), Map(), Map())
+      def apply(): Default = new Default(Map(), Map(), Set(), Set())
     }
 
     implicit def default: Gen = Default()

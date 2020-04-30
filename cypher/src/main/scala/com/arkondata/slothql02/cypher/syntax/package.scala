@@ -194,6 +194,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // //  Return Expressions  // // // // //
   // // // // // // // // // // // // // // // // //
 
+  def `return`[A](expr: CF.Expr[A]): CF.Query.Return[A] = cypherSyntaxExprToQueryReturn(expr)
+  def `return`[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] = cypherSyntaxTupleToQueryReturn(tuple)
+
   implicit def cypherSyntaxExprToReturn[A](expr: CF.Expr[A]): CF.Return[A] = CF.Return.Expr(expr, as = None)
   implicit def cypherSyntaxExprToQueryReturn[A](expr: CF.Expr[A]): CF.Query.Return[A] = CF.Query.Return(expr)
   implicit def cypherSyntaxReturnToQueryReturn[A](ret: CF.Return[A]): CF.Query.Return[A] = CF.Query.Return(ret)
@@ -567,6 +570,10 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // // //
 
   def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
+
+  type Param[A] = CF.Expr.Param[A]
+
+  object parameterized extends ParametrizedCypherQuery.Build
 
   // // // // // // // // // // // // // // // //
   // // // // Aggregation Functions // // // //

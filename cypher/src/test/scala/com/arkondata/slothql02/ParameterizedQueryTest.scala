@@ -1,17 +1,22 @@
-/*
 package com.arkondata.slothql02
 
+import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 import scala.util.Random
 
-import cats.instances.list._
+import cats.effect.IO
 import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpec }
 
-import com.arkondata.slothql02.cypher.CypherFragment.Statement
+import com.arkondata.slothql02.cypher.{ CypherFragment, CypherStatement }
 import com.arkondata.slothql02.cypher.syntax._
 import com.arkondata.slothql02.neo4j.Neo4jCypherTransactor
 
 class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterAll {
-  val tx = new Neo4jCypherTransactor(Connection.driver)
+  implicit val cs = IO.contextShift(ExecutionContext.global)
+
+  val tx = Neo4jCypherTransactor[IO](Connection.driver)
+  import tx.readers._
+  import tx.ops._
 
   override protected def afterAll(): Unit = {
     Connection.driver.close()
@@ -19,11 +24,11 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
   }
 
   lazy val query1 = parameterized {
-    (x: Param[Long], y: Param[String], z: Param[Seq[String]]) =>
-      unwind(z) { i =>
-        Match.optional { case v@Vertex("i" := `i`) =>
-          (i, v.prop[String]("foo"), y)
-            .limit(x)
+    (x: Param[Long], y: Param[String], z: Param[List[String]]) =>
+      Unwind(z) { i =>
+        Match.optional { case v@Node("i" := `i`) =>
+          `return`(i, v.prop[String]("foo"), y)
+            // TODO: .limit(x)
         }
       }
   }
@@ -35,26 +40,29 @@ class ParameterizedQueryTest extends WordSpec with Matchers with BeforeAndAfterA
       val y = Random.alphanumeric.take(10).mkString
       val z = List.fill(5){ Random.alphanumeric.take(5).mkString }
 
-      query1.prepared(x = x, y = y, z = z) shouldBe Statement(
-        "UNWIND $`z` AS `i` OPTIONAL MATCH (`v`{ `i`: `i` }) RETURN `i`, `v`.`foo`, $`y` LIMIT $`x`",
-        Map("x" -> x, "y" -> y, "z" -> z)
+      query1.prepared.withParams(x = x, y = y, z = z)
+
+      // TODO: LIMIT $`x`
+      // TODO: "x" -> Long.box(x)
+      query1.prepared.withParams(x = x, y = y, z = z) shouldBe CypherStatement.Prepared(
+        "UNWIND $`z` AS `i0` OPTIONAL MATCH (`v0`{ `i`: `i0` }) RETURN `i0`, `v0`.`foo`, $`y`",
+        Map("y" -> y, "z" -> z.asJava)
       )
     }
 
     "support reading parameterized queries" in {
       val x = 3 + Random.nextInt(100).toLong
       val y = Random.alphanumeric.take(10).mkString
-      val z = (1 to 3).map(_.toString)
+      val z = (1 to 3).map(_.toString).toList
 
       val readTx = tx
-        .query[List](query1)
+        .query(query1)
         .withParams(x = x, y = y, z = z)
 
-      val res = tx.runRead(readTx).unsafeRunSync()
+      val res = tx.runRead(readTx).compile.toList.unsafeRunSync()
       res shouldBe z.map((_, "null", y))
     }
   }
 
 
 }
-*/

@@ -7,6 +7,7 @@ import cats.free.FreeT
 import cats.syntax.apply._
 import cats.syntax.applicative._
 import cats.syntax.functor._
+import shapeless.HList
 
 import com.arkondata.slothql02.cypher.{ CypherFragment => CF }
 
@@ -25,11 +26,18 @@ object CypherTransactor {
   // // // Main Monad Constructors // //
   // // // // // // // // // // // // //
 
+  def query[F[_]: Applicative, Src, C[_], A](s: CypherStatement.Prepared[A])(implicit read: Reader[Src, A]): Tx[F, Src, C, A] =
+    FreeT.liftF(Query(s, read))
+
+  def query[F[_]: Applicative, Src, C[_], A](s: CypherStatement.Complete[A])(implicit read: Reader[Src, A]): Tx[F, Src, C, A] =
+    query(s.withParams(Map()))
+
   def query[F[_]: Applicative, Src, C[_], A](q: CF.Query[A])(implicit gen: CypherStatement.Gen, read: Reader[Src, A]): Tx[F, Src, C, A] =
     query(q.toCypher(gen)._1)
 
-  def query[F[_]: Applicative, Src, C[_], A](s: CypherStatement)(implicit read: Reader[Src, A]): Tx[F, Src, C, A] =
-    FreeT.liftF(Query(s, Map(), read))
+  def query[F[_]: Applicative, Src, C[_], A, Params <: HList](pcq: ParametrizedCypherQuery[Params, A])
+                                                             (implicit read: Reader[Src, A]): ParametrizedCypherQuery.Apply[Params, A, Tx[F, Src, C, A]] =
+    new ParametrizedCypherQuery.Apply(pcq, query(_))
 
   def unwind [F[_]: Applicative, Src, C[_]]: C ~> Tx[F, Src, C, *]        = λ[C ~> Tx[F, Src, C, *]](c => FreeT.liftF(Unwind(c)))
   def nothing[F[_]: Applicative, Src, C[_]: MonoidK, A]: Tx[F, Src, C, A] = unwind.apply(MonoidK[C].empty[A])
@@ -56,9 +64,9 @@ object CypherTransactor {
   // // // // // // // // // // // // // // // // //
 
   sealed trait Operation[Src, C[_], R]
-  case class Query [Src, C[_], R](statement: CypherStatement, params: Map[String, Any], read: Reader[Src, R]) extends Operation[Src, C, R]
-  case class Gather[Src, C[_], R](op: Operation[Src, C, R])                                                   extends Operation[Src, C, C[R]]
-  case class Unwind[Src, C[_], R](values: C[R])                                                               extends Operation[Src, C, R]
+  case class Query [Src, C[_], R](query: CypherStatement.Prepared[R], read: Reader[Src, R]) extends Operation[Src, C, R]
+  case class Gather[Src, C[_], R](op: Operation[Src, C, R])                          extends Operation[Src, C, C[R]]
+  case class Unwind[Src, C[_], R](values: C[R])                                      extends Operation[Src, C, R]
 
   trait Reader[Src, A] {
     def sourceName: String
@@ -159,8 +167,11 @@ object CypherTransactor {
     type Tx[R]     = CypherTransactor.Tx[F, Src, C, R]
     type Reader[R] = CypherTransactor.Reader[Src, R]
 
-    def query[R](q: CF.Query[R])    (implicit gen: CypherStatement.Gen, read: Reader[R]): Tx[R] = CypherTransactor.query(q)
-    def query[R](s: CypherStatement)(implicit read: Reader[R])                          : Tx[R] = CypherTransactor.query(s)
+    def query[R](q: CF.Query[R])                (implicit gen: CypherStatement.Gen, read: Reader[R]): Tx[R] = CypherTransactor.query(q)
+    def query[R](s: CypherStatement.Complete[R])(implicit read: Reader[R])                          : Tx[R] = CypherTransactor.query(s)
+
+    def query[Params <: HList, R](q: ParametrizedCypherQuery[Params, R])
+                                 (implicit read: Reader[R]): ParametrizedCypherQuery.Apply[Params, R, Tx[R]] = CypherTransactor.query(q)
 
     def gather  : Tx               ~> TxC[F, Src, C, *] = CypherTransactor.gather
     def unwind  : C                ~> Tx                = CypherTransactor.unwind

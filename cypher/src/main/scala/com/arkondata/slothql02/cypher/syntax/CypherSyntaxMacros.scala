@@ -18,7 +18,11 @@ class CypherSyntaxMacros(val c: whitebox.Context) {
     val (outTypes, returns) = tupleTypes.zipWithIndex.map {
       case (TypeRef(_, ExprSymb, List(t)), i)       => t -> returnExprTree(t, sel(i))
       case (TypeRef(_, ReturnExprSymb, List(t)), i) => t -> sel(i)
-      case other => c.abort(c.enclosingPosition, s"Returning type $other is not supported")
+      case (t, i) if t <:< typeOf[CF.Expr[_]] =>
+        val List(arg) = t.baseType(ExprSymb).typeArgs
+        arg -> returnExprTree(arg, sel(i))
+      case (other, _) =>
+        c.abort(c.enclosingPosition, s"Returning type $other is not supported")
     }.unzip
     q"""
       new _root_.com.arkondata.slothql02.cypher.syntax.CypherSyntaxReturnTuple[$T] {

@@ -15,11 +15,11 @@ import cats.syntax.apply._
 import cats.syntax.parallel._
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.v1._
-import org.neo4j.driver.v1.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
+import org.neo4j.driver.v1.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
 import shapeless._
 
 import com.arkondata.slothql02.cypher
-import com.arkondata.slothql02.cypher.CypherTransactor
+import com.arkondata.slothql02.cypher.{ CypherStatement, CypherTransactor }
 import com.arkondata.slothql02.cypher.CypherTransactor._
 import com.arkondata.slothql02.neo4j.util.{ fs2StreamTxCMonad, javaStreamToFs2 }
 
@@ -68,9 +68,9 @@ class Neo4jCypherTransactor[F[_]: Monad: ConcurrentEffect: ContextShift](
   }
 
   protected def runOperation[A](blocker: Blocker, op: Op[A]): OutT[A] = op match {
-    case Unwind(i)        => _  => i
-    case Gather(r)        => runGather(blocker, r)
-    case q@Query(_, _, _) => runQuery(blocker, q)
+    case Unwind(out) => _  => out
+    case Gather(op)  => runGather(blocker, op)
+    case Query(q, r) => runQuery(blocker, q, r)
   }
 
   private def runGather[A](blocker: Blocker, g: Op[_])(tx: Transaction): Out[A] =
@@ -79,12 +79,12 @@ class Neo4jCypherTransactor[F[_]: Monad: ConcurrentEffect: ContextShift](
   private def runGather0[A](blocker: Blocker, g: Op[_], tx: Transaction): Out[Out[A]] =
     fs2.Stream.emit(runOperation(blocker, g.asInstanceOf[Op[A]])(tx))
 
-  protected def runQuery[A](blocker: Blocker, q: Query[Record, Out, A])(tx: Transaction): fs2.Stream[F, A] = {
+  protected def runQuery[A](blocker: Blocker, q: CypherStatement.Prepared[A], read: Reader[A])(tx: Transaction): fs2.Stream[F, A] = {
     val stream = Sync[F].delay {
-      tx.run(q.statement.template, q.statement.unsafeApplyParams(q.params).asJava).stream()
+      tx.run(q.template, q.params.asJava).stream()
     }
     javaStreamToFs2(blocker, stream).evalMap {
-      record => Sync[F].delay { q.read(record) }
+      record => Sync[F].delay { read(record) }
     }
   }
 }
