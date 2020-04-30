@@ -4,6 +4,7 @@ import shapeless.{ HList, ProductArgs }
 
 import com.arkondata.slothql.cypher.CypherFragment.{ Expr, Known }
 import com.arkondata.slothql.cypher.apoc.impl._
+import com.arkondata.slothql.cypher.syntax.Match.ParameterizedQuery
 import com.arkondata.slothql.cypher.syntax._
 
 object APOC {
@@ -13,6 +14,13 @@ object APOC {
     def applyProduct[Cases <: HList](cases: Cases)(implicit b: Case.Builder[Cases]): Case.OtherwiseSyntax[b.Params, b.Out] =
       new Case.OtherwiseSyntax(b.toList(cases))
   }
+
+  def when[PT <: HList, PE <: HList, Ps <: HList, A](
+    cond: Known[Expr[Boolean]],
+    thenQuery: ParameterizedQuery[PT, A],
+    elseQuery: ParameterizedQuery[PE, A]
+  )(implicit b: When.Builder[PT, PE]): When.ParamsSyntax[b.Params, A] =
+    new When.ParamsSyntax(cond, thenQuery, elseQuery)(b.toMap)
 
   def runFirstColumnSingle[A](query: Match.Result[A]): Known[Expr[A]] =
     "apoc.cypher.runFirstColumnSingle".func(lit(query.result.known.toCypher), cypherNull[Any])

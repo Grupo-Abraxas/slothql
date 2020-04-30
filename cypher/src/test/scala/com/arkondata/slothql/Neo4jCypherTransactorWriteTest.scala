@@ -27,6 +27,18 @@ class Neo4jCypherTransactorWriteTest extends WordSpec with Matchers {
       )
     }
 
+    "create nodes given properties as parameter" in {
+      import scala.collection.JavaConverters._
+      import Neo4jCypherTransactor.SupportedParam.Unsafe.anyIsSupported
+      test(
+        tx.query(parameterized { props: Param[Map[String, Any]] =>
+          Create { case t@Vertex("Test", `props`) => t.props }
+        })
+          .withParams(props = Map("a" -> 1, "b" -> List("x", "y", "z").asJava)),
+        Seq(Map("a" -> 1, "b" -> List("x", "y", "z")))
+      )
+    }
+
     "execute query with SET clause, returning nothing" in test(
       tx.query(
         Create{ case Vertex("Q") =>

@@ -235,7 +235,7 @@ object CypherFragment {
     case class In[A](elem: Known[Expr[A]], list: Known[Expr[scala.List[A]]]) extends ListExpr[Boolean]
     case class AtIndex[A](list: Known[Expr[scala.List[A]]], index: Known[Expr[Long]]) extends ListExpr[A]
     case class AtRange[A](list: Known[Expr[scala.List[A]]], limits: Ior[Known[Expr[Long]], Known[Expr[Long]]]) extends ListExpr[scala.List[A]]
-    case class Concat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends ListExpr[scala.List[A]]
+    case class ListConcat[A](list0: Known[Expr[scala.List[A]]], list1: Known[Expr[scala.List[A]]]) extends ListExpr[scala.List[A]]
     case class ReduceList[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, initial: Known[Expr[B]], accAlias: String, reduce: Known[Expr[B]]) extends ListExpr[B]
     case class ListComprehension[A, B](list: Known[Expr[scala.List[A]]], elemAlias: String, filter: Option[Known[Expr[Boolean]]], map: Option[Known[Expr[B]]]) extends ListExpr[scala.List[B]]
     case class ListPredicate[A](list: Known[Expr[scala.List[A]]], elemAlias: String, predicate: ListPredicate.Predicate, expr: Known[Expr[Boolean]]) extends ListExpr[Boolean]
@@ -253,8 +253,8 @@ object CypherFragment {
       implicit lazy val fragmentAtRange: CypherFragment[AtRange[_]] = define {
         case AtRange(list, range) => atIndex(list, rangeStr(range))
       }
-      implicit lazy val fragmentConcat: CypherFragment[Concat[_]] = define {
-        case Concat(list0, list1) => s"${list0.toCypher} + ${list1.toCypher}"
+      implicit lazy val fragmentConcat: CypherFragment[ListConcat[_]] = define {
+        case ListConcat(list0, list1) => s"${list0.toCypher} + ${list1.toCypher}"
       }
       implicit lazy val fragmentReduceList: CypherFragment[ReduceList[_, _]] = define {
         case ReduceList(list, elemAlias, initial, accAlias, reduce) =>
@@ -307,6 +307,14 @@ object CypherFragment {
             case Regex      => "=~"
           }
           s"${left.toCypher} $opStr ${right.toCypher}"
+      }
+    }
+
+    case class StringConcat(left: Known[Expr[String]], right: Known[Expr[String]]) extends Expr[String]
+
+    object StringConcat {
+      implicit lazy val fragment: CypherFragment[StringConcat] = define {
+        case StringConcat(left, right) => s"${left.toCypher} + ${right.toCypher}"
       }
     }
 
@@ -712,9 +720,11 @@ object CypherFragment {
     case class Let(alias: String, pattern: Known[Pattern0]) extends Pattern
 
     sealed trait Pattern0 extends Pattern
-    case class Node(alias: Option[String], labels: List[String], map: Map[String, Known[Expr[_]]]) extends Pattern0
+    case class Node(alias: Option[String], labels: List[String], props: Properties) extends Pattern0
     case class Path(left: Known[Node], rel: Known[Rel], right: Known[Pattern0]) extends Pattern0
-    case class Rel(alias: Option[String], types: List[String], map: Map[String, Known[Expr[_]]], length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+    case class Rel(alias: Option[String], types: List[String], props: Properties, length: Option[Rel.Length], dir: Rel.Direction) extends Pattern
+
+    type Properties = Either[Map[String, Known[Expr[_]]], Known[Expr[Map[String, Any]]]]
 
     object Rel {
       sealed trait Length
@@ -729,15 +739,15 @@ object CypherFragment {
 
     implicit lazy val fragment: CypherFragment[Pattern] = define[Pattern] {
       case Let(alias, pattern) => s"${escapeName(alias)} = ${pattern.toCypher}"
-      case Node(alias, labels, map) => s"(${aliasStr(alias)}${labelsStr(labels)}${mapStr(map)})"
+      case Node(alias, labels, props) => s"(${aliasStr(alias)}${labelsStr(labels)}${props.fold(mapStr, _.toCypher)})"
       case Path(left, rel, right) => s"${left.toCypher} ${rel.toCypher} ${right.toCypher}"
-      case Rel(alias, types, map, len, dir) =>
+      case Rel(alias, types, props, len, dir) =>
         val lenStr = len match {
           case None => ""
           case Some(Rel.All) => "*"
           case Some(Rel.Range(range)) => "*" + rangeStr(range.bimap(Expr.Lit(_), Expr.Lit(_)))
         }
-        val params = s"[${aliasStr(alias)}${typesStr(types)}$lenStr${mapStr(map)}]"
+        val params = s"[${aliasStr(alias)}${typesStr(types)}$lenStr${props.fold(mapStr, _.toCypher)}]"
         dir match {
           case Rel.Outgoing => s"-$params->"
           case Rel.Incoming => s"<-$params-"
