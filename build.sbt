@@ -25,7 +25,7 @@ lazy val root = (project in file(".")).
     ) ++ versionWithGit),
 
     crossScalaVersions := Nil,
-    name := "slothql"
+    name := "slothql-dev-02"
   )
   .settings(ammSettings: _*)
   .aggregate(cypher)
@@ -33,7 +33,7 @@ lazy val root = (project in file(".")).
 
 lazy val cypher = (project in file("cypher"))
   .settings(
-    name := "slothql-cypher",
+    name := "slothql-dev-02-cypher",
     libraryDependencies ++= Seq(
       Dependencies.Scala.reflect.value,
       Dependencies.shapeless,
