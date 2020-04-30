@@ -183,7 +183,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
      *       | NR > Pat
      */
     def unapply(tree: Tree): Option[List[Elem]] = PartialFunction.condOpt(tree) {
-      case Node(n)                               => List(n)
+      case Node(n@(_, _, _))                         => List(n)
       case UnApplyLR(Pattern(xs), Syntax_<, RNX(ys)) => xs ::: ys
       case UnApplyLR(NR(xs),  Syntax_>, Pattern(ys)) => xs ::: ys
     }
@@ -206,9 +206,9 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
      */
     object NR {
       def unapply(tree: Tree): Option[List[Elem]] = PartialFunction.condOpt(tree) {
-        case UnApplyLR(Pattern(xs), Syntax_<, RNX(ys)) => xs ::: ys
-        case UnApplyLR(NR(xs),      Syntax_>, NR(ys))  => xs ::: ys
-        case UnApplyLR(Node(n),     Syntax_-, Rel(r))  => List(n, r)
+        case UnApplyLR(Pattern(xs),       Syntax_<, RNX(ys))          => xs ::: ys
+        case UnApplyLR(NR(xs),            Syntax_>, NR(ys))           => xs ::: ys
+        case UnApplyLR(Node(n@(_, _, _)), Syntax_-, Rel(r@(_, _, _))) => List(n, r)
       }
     }
 
@@ -217,7 +217,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
      */
     object RN {
       def unapply(tree: Tree): Option[List[Elem]] = PartialFunction.condOpt(tree) {
-        case UnApplyLR(Rel(r), Syntax_-, Node(n)) => List(r, n)
+        case UnApplyLR(Rel(r@(_, _, _)), Syntax_-, Node(n@(_, _, _))) => List(r, n)
       }
     }
 
@@ -227,7 +227,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
      */
     object RNX {
       def unapply(tree: Tree): Option[List[Elem]] = PartialFunction.condOpt(tree) {
-        case UnApplyLR(RN(xs), Syntax_-, Rel(r)) => xs ::: List(r)
+        case UnApplyLR(RN(xs), Syntax_-, Rel(r@(_, _, _))) => xs ::: List(r)
         case RN(xs) => xs
       }
     }
@@ -242,7 +242,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           (stringName(name), Tpe.Node, nodeExpr(args))
         case pq"$name@$_" if tree.tpe <:< SyntaxNodeType =>
           (stringName(name), Tpe.Node, nodeExpr(Nil))
-        case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxNodeType =>
+        case pq"${Ident(termNames.WILDCARD)}" if tree.tpe <:< SyntaxNodeType =>
           (None, Tpe.Node, nodeExpr(Nil))
         case pq"${Ident(name)}" if tree.tpe <:< SyntaxNodeType =>
           val node = c.Expr[syntax.Node](q"${name.toTermName}")
@@ -267,7 +267,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
         case pq"$name@$_" if tree.tpe <:< SyntaxRelType =>
           val (expr, relTpe) = relExprAndDirType(tree, Nil)
           (stringName(name), relTpe, expr)
-        case pq"${Ident(nme.WILDCARD)}" if tree.tpe <:< SyntaxRelType =>
+        case pq"${Ident(termNames.WILDCARD)}" if tree.tpe <:< SyntaxRelType =>
           val (expr, relTpe) = relExprAndDirType(tree, Nil)
           (None, relTpe, expr)
       }

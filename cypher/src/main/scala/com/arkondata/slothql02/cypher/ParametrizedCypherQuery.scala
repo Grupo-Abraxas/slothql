@@ -50,7 +50,7 @@ object ParametrizedCypherQuery {
 class ParametrizedCypherStatementMacros(val c: whitebox.Context) { outer =>
   import c.universe._
 
-  private val helper = new CaseClassMacros { val c: outer.c.type = outer.c }
+  private val helper = new CaseClassMacros { lazy val c: outer.c.type = outer.c }
 
   def buildImpl(f: Tree): Tree =
     f match {

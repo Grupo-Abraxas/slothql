@@ -73,10 +73,7 @@ class Neo4jCypherTransactor[F[_]: Monad: ConcurrentEffect: ContextShift](
     case Query(q, r) => runQuery(blocker, q, r)
   }
 
-  private def runGather[A](blocker: Blocker, g: Op[_])(tx: Transaction): Out[A] =
-    runGather0(blocker, g, tx).asInstanceOf[Out[A]]
-
-  private def runGather0[A](blocker: Blocker, g: Op[_], tx: Transaction): Out[Out[A]] =
+  private def runGather[A](blocker: Blocker, g: Op[_])(tx: Transaction): Out[Out[A]] =
     fs2.Stream.emit(runOperation(blocker, g.asInstanceOf[Op[A]])(tx))
 
   protected def runQuery[A](blocker: Blocker, q: CypherStatement.Prepared[A], read: Reader[A])(tx: Transaction): fs2.Stream[F, A] = {
@@ -235,7 +232,7 @@ object Neo4jCypherTransactor {
       new CypherTransactor.Reader[Record, A] {
         def sourceName: String = "Record"
         def name: String = r.name
-        def apply(rec: Record): A = r(rec.values().asScala)
+        def apply(rec: Record): A = r(rec.values().asScala.toSeq)
       }
   }
 

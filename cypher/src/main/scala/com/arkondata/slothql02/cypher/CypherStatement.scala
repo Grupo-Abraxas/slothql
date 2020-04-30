@@ -58,7 +58,7 @@ object CypherStatement {
     implicit def liftStringMapValue[T](implicit lift: LiftValue[T]): LiftValue[Map[String, T]] = new LiftValue[Map[String, T]] {
       import JavaConverters._
       def asParam(a: Map[String, T]): AnyRef = a.asJava
-      def asLiteral(a: Map[String, T]): String = literalMap(a.mapValues(lift.asLiteral))
+      def asLiteral(a: Map[String, T]): String = literalMap(a.mapValues(lift.asLiteral).toMap)
     }
 
     implicit def liftStringMapLiftedValues[L <: LiftedValue]: LiftValue[Map[String, L]] =
@@ -66,7 +66,7 @@ object CypherStatement {
     private lazy val _liftStringMapLiftedValues: LiftValue[Map[String, LiftedValue]] = new LiftValue[Map[String, LiftedValue]] {
       import JavaConverters._
       def asParam(a: Map[String, LiftedValue]): AnyRef = a.mapValues(v => v.lift.asParam(v.value)).asJava
-      def asLiteral(a: Map[String, LiftedValue]): String = literalMap(a.mapValues(v => v.lift.asLiteral(v.value)))
+      def asLiteral(a: Map[String, LiftedValue]): String = literalMap(a.mapValues(v => v.lift.asLiteral(v.value)).toMap)
     }
 
     private def literalMap(m: Map[String, String]) = m
