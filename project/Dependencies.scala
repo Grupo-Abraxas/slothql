@@ -30,7 +30,7 @@ object Dependencies {
     lazy val droste     = "0.6.0"
     lazy val fs2        = "2.3.0"
 
-    lazy val neo4jDriver = "1.7.2"
+    lazy val neo4jDriver = "4.0.1"
 
     lazy val scalatest = "3.0.5"
   }

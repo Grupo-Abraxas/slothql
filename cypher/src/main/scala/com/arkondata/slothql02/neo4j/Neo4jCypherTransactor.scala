@@ -13,9 +13,9 @@ import cats.effect.{ Blocker, Concurrent, ConcurrentEffect, ContextShift, Resour
 import cats.instances.function._
 import cats.syntax.apply._
 import cats.syntax.parallel._
+import org.neo4j.driver.{ Driver, Record, Session, Transaction, TransactionWork, Value }
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.v1._
-import org.neo4j.driver.v1.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
+import org.neo4j.driver.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
 import shapeless._
 
 import com.arkondata.slothql02.cypher

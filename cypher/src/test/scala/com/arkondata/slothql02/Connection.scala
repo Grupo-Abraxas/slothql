@@ -1,6 +1,6 @@
 package com.arkondata.slothql02
 
-import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
+import org.neo4j.driver.{ AuthTokens, GraphDatabase }
 
 object Connection {
   lazy val host = "localhost"
