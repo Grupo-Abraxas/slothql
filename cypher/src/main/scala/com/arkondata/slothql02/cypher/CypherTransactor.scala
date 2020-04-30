@@ -186,7 +186,7 @@ object CypherTransactor {
     def zip    [X, Y]   (x: Tx[X], y: Tx[Y])          : Tx[(X, Y)]    = CypherTransactor.zip(x, y)
     def zip3   [X, Y, Z](x: Tx[X], y: Tx[Y], z: Tx[Z]): Tx[(X, Y, Z)] = CypherTransactor.zip3(x, y, z)
 
-    val ops: Ops = ops
+    val ops: Ops = new Ops
 
     protected class Ops {
       implicit def cypherTransactorSyntaxOps[A](tx: Tx[A]): CypherTransactor.SyntaxOps[F, Src, C, A] =
