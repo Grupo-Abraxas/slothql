@@ -169,6 +169,7 @@ object CypherTransactor {
 
     def query[R](q: CF.Query[R])                (implicit gen: CypherStatement.Gen, read: Reader[R]): Tx[R] = CypherTransactor.query(q)
     def query[R](s: CypherStatement.Complete[R])(implicit read: Reader[R])                          : Tx[R] = CypherTransactor.query(s)
+    def query[R](s: CypherStatement.Prepared[R])(implicit read: Reader[R])                          : Tx[R] = CypherTransactor.query(s)
 
     def query[Params <: HList, R](q: ParameterizedCypherQuery[Params, R])
                                  (implicit read: Reader[R]): ParameterizedCypherQuery.Apply[Params, R, Tx[R]] = CypherTransactor.query(q)
