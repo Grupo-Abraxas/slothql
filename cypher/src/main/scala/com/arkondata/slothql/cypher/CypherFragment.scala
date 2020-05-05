@@ -92,7 +92,12 @@ object CypherFragment {
     sealed trait Input[A] extends Expr[A] {
       def lift: LiftValue[A]
     }
+
     final case class Param[A](name: String, lift: LiftValue[A]) extends Input[A] with CypherStatement.Param
+    object Param {
+      def make[A](name: String)(implicit lift: LiftValue[A]): Param[A] = Param(name, lift)
+    }
+
     final case class Lit[A](value: A, lift: LiftValue[A]) extends Input[A] with LiftedValue { type Value = A }
 
     final case object Null extends Expr[Nothing]
