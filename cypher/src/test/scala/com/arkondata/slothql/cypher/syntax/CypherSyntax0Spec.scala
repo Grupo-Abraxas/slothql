@@ -80,7 +80,7 @@ class CypherSyntax0Spec extends CypherSyntaxBaseSpec {
             (a.props, b.props as "foo")
         },
         "MATCH (`a0`) --> (`b0`) " +
-        "RETURN `a0`, `b0` AS `foo0`"
+        "RETURN `a0`, `b0` AS `foo`"
       ).returns[(Map[String, Any], Map[String, Any])]
 
     "support nested matches" in
