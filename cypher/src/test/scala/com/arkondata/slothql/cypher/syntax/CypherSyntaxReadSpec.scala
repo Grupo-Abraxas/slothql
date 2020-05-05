@@ -403,5 +403,11 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
           "LIMIT 10"
       ).returns[String]
 
+    "support query unions" in test(
+      Match { case n@Node("Foo") => n } union Match { case n@Node("Bar") => n },
+      "MATCH (`n0`:`Foo`) RETURN `n0` " +
+      "UNION " +
+      "MATCH (`n1`:`Bar`) RETURN `n1`"
+    ).returns[GraphElem.Node]
   }
 }

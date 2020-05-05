@@ -580,4 +580,14 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // // //
 
   def collect[A](a: CF.Expr[A]): CF.Expr[List[A]] = "collect".func(a)
+
+  // // // // // // // // // //
+  // // // // Union // // // //
+  // // // // // // // // // //
+
+  implicit class UnionOps[A](q1: CF.Query.Query0[A]) {
+    def union(q2: CF.Query.Query0[A]): CF.Query[A] = CF.Query.Union(q1, q2, all = false)
+    def unionAll(q2: CF.Query.Query0[A]): CF.Query[A] = CF.Query.Union(q1, q2, all = true)
+  }
+
 }
