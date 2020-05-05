@@ -523,6 +523,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     def head: CF.Expr[A]       = "head".func(list)
     def tail: CF.Expr[List[A]] = "tail".func(list)
+    def last: CF.Expr[A]       = "last".func(list)
     def size: CF.Expr[Long]    = "size".func(list)
 
     def withFilter(f: CF.Expr[A] => CF.Expr[Boolean]): ListOps.WithFilter[A] = new ListOps.WithFilter(list, f)
