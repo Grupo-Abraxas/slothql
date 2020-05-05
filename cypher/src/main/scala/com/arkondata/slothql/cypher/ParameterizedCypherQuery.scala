@@ -7,7 +7,7 @@ import scala.reflect.macros.whitebox
 import shapeless._
 
 
-final class ParameterizedCypherQuery[Params <: HList, T] protected(val query: CypherFragment.Query.Query0[T])
+final class ParameterizedCypherQuery[Params <: HList, T] protected(val query: CypherFragment.Query[T])
                                                                   (implicit
                                                                   val gen: CypherStatement.Gen,
                                                                   val toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]) {
@@ -43,7 +43,7 @@ object ParameterizedCypherQuery {
   }
 
   object Internal {
-    def create[Params <: HList, T](query: CypherFragment.Query.Query0[T])
+    def create[Params <: HList, T](query: CypherFragment.Query[T])
                                   (implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParameterizedCypherQuery[Params, T] =
       new ParameterizedCypherQuery(query)
   }
