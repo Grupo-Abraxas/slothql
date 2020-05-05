@@ -583,7 +583,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   type Param[A] = CF.Expr.Param[A]
 
-  object parameterized extends ParametrizedCypherQuery.Build
+  object parameterized extends ParameterizedCypherQuery.Build
 
   // // // // // // // // // // // // // // // //
   // // // // Aggregation Functions // // // //

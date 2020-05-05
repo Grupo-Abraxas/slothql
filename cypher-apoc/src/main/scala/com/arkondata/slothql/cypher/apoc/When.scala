@@ -2,7 +2,7 @@ package com.arkondata.slothql.cypher.apoc
 
 import shapeless._
 
-import com.arkondata.slothql.cypher.ParametrizedCypherQuery
+import com.arkondata.slothql.cypher.ParameterizedCypherQuery
 import com.arkondata.slothql.cypher.syntax._
 
 object When {
@@ -31,7 +31,7 @@ object When {
   }
 
   protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
-                        (cond: Expr[Boolean], thenQ: ParametrizedCypherQuery[_, A], elseQ: ParametrizedCypherQuery[_, A])
+                        (cond: Expr[Boolean], thenQ: ParameterizedCypherQuery[_, A], elseQ: ParameterizedCypherQuery[_, A])
                         (implicit toMap: ops.record.ToMap.Aux[ParamExprs, Symbol, Expr[_]]) extends RecordArgs {
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
       new QuerySyntax(cond, thenQ, elseQ, toMap(params).map{ case (k, v) => k.name -> v })
@@ -39,8 +39,8 @@ object When {
 
   protected[cypher] class QuerySyntax[A](
       protected val cond: Expr[Boolean],
-      protected val thenQ: ParametrizedCypherQuery[_, A],
-      protected val elseQ: ParametrizedCypherQuery[_, A],
+      protected val thenQ: ParameterizedCypherQuery[_, A],
+      protected val elseQ: ParameterizedCypherQuery[_, A],
       protected val params: Map[String, Expr[_]]
   ) {
     def continue[R](f: Expr[A] => Query[R]): Query[R] =

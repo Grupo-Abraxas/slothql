@@ -7,29 +7,29 @@ import scala.reflect.macros.whitebox
 import shapeless._
 
 
-final class ParametrizedCypherQuery[Params <: HList, T] protected(val query: CypherFragment.Query.Query0[T])
-                                                                 (implicit
+final class ParameterizedCypherQuery[Params <: HList, T] protected(val query: CypherFragment.Query.Query0[T])
+                                                                  (implicit
                                                                   val gen: CypherStatement.Gen,
                                                                   val toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]) {
   override def hashCode(): Int = query.hashCode()
   override def equals(obj: Any): Boolean = PartialFunction.cond(obj){
-    case pcq: ParametrizedCypherQuery[_, _] => this.query == pcq.query
+    case pcq: ParameterizedCypherQuery[_, _] => this.query == pcq.query
   }
 
   private[cypher] lazy val statement: query.Statement = query.toCypher(gen)._1
 
-  override def toString: String = s"Parametrized[$query]"
+  override def toString: String = s"Parameterized[$query]"
 }
 
-object ParametrizedCypherQuery {
+object ParameterizedCypherQuery {
 
-  /** Interface for building [[ParametrizedCypherQuery]] from function (with macro). */
+  /** Interface for building [[ParameterizedCypherQuery]] from function (with macro). */
   class Build {
-    def apply(f: Any): ParametrizedCypherQuery[_, _] = macro ParametrizedCypherStatementMacros.buildImpl
+    def apply(f: Any): ParameterizedCypherQuery[_, _] = macro ParameterizedCypherStatementMacros.buildImpl
   }
 
-  /** Interface for applying parameters to [[ParametrizedCypherQuery]]. */
-  class Apply[Params <: HList, T, Out](pcq: ParametrizedCypherQuery[Params, T], out: CypherStatement.Prepared[T] => Out) extends RecordArgs {
+  /** Interface for applying parameters to [[ParameterizedCypherQuery]]. */
+  class Apply[Params <: HList, T, Out](pcq: ParameterizedCypherQuery[Params, T], out: CypherStatement.Prepared[T] => Out) extends RecordArgs {
     final def withParamsRecord(params: Params): Out =
       out {
         pcq.statement.withParamsUnchecked {
@@ -38,18 +38,18 @@ object ParametrizedCypherQuery {
       }
   }
 
-  implicit class ParametrizedCypherQueryToPreparedOps[Params <: HList, T](pcq: ParametrizedCypherQuery[Params, T]) {
+  implicit class ParameterizedCypherQueryToPreparedOps[Params <: HList, T](pcq: ParameterizedCypherQuery[Params, T]) {
     object prepared extends Apply[Params, T, CypherStatement.Prepared[T]](pcq, identity)
   }
 
   object Internal {
     def create[Params <: HList, T](query: CypherFragment.Query.Query0[T])
-                                  (implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParametrizedCypherQuery[Params, T] =
-      new ParametrizedCypherQuery(query)
+                                  (implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParameterizedCypherQuery[Params, T] =
+      new ParameterizedCypherQuery(query)
   }
 }
 
-class ParametrizedCypherStatementMacros(val c: whitebox.Context) { outer =>
+class ParameterizedCypherStatementMacros(val c: whitebox.Context) { outer =>
   import c.universe._
 
   private val helper = new CaseClassMacros { lazy val c: outer.c.type = outer.c }
@@ -78,9 +78,9 @@ class ParametrizedCypherStatementMacros(val c: whitebox.Context) { outer =>
         val List(retType) = body.tpe.baseType(symbolOf[CypherFragment.Query[_]]).typeArgs
 
         q"""
-          _root_.com.arkondata.slothql.cypher.ParametrizedCypherQuery.Internal.create[$recTpe, $retType](
+          _root_.com.arkondata.slothql.cypher.ParameterizedCypherQuery.Internal.create[$recTpe, $retType](
             $f(..$paramTrees)
-          ): _root_.com.arkondata.slothql.cypher.ParametrizedCypherQuery[$recTpe, $retType]
+          ): _root_.com.arkondata.slothql.cypher.ParameterizedCypherQuery[$recTpe, $retType]
          """
       case _ =>
         c.abort(c.enclosingPosition, "Expecting function (Expr.Param[A1], Expr.Param[A2], ...) => Query.Query0[R]")

@@ -8,8 +8,8 @@ import com.arkondata.slothql.cypher.syntax._
 object APOC {
   def when[PT <: HList, PE <: HList, Ps <: HList, A](
     cond: Expr[Boolean],
-    thenQuery: ParametrizedCypherQuery[PT, A],
-    elseQuery: ParametrizedCypherQuery[PE, A]
+    thenQuery: ParameterizedCypherQuery[PT, A],
+    elseQuery: ParameterizedCypherQuery[PE, A]
   )(implicit b: When.Builder[PT, PE]): When.ParamsSyntax[b.Params, A] =
     new When.ParamsSyntax(cond, thenQuery, elseQuery)(b.toMap)
 

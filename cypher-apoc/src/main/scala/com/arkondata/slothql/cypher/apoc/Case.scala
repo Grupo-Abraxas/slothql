@@ -2,10 +2,10 @@ package com.arkondata.slothql.cypher.apoc
 
 import shapeless._
 
-import com.arkondata.slothql.cypher.ParametrizedCypherQuery
+import com.arkondata.slothql.cypher.ParameterizedCypherQuery
 import com.arkondata.slothql.cypher.syntax._
 
-case class Case[Params <: HList, A](condition: Expr[Boolean], query: ParametrizedCypherQuery[Params, A])
+case class Case[Params <: HList, A](condition: Expr[Boolean], query: ParameterizedCypherQuery[Params, A])
 
 object Case {
   import com.arkondata.slothql.cypher.apoc.{ Case => CaseApoc }
@@ -19,7 +19,7 @@ object Case {
     type Aux[Cases <: HList, Out0, Params0 <: HList] = Builder[Cases]{ type Out = Out0; type Params = Params0 }
 
     object BuildCasePoly extends Poly1 {
-      private type PCQ[A] = ParametrizedCypherQuery[_, A]
+      private type PCQ[A] = ParameterizedCypherQuery[_, A]
 
       implicit def asIs[A, Params <: HList, R](
         implicit asCase: A <:< CaseApoc[Params, R]
@@ -29,10 +29,10 @@ object Case {
         implicit
         pair: A <:< (A1, A2),
         condA1: A1 <:< Expr[Boolean],
-        asCaseA2: A2 <:< ParametrizedCypherQuery[Params, _],
+        asCaseA2: A2 <:< ParameterizedCypherQuery[Params, _],
         unpack: Unpack1[A2, PCQ, R]
       ): Case.Aux[A, CaseApoc[Params, R]] =
-        at[A](p => CaseApoc(p._1, p._2.asInstanceOf[ParametrizedCypherQuery[Params, R]]))
+        at[A](p => CaseApoc(p._1, p._2.asInstanceOf[ParameterizedCypherQuery[Params, R]]))
 
     }
 
@@ -69,7 +69,7 @@ object Case {
 
   protected[cypher] class OtherwiseSyntax[CasesParams <: HList, A](cases: List[Case[_, A]]) {
     def otherwise[OtherwiseParams <: HList, AllParams <: HList, ParamExprs <: HList]
-        (default: ParametrizedCypherQuery[OtherwiseParams, A])
+        (default: ParameterizedCypherQuery[OtherwiseParams, A])
         (implicit mergeParams: ops.record.Merger.Aux[CasesParams, OtherwiseParams, AllParams],
                   paramsExprs: ops.record.MapValues.Aux[WrapCypherExprPoly.type, AllParams, ParamExprs],
                   paramsToMap: ops.record.ToMap.Aux[ParamExprs, Symbol, Expr[_]]
@@ -77,7 +77,7 @@ object Case {
   }
 
   protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
-                        (cases: Seq[Case[_, A]], default: ParametrizedCypherQuery[_, A])
+                        (cases: Seq[Case[_, A]], default: ParameterizedCypherQuery[_, A])
                         (implicit toMap: ops.record.ToMap.Aux[ParamExprs, Symbol, Expr[_]]) extends RecordArgs {
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
       new QuerySyntax(cases, default, toMap(params).map{ case (k, v) => k.name -> v })
@@ -85,7 +85,7 @@ object Case {
 
   protected[cypher] class QuerySyntax[A](
       protected val cases0: Seq[Case[_, A]],
-      protected val default: ParametrizedCypherQuery[_, A],
+      protected val default: ParameterizedCypherQuery[_, A],
       protected val params: Map[String, Expr[_]]
   ) {
     private val cases = cases0.flatMap(c => c.condition :: lit(c.query.statement.template) :: Nil)
