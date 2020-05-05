@@ -216,7 +216,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   implicit final class CypherSyntaxReturnAsOps[A](expr: CF.Expr[A]) {
     def as(alias: CypherStatement.Alias): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
-    def as(alias: String): CF.Return.Expr[A] = as(CF.Expr.Alias(alias))
+    def as(alias: String): CF.Return.Expr[A] = as(CF.Expr.Alias.Fixed(alias))
   }
 
   implicit def cypherSyntaxTupleToReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Return[ret.Out] = ret(tuple)
