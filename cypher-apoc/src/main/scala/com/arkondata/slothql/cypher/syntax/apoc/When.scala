@@ -1,4 +1,4 @@
-package com.arkondata.slothql.cypher.apoc
+package com.arkondata.slothql.cypher.syntax.apoc
 
 import shapeless._
 

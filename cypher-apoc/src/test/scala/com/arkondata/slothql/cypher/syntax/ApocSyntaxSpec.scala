@@ -1,7 +1,5 @@
 package com.arkondata.slothql.cypher.syntax
 
-import com.arkondata.slothql.cypher.APOC
-
 class ApocSyntaxSpec extends CypherSyntaxBaseSpec {
 
   "APOC syntax" should {

@@ -1,4 +1,4 @@
-package com.arkondata.slothql.cypher.apoc
+package com.arkondata.slothql.cypher.syntax.apoc
 
 import shapeless._
 
@@ -8,7 +8,7 @@ import com.arkondata.slothql.cypher.syntax._
 case class Case[Params <: HList, A](condition: Expr[Boolean], query: ParameterizedCypherQuery[Params, A])
 
 object Case {
-  import com.arkondata.slothql.cypher.apoc.{ Case => CaseApoc }
+  import com.arkondata.slothql.cypher.syntax.apoc.{ Case => CaseApoc }
 
   protected[cypher] trait Builder[Cases <: HList] {
     type Out

@@ -1,9 +1,9 @@
-package com.arkondata.slothql.cypher
+package com.arkondata.slothql.cypher.syntax
 
 import shapeless.{ HList, ProductArgs }
 
-import com.arkondata.slothql.cypher.apoc._
-import com.arkondata.slothql.cypher.syntax._
+import com.arkondata.slothql.cypher.ParameterizedCypherQuery
+import com.arkondata.slothql.cypher.syntax.apoc._
 
 object APOC {
   def when[PT <: HList, PE <: HList, Ps <: HList, A](
