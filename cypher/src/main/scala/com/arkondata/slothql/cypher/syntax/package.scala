@@ -12,6 +12,8 @@ import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 
 package object syntax extends CypherSyntaxLowPriorityImplicits {
 
+  type Expr[+A] = CF.Expr[A]
+
   object Match {
     def apply[R]              (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]
     def optional[R]           (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.optional[R]
@@ -64,7 +66,17 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Call {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.call[R]
+
+    def apply(procedure: String, params: CF.Expr[_]*): CallOps = new CallOps
+
+    class CallOps {
+      def yielding[A1, R](yields1: String)(res: CF.Expr[A1] => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield1[A1, R]
+      def yielding[A1, A2, R](yields1: String, yields2: String)(res:( CF.Expr[A1],  CF.Expr[A2]) => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield2[A1, A2, R]
+      def yielding[A1, A2, A3, R](yields1: String, yields2: String, yields3: String)(res:( CF.Expr[A1],  CF.Expr[A2],  CF.Expr[A3]) => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield3[A1, A2, A3, R]
+    }
+
+    // @compileTimeOnly("would have been replaced at Call.apply")
+    // def where(cond: CF.Expr[Boolean]): Nothing = ???
   }
 
   object Create {
@@ -350,17 +362,14 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def length: CF.Expr[Long] = "length".func(p)
   }
 
-  // // // // // // // // // // // // // // // // // // // // // // // // //
-  // // // // // // Ops: Function & Procedure + common functions // // // //
-  // // // // // // // // // // // // // // // // // // // // // // // // //
+  // // // // // // // // // // // //
+  // // // //  Functions  // // // //
+  // // // // // // // // // // // //
 
   implicit final class CypherSyntaxFuncOps(func: String) {
     def func[R](args: CF.Expr[_]*): CF.Expr[R] = CF.Expr.Func(func, args.toList)
   }
 
-  implicit final class CypherSyntaxProcedureOps(procedure: String) {
-    def call(args: CF.Expr[_]*): CypherSyntaxProcedureOps.CallBuilder = new CypherSyntaxProcedureOps.CallBuilder(procedure, args.toList)
-  }
   // specifying WHERE condition is not supported by this syntax helper
   // assigning aliases to procedure outputs is not supported by this syntax helper
   protected[syntax] object CypherSyntaxProcedureOps {

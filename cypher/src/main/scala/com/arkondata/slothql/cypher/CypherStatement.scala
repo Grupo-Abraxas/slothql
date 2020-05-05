@@ -112,6 +112,10 @@ object CypherStatement {
     def name: String
   }
 
+  object Alias {
+    trait Fixed extends Alias
+  }
+
   trait Param {
     def name: String
   }
@@ -249,6 +253,7 @@ object CypherStatement {
     def liftAlias(alias: Alias): GenS[Part] = liftAlias(Option(alias))
     def liftAlias(opt: Option[Alias]): GenS[Part] = opt
       .map{
+        case fixed: Alias.Fixed => part(CypherFragment.escapeName(fixed.name))
         case wildcard if wildcard.name == "_" => part("")
         case alias => GenS(GenF(_.nextAlias(alias)).map(a => Part(CypherFragment.escapeName(a), Map())))
       }

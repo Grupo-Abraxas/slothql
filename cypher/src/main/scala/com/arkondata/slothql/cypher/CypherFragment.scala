@@ -100,6 +100,8 @@ object CypherFragment {
     class Alias[+A](val name: String) extends Expr[A] with CypherStatement.Alias
     object Alias {
       def apply[A](name: String): Alias[A] = new Alias(name)
+
+      final case class Fixed[+A](override val name: String) extends Alias[A](name) with CypherStatement.Alias.Fixed
     }
 
     final case class Func[+A](func: String, params: List[Expr[_]]) extends Expr[A]
