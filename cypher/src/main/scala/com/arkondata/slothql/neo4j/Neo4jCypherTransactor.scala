@@ -227,13 +227,16 @@ object Neo4jCypherTransactor {
       )
   }
 
+  implicit def neo4jRecordReader[A](implicit r: RootReader[A]): CypherTransactor.Reader[Record, A] =
+    new CypherTransactor.Reader[Record, A] {
+      def sourceName: String = "Record"
+      def name: String = r.name
+      def apply(rec: Record): A = r(rec.values().asScala.toSeq)
+    }
+
   trait Readers extends DefaultValueReaders {
     implicit def neo4jRecordReader[A](implicit r: RootReader[A]): CypherTransactor.Reader[Record, A] =
-      new CypherTransactor.Reader[Record, A] {
-        def sourceName: String = "Record"
-        def name: String = r.name
-        def apply(rec: Record): A = r(rec.values().asScala.toSeq)
-      }
+      Neo4jCypherTransactor.neo4jRecordReader[A]
   }
 
   object Readers extends Readers
