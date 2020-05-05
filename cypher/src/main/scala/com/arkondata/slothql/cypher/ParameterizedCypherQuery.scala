@@ -28,6 +28,14 @@ object ParameterizedCypherQuery {
     def apply(f: Any): ParameterizedCypherQuery[_, _] = macro ParameterizedCypherStatementMacros.buildImpl
   }
 
+  def manually[Params <: HList]: ManuallyBuilder[Params] = ManuallyBuilder.asInstanceOf[ManuallyBuilder[Params]]
+
+  class ManuallyBuilder[Params <: HList] {
+    def apply[T](query: CypherFragment.Query[T])(implicit gen: CypherStatement.Gen, toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParameterizedCypherQuery[Params, T] =
+      new ParameterizedCypherQuery(query)
+  }
+  private object ManuallyBuilder extends ManuallyBuilder
+
   /** Interface for applying parameters to [[ParameterizedCypherQuery]]. */
   class Apply[Params <: HList, T, Out](pcq: ParameterizedCypherQuery[Params, T], out: CypherStatement.Prepared[T] => Out) extends RecordArgs {
     final def withParamsRecord(params: Params): Out =
