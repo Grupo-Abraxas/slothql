@@ -10,11 +10,13 @@ import shapeless._
 final class ParametrizedCypherQuery[Params <: HList, T] protected(val query: CypherFragment.Query.Query0[T])
                                                                  (implicit
                                                                   val gen: CypherStatement.Gen,
-                                                                  val toMap: ops.record.ToMap.Aux[Params, Symbol, Any]) {
+                                                                  val toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]) {
   override def hashCode(): Int = query.hashCode()
   override def equals(obj: Any): Boolean = PartialFunction.cond(obj){
     case pcq: ParametrizedCypherQuery[_, _] => this.query == pcq.query
   }
+
+  private[cypher] lazy val statement: query.Statement = query.toCypher(gen)._1
 
   override def toString: String = s"Parametrized[$query]"
 }
@@ -30,7 +32,7 @@ object ParametrizedCypherQuery {
   class Apply[Params <: HList, T, Out](pcq: ParametrizedCypherQuery[Params, T], out: CypherStatement.Prepared[T] => Out) extends RecordArgs {
     final def withParamsRecord(params: Params): Out =
       out {
-        pcq.query.toCypher(pcq.gen)._1.withParamsUnchecked {
+        pcq.statement.withParamsUnchecked {
           pcq.toMap(params).map{ case (k, v) => k.name -> v }
         }
       }
@@ -42,7 +44,7 @@ object ParametrizedCypherQuery {
 
   object Internal {
     def create[Params <: HList, T](query: CypherFragment.Query.Query0[T])
-                                  (implicit toMap: ops.record.ToMap.Aux[Params, Symbol, Any]): ParametrizedCypherQuery[Params, T] =
+                                  (implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParametrizedCypherQuery[Params, T] =
       new ParametrizedCypherQuery(query)
   }
 }

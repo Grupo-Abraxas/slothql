@@ -13,6 +13,7 @@ import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   type Expr[+A] = CF.Expr[A]
+  type Query[+A] = CF.Query.Query0[A]
 
   object Match {
     def apply[R]              (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]

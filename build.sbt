@@ -30,7 +30,7 @@ lazy val root = (project in file(".")).
     name := "slothql"
   )
   .settings(ammSettings: _*)
-  .aggregate(cypher)
+  .aggregate(cypher, apoc)
 
 
 lazy val cypher = (project in file("cypher"))
@@ -54,6 +54,11 @@ lazy val cypher = (project in file("cypher"))
         |import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
       """.stripMargin
   ).settings(ammSettings: _*)
+
+lazy val apoc = (project in file("cypher-apoc"))
+  .settings(
+    name := "slothql-cypher-apoc"
+  ).dependsOn(cypher % "compile -> compile; test -> test")
 
 
 // // // Repository // // //
