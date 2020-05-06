@@ -2,7 +2,7 @@ package com.arkondata.slothql.cypher
 
 import scala.language.{ higherKinds, implicitConversions }
 
-import cats.{ Applicative, Functor, Id, Invariant, Monad, MonoidK, Semigroupal, ~> }
+import cats.{ Applicative, Functor, Id, Invariant, Monad, MonadError, MonoidK, Semigroupal, ~> }
 import cats.free.FreeT
 import cats.syntax.apply._
 import cats.syntax.applicative._
@@ -82,6 +82,9 @@ object CypherTransactor {
 
   def const[F[_]: Applicative, Src, C[_]]: Id ~> Tx[F, Src, C, *] = λ[Id ~> Tx[F, Src, C, *]](FreeT.pure(_))
   def liftF[F[_]: Applicative, Src, C[_]]: F  ~> Tx[F, Src, C, *] = λ[F  ~> Tx[F, Src, C, *]](FreeT.liftT(_))
+
+  def error[F[_], Err, Src, C[_], A](err: Err)(implicit M: MonadError[F, Err]): Tx[F, Src, C, A] =
+    liftF[F, Src, C].apply(M.raiseError[A](err))
 
   def liftTx[F[_]: Applicative, Src, C[_]]: λ[A => F[Tx[F, Src, C, A]]] ~> Tx[F, Src, C, *] =
     λ[λ[A => F[Tx[F, Src, C, A]]] ~> Tx[F, Src, C, *]](FreeT.liftT(_).flatMap(locally))
@@ -186,6 +189,9 @@ object CypherTransactor {
     def product[X, Y]   (x: Tx[X], y: Tx[Y])          : Tx[(X, Y)]    = CypherTransactor.product(x, y)
     def zip    [X, Y]   (x: Tx[X], y: Tx[Y])          : Tx[(X, Y)]    = CypherTransactor.zip(x, y)
     def zip3   [X, Y, Z](x: Tx[X], y: Tx[Y], z: Tx[Z]): Tx[(X, Y, Z)] = CypherTransactor.zip3(x, y, z)
+
+    def error[Err, A](err: Err)      (implicit M: MonadError[F, Err])      : Tx[A] = CypherTransactor.error(err)
+    def error[A]     (err: Throwable)(implicit M: MonadError[F, Throwable]): Tx[A] = CypherTransactor.error(err)
 
     val ops: Ops = new Ops
 
