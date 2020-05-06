@@ -67,7 +67,7 @@ class ParameterizedQueryTest extends AnyWordSpec with Matchers with BeforeAndAft
     }
 
     "support creating node with properties from values map input" in {
-      val query = parameterized { props: MapParam =>
+      val query = parameterized { props: Param[LiftedMap] =>
         Create { case n@Node("Test", `props`) =>
           n.id
         }
