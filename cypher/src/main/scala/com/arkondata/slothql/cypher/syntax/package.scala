@@ -607,6 +607,16 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   type LiftedValue = CypherStatement.LiftedValue
   type LiftedMap = Map[String, LiftedValue]
 
+  object LiftedMap {
+    def apply(entries: LiftedMapEntry*): LiftedMap = Map(entries.map(_.pair): _*)
+
+    final class LiftedMapEntry(val pair: (String, LiftedValue)) extends AnyVal
+    object LiftedMapEntry {
+      implicit def liftedMapEntry[A: CypherStatement.LiftValue](pair: (String, A)): LiftedMapEntry =
+        new LiftedMapEntry(pair._1 -> lit(pair._2))
+    }
+  }
+
   def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
 
   type Param[A] = CF.Expr.Param[A]
