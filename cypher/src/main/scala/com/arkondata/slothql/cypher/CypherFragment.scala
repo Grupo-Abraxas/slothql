@@ -355,6 +355,7 @@ object CypherFragment {
     sealed trait Query0[+A] extends Query[A]
     final case class Return[+A](ret: CypherFragment.Return[A]) extends Query0[A]
     final case class Clause[+A](clause: CypherFragment.Clause, query: Query0[A]) extends Query0[A]
+    case object Nothing extends Query0[Nothing]
 
     def toCypher[A](query: Query[A]): GenS[Complete[A]] = query match {
       case Union(left, right, all) =>
@@ -363,6 +364,7 @@ object CypherFragment {
         (part(clause).toComplete[A], complete(query)).map2((c, q) => s"$c $q")
       case Return(ret) =>
         part(ret).toComplete[A].map(r => s"RETURN $r")
+      case Nothing => complete("")
     }
   }
 
@@ -380,10 +382,6 @@ object CypherFragment {
     final case class Expr[+A](expr: CypherFragment.Expr[A], as: Option[Alias]) extends Return0[A]
     final case class Tuple[T <: Product](exprs: List[Expr[_]]) extends Return0[T]
     final case class WildcardTuple(exprs: List[Expr[_]]) extends Return0[Any]
-
-    // TODO ================================================================
-    @deprecated("should be in Query.Return")
-    case object Nothing extends Return[Unit]
 
     sealed trait Order
     object Order {
@@ -410,7 +408,6 @@ object CypherFragment {
       case Wildcard             => part("*")
       case Tuple(exprs)         => partsSequence(exprs).map(_.mkString(", "))
       case WildcardTuple(exprs) => partsSequence(exprs).map(xs => s"*, ${xs.mkString(", ")}")
-      case Nothing              => part("")
       case Expr(expr, as) =>
         as.map{ alias =>
           for {

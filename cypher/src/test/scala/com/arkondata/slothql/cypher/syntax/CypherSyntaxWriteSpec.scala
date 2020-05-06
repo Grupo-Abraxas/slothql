@@ -64,6 +64,15 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
         "RETURN true"
       ).returns[Boolean]
 
+    "support returning nothing" in
+      test(
+        Match{ case n =>
+        Delete(n) {
+          nothing
+        }},
+        "MATCH (`n0`) DELETE `n0` "
+      ).returns[Nothing]
+
   }
 
 }
