@@ -458,7 +458,7 @@ object CypherFragment {
     ) extends ReadWrite
 
     case class Create(pattern: PatternTuple) extends Write
-    case class Delete(elems: NonEmptyList[Expr[_]]) extends Write
+    case class Delete(elems: NonEmptyList[Expr[_]], detach: Boolean) extends Write
 
     case class SetProps(set: NonEmptyList[SetProps.One]) extends Write
     object SetProps {
@@ -493,8 +493,10 @@ object CypherFragment {
           where    <- part(whereOpt.map(w => s" WHERE $w").getOrElse(""))
         } yield s"WITH $ret$where"
       case Create(pattern) => partsSequence(pattern.toList).map(ps => s"CREATE ${ps.mkString(", ")}")
-      case Delete(elems)   => partsSequence(elems.toList)  .map(es => s"DELETE ${es.mkString(", ")}")
       case SetProps(set)   => partsSequence(set.toList)    .map(ss => s"SET ${ss.mkString(", ")}")
+      case Delete(elems, detach) =>
+        val detachStr = if (detach) "DETACH " else ""
+        partsSequence(elems.toList).map(es => s"${detachStr}DELETE ${es.mkString(", ")}")
       case Call(procedure, params, yields0, where0) =>
         for {
           call     <- funcLikePart(procedure, params)

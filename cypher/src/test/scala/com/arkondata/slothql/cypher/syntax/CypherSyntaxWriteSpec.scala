@@ -42,6 +42,28 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
         "RETURN `e0`"
       ).returns[GraphElem.Rel]
 
+    "support deleting nodes and relationships" in
+      test(
+        Match { case (a@Node("id" := 1)) -e> b =>
+        Delete(a, e, b) {
+          lit(true)
+        }},
+        "MATCH (`a0`{ `id`: 1 }) -[`e0`]-> (`b0`) " +
+        "DELETE `a0`, `e0`, `b0` " +
+        "RETURN true"
+      ).returns[Boolean]
+
+    "support detach deleting nodes" in
+      test(
+        Match { case (a@Node("id" := 1)) -_> b =>
+        Delete.detach(a, b) {
+          lit(true)
+        }},
+        "MATCH (`a0`{ `id`: 1 }) --> (`b0`) " +
+        "DETACH DELETE `a0`, `b0` " +
+        "RETURN true"
+      ).returns[Boolean]
+
   }
 
 }

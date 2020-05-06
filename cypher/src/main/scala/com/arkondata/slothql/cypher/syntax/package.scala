@@ -100,7 +100,16 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Delete {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.delete[R]
+    def apply[R](elems: Expr[GraphElem]*)      (res: Query[R]): Query[R] = make(elems, detach = false, res)
+    def detach[R](elems: Expr[GraphElem.Node]*)(res: Query[R]): Query[R] = make(elems, detach = true, res)
+
+    private def make[R](elems: Seq[Expr[GraphElem]], detach: Boolean, res: Query[R]): Query[R] =
+      NonEmptyList.fromList(elems.toList).map { elemsNel =>
+        CF.Query.Clause(
+          CF.Clause.Delete(elemsNel, detach),
+          res
+        )
+      }.getOrElse(res)
   }
 
   object Foreach {
