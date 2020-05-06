@@ -2,11 +2,11 @@ package com.arkondata.slothql.cypher.syntax
 
 import scala.reflect.macros.whitebox
 
-import com.arkondata.slothql.cypher.CypherFragment
-
 class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyntaxPatternMacros(c){
   import c.universe._
 
+  def void[R: WeakTypeTag](res: Tree): Tree =
+    yieldImpl[R](res)
   def yield1[A1: WeakTypeTag, R: WeakTypeTag](yields1: Tree)(res: Tree): Tree =
     yieldImpl[R](res, yields1 -> weakTypeOf[A1])
   def yield2[A1: WeakTypeTag, A2: WeakTypeTag, R: WeakTypeTag](yields1: Tree, yields2: Tree)(res: Tree): Tree =
@@ -18,8 +18,8 @@ class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyn
     val (procedure, params) = c.prefix.tree match {
       case q"$obj.apply($proc, ..$args)" if obj.symbol == CallSymbol => proc -> args
     }
-    func match {
-      case Function(yieldsV, body) =>
+    val (binds, yields, next) = func match {
+      case Function(yieldsV, body) if yieldsT.nonEmpty =>
         val (rebind, binds, rets) = yieldsT.zip(yieldsV).map {
           case ((nme, tpe), ValDef(_, TermName(alias), _, _)) =>
             val name = c.freshName(alias)
@@ -33,25 +33,24 @@ class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyn
               """
             (alias -> name, bind, ret)
         }.unzip3
-        val (newBody, yields) = if (binds.nonEmpty) {
-          val ret = q"_root_.scala.Some(_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$rets)))"
-          transformBody(rebind.toMap, body) -> ret
-        } else body -> q"_root_.scala.None"
-
-        q"""
-        ..$binds
-        _root_.com.arkondata.slothql.cypher.CypherFragment.Query.Clause(
-          _root_.com.arkondata.slothql.cypher.CypherFragment.Clause.Call(
-            procedure = $procedure,
-            params = _root_.scala.List(..$params),
-            yields = $yields,
-            where = _root_.scala.None
-          ),
-          $newBody
-        )
-      """
+        val newBody = transformBody(rebind.toMap, body)
+        val yields = q"_root_.scala.Some(_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$rets)))"
+        (binds, yields, newBody)
+      case body if yieldsT.isEmpty =>
+        (Nil, q"_root_.scala.None", body)
     }
-
+    q"""
+    ..$binds
+    _root_.com.arkondata.slothql.cypher.CypherFragment.Query.Clause(
+      _root_.com.arkondata.slothql.cypher.CypherFragment.Clause.Call(
+        procedure = $procedure,
+        params = _root_.scala.List(..$params),
+        yields = $yields,
+        where = _root_.scala.None
+      ),
+      $next
+    )
+  """
   }
 
   private val CallSymbol = rootMirror.staticModule("com.arkondata.slothql.cypher.syntax.Call")

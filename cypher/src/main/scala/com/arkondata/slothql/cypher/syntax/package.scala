@@ -71,6 +71,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def apply(procedure: String, params: CF.Expr[_]*): CallOps = new CallOps
 
     class CallOps {
+      def void[R](res: CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.void[R]
       def yielding[A1, R](yields1: String)(res: CF.Expr[A1] => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield1[A1, R]
       def yielding[A1, A2, R](yields1: String, yields2: String)(res:( CF.Expr[A1],  CF.Expr[A2]) => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield2[A1, A2, R]
       def yielding[A1, A2, A3, R](yields1: String, yields2: String, yields3: String)(res:( CF.Expr[A1],  CF.Expr[A2],  CF.Expr[A3]) => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield3[A1, A2, A3, R]

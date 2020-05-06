@@ -14,6 +14,15 @@ class CypherSyntaxCallSpec extends CypherSyntaxBaseSpec {
         "CALL `test`(1) YIELD `foo` AS `bar0` " +
         "RETURN `bar0`.`x`"
       ).returns[String]
+
+    "support void procedure calls" in
+      test(
+        Call("test", lit(1)).void {
+          lit(1)
+        },
+        "CALL `test`(1) " +
+        "RETURN 1"
+      ).returns[Int]
   }
 
 }
