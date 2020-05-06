@@ -406,6 +406,18 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     implicit def canNumeric[N: Numeric]: Can[N] = Can.asInstanceOf[Can[N]]
   }
 
+  // // // // // // // // // // // // // // //
+  // // // //  Built-in functions  // // // //
+  // // // // // // // // // // // // // // //
+
+  /** Alias for [[Neo4jBuiltIn]]. */
+  def neo4j: Neo4jBuiltIn.type = Neo4jBuiltIn
+
+  object Neo4jBuiltIn {
+    def randomUUID: Expr[String] = "randomUUID".func[String]()
+    def timestamp: Expr[Long]    = "timestamp".func[Long]()
+  }
+
   // // // // // // // // // // // // // // // // //
   // // // // Ops:  Logic and Comparison // // // //
   // // // // // // // // // // // // // // // // //
