@@ -81,7 +81,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Create {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.create[R]
+    def apply[R](query: Node => Query[R]): Query[R] = macro CypherSyntaxPatternMacros.create[R]
   }
 
   object Merge {
@@ -411,11 +411,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // //
 
   /** Alias for [[Neo4jBuiltIn]]. */
-  def neo4j: Neo4jBuiltIn.type = Neo4jBuiltIn
+  lazy val neo4j: Neo4jBuiltIn.type = Neo4jBuiltIn
 
   object Neo4jBuiltIn {
-    def randomUUID: Expr[String] = "randomUUID".func[String]()
-    def timestamp: Expr[Long]    = "timestamp".func[Long]()
+    lazy val randomUUID: Expr[String] = "randomUUID".func[String]()
+    lazy val timestamp: Expr[Long]    = "timestamp".func[Long]()
   }
 
   // // // // // // // // // // // // // // // // //

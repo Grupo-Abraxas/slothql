@@ -9,6 +9,17 @@ import com.arkondata.slothql.cypher.GraphElem
 class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
 
   "Cypher syntax" should {
+
+    "support creating paths in graph" in test(
+      Match { case n@Node("id" := "abc") =>
+      Create { case `n` -Rel("foo", "flag" := true)> (bar@Node("Bar", "id" := neo4j.randomUUID)) =>
+        bar.prop[String]("id")
+      }},
+      "MATCH (`n0`{ `id`: \"abc\" }) " +
+      "CREATE (`n0`) -[:`foo`{ `flag`: true }]-> (`bar0`:`Bar`{ `id`: `randomUUID`() }) " +
+      "RETURN `bar0`.`id`"
+    ).returns[String]
+
     "support setting node properties" in
       test(
         Match { case n@Node("id" := "123") =>

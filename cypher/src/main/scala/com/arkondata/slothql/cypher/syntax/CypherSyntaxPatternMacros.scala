@@ -17,6 +17,15 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   def optional[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = matchImpl(query, reify(true))
   def maybe[R: WeakTypeTag](opt: c.Expr[Boolean])(query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] = matchImpl(query, opt)
 
+  def create[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    qImpl(query) {
+      (guard, pattern) =>
+        if (!(guard.tree equalsStructure NoneTree)) c.abort(guard.tree.pos, "`if` guard is not allowed at Create clause.")
+        reify {
+          CF.Clause.Create(NonEmptyList.one[P](pattern.splice))
+        }
+    }
+
   protected def matchImpl[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]], optional: c.Expr[Boolean]): c.Expr[CF.Query.Query0[R]] =
     qImpl(query) {
       (guard, pattern) => reify {
@@ -61,7 +70,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val guardTree = guard0 match {
             case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrap    => q"_root_.scala.Some($expr)"
             case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrapOpt => expr
-            case _                                                  => q"_root_.scala.None"
+            case _                                                  => NoneTree
           }
           val guard = c.Expr[Option[CF.Expr[Boolean]]](transformBody(rebind, guardTree))
           val elems = elems0.map{ case (nme, tpe, expr) => (nme.map(rebind), tpe, expr) }
@@ -72,6 +81,8 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
       }
     case other => c.abort(query.tree.pos, s"Unexpected query function: $other")
   }
+
+  private lazy val NoneTree = q"_root_.scala.None"
 
   private lazy val SyntaxPackageTypeSignature = c.mirror.staticPackage("com.arkondata.slothql.cypher.syntax").typeSignature
   private lazy val SyntaxIfGuardUnwrap = SyntaxPackageTypeSignature.decl(TermName("booleanCypherExprToBooleanForIfGuard"))
