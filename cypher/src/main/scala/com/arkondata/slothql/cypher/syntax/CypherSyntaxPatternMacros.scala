@@ -8,7 +8,7 @@ import cats.data.{ Ior, NonEmptyList }
 
 import com.arkondata.slothql.cypher.CypherFragment.{ Pattern => P }
 import com.arkondata.slothql.cypher.CypherStatement.Alias
-import com.arkondata.slothql.cypher.{ syntax, CypherFragment => CF }
+import com.arkondata.slothql.cypher.{ CypherStatement, syntax, CypherFragment => CF }
 
 class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._
@@ -257,7 +257,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           (None, Tpe.Node, nodeExpr(Nil))
         case pq"${Ident(name)}" if tree.tpe <:< SyntaxNodeType =>
           val node = c.Expr[syntax.Node](q"${name.toTermName}")
-          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(Some(node.splice), Nil, Map()) }
+          def expr(alias: c.Expr[Option[Alias]]) = reify{ P.Node(Some(node.splice), Nil, Left(Map())) }
           (None, Tpe.Node, expr)
       }
 
@@ -327,8 +327,9 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
       else c.Expr[List[String]](q"${labels0.reduce((i1, i2) => q"$i1 ++ $i2")}.toList")
     }
 
-    private def collectProps(args: Seq[Tree]): c.Expr[Map[String, CF.Expr[_]]] = {
-      val props0 = args.collect {
+    type CollectedProps = Either[Map[String, CF.Expr[_]], CF.Expr[Map[String, CypherStatement.LiftedValue]]]
+    private def collectProps(args: Seq[Tree]): c.Expr[CollectedProps] = {
+      val (props01, props02, props03) = args.collect {
         case UnApply(m,  List(lhs, rhs)) if m.symbol == Syntax_UnapplySeqSymbol_:= =>
           val key = lhs match {
             case Literal(Constant(s: String)) => s
@@ -336,9 +337,23 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           }
           val value = if (rhs.tpe <:< CypherExprType) rhs
                       else q"_root_.com.arkondata.slothql.cypher.syntax.lit($rhs)"
-          key -> value
-      }
-      c.Expr[Map[String, CF.Expr[_]]](q"_root_.scala.Predef.Map(..$props0)")
+          (Some(key -> value), None, None)
+        case liftedMap if liftedMap.tpe <:< typeOf[Map[String, CypherStatement.LiftedValue]] =>
+          (None, Some(liftedMap), None)
+        case liftedMapExpr if liftedMapExpr.tpe <:< typeOf[CF.Expr[Map[String, CypherStatement.LiftedValue]]] =>
+          (None, None, Some(liftedMapExpr))
+      }.unzip3
+      val byOneInlineProps0 = props01.flatten
+      val mapInlineProps0   = props02.flatten
+      val paramProps0 = props03.flatten
+      if (paramProps0.size > 1) c.abort(c.enclosingPosition, "Graph element cannot have more than one Map expression parameter")
+      if (paramProps0.nonEmpty && (byOneInlineProps0.nonEmpty || mapInlineProps0.nonEmpty))
+        c.abort(c.enclosingPosition, "Cannot define both inline and Map expression properties")
+      val byOneInlineProps = q"_root_.scala.Predef.Map(..${byOneInlineProps0.map{ case (k, v) => q"$k -> $v" }})"
+      val inlineProps = mapInlineProps0.fold(byOneInlineProps) ((acc, m) => q"$acc ++ $m")
+      val paramProps = paramProps0.headOption
+      paramProps.map(t => c.Expr[CollectedProps](q"_root_.scala.Right($t)"))
+                .getOrElse(c.Expr[CollectedProps](q"_root_.scala.Left($inlineProps)"))
     }
 
     lazy val CypherExprType = typeOf[CF.Expr[_]]

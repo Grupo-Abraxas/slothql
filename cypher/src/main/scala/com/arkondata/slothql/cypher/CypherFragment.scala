@@ -526,13 +526,13 @@ object CypherFragment {
     case class Node(
       alias: Option[CypherStatement.Alias],
       labels: List[String],
-      props: Map[String, Expr[_]]
+      props: Either[Map[String, Expr[_]], Expr[Map[String, Any]]]
     ) extends Pattern0 with PatternA
     case class Path(left: Node, rel: Rel, right: Pattern0) extends Pattern0
     case class Rel(
       alias: Option[CypherStatement.Alias],
       types: List[String],
-      props: Map[String, Expr[_]],
+      props: Either[Map[String, Expr[_]], Expr[Map[String, Any]]],
       length: Option[Rel.Length],
       dir: Rel.Direction
     ) extends Pattern with PatternA
@@ -563,11 +563,11 @@ object CypherFragment {
       case Node(alias, labels, map) =>
         for {
           alias <- liftAlias(alias)
-          m <- mapPart(map, joinPropsMap)
+          m <- mapEPart(map, joinPropsMap)
         } yield s"($alias${labelLikeStr(labels, ":")}$m)"
       case Rel(alias, types, map, length, dir) =>
         for {
-          m   <- mapPart(map, joinPropsMap)
+          m   <- mapEPart(map, joinPropsMap)
           len <- length match {
                    case None                   => part("")
                    case Some(Rel.All)          => part("*")
@@ -623,6 +623,9 @@ object CypherFragment {
     mapEntryParts(map).map {
       join apply _.zip(map.keys).map{ case (t, k) => s"${escapeName(k)}: $t" }
     }
+
+  private def mapEPart(map: Either[Map[String, Expr[_]], Expr[Map[String, Any]]], join: List[String] => String = _.mkString("{ ", ", ", " }")): GenS[Part] =
+    map.fold(mapPart(_, join), part)
 
   private def rangePart(ior: Ior[Expr[_], Expr[_]]) = ior match {
     case Ior.Left(min)      => part(min).map(m => s"$m..")

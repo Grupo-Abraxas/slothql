@@ -10,6 +10,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
 import com.arkondata.slothql.cypher.CypherStatement
+import com.arkondata.slothql.cypher.CypherStatement.LiftedValue
 import com.arkondata.slothql.cypher.syntax._
 import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
 
@@ -63,6 +64,21 @@ class ParameterizedQueryTest extends AnyWordSpec with Matchers with BeforeAndAft
 
       val res = tx.runRead(readTx).compile.toList.unsafeRunSync()
       res shouldBe z.map((_, "null", y))
+    }
+
+    "support creating node with properties from values map input" in {
+      val query = parameterized { props: MapParam =>
+        Create { case n@Node("Test", `props`) =>
+          n.id
+        }
+      }
+      val props0: Map[String, LiftedValue] = Map("x" -> lit(10), "s" -> lit("abc"))
+      query.prepared.withParams(props = props0) shouldBe CypherStatement.Prepared(
+        "CREATE (`n0`:`Test`$`props`) RETURN `id`(`n0`)",
+        Map(
+          "props" -> Map("x" -> Int.box(10), "s" -> "abc").asJava
+        )
+      )
     }
   }
 

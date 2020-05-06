@@ -65,7 +65,7 @@ object CypherStatement {
       _liftStringMapLiftedValues.asInstanceOf[LiftValue[Map[String, L]]]
     private lazy val _liftStringMapLiftedValues: LiftValue[Map[String, LiftedValue]] = new LiftValue[Map[String, LiftedValue]] {
       import JavaConverters._
-      def asParam(a: Map[String, LiftedValue]): AnyRef = a.mapValues(v => v.lift.asParam(v.value)).asJava
+      def asParam(a: Map[String, LiftedValue]): AnyRef = a.mapValues(v => v.lift.asParam(v.value)).toMap.asJava
       def asLiteral(a: Map[String, LiftedValue]): String = literalMap(a.mapValues(v => v.lift.asLiteral(v.value)).toMap)
     }
 

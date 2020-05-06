@@ -605,6 +605,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
 
   type Param[A] = CF.Expr.Param[A]
+  type MapParam = Param[Map[String, CypherStatement.LiftedValue]]
 
   object parameterized extends ParameterizedCypherQuery.Build
 

@@ -46,7 +46,7 @@ class Neo4jCypherTransactorReadTest extends AnyWordSpec with Matchers with Befor
   "Neo4jCypherTransactor" should {
     "execute single query (1)" in {
       val n = Expr.Alias[GraphElem.Node]("n")
-      val pattern = Pattern.Node(alias = Some(n), labels = Nil, props = Map())
+      val pattern = Pattern.Node(alias = Some(n), labels = Nil, props = Left(Map()))
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
@@ -59,7 +59,7 @@ class Neo4jCypherTransactorReadTest extends AnyWordSpec with Matchers with Befor
     }
 
     "execute single query (2)" in {
-      val pattern = Pattern.Node(alias = Some(Expr.Alias("n")), labels = Nil, props = Map())
+      val pattern = Pattern.Node(alias = Some(Expr.Alias("n")), labels = Nil, props = Left(Map()))
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
@@ -73,7 +73,7 @@ class Neo4jCypherTransactorReadTest extends AnyWordSpec with Matchers with Befor
 
     "execute single query (3)" in {
       val n = Expr.Alias("n")
-      val pattern = Pattern.Node(alias = Some(n), labels = List("User"), props = Map())
+      val pattern = Pattern.Node(alias = Some(n), labels = List("User"), props = Left(Map()))
       val query = Query.Clause(
         Clause.Match(
           NonEmptyList(pattern, Nil),
