@@ -18,4 +18,10 @@ object APOC {
       new Case.OtherwiseSyntax(b.toList(cases))
   }
 
+  def assertNot[R](pred: Expr[Boolean], msg: Expr[String], msgParams: Expr[Any]*)(res: Query[R]): Query[R] =
+    Call("apoc.util.validate", pred, msg, list(msgParams: _*)).void(res)
+
+  def assert[R](pred: Expr[Boolean], msg: Expr[String], msgParams: Expr[Any]*)(res: Query[R]): Query[R] =
+    assertNot(!pred, msg, msgParams: _*)(res)
+
 }
