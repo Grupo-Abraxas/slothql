@@ -7,11 +7,13 @@ import scala.language.{ existentials, higherKinds }
 import cats.{ Applicative, Monad, StackSafeMonad, ~> }
 import cats.arrow.{ Arrow, FunctionK }
 import cats.data.StateT
+import cats.effect.{ Blocker, Concurrent, ConcurrentEffect, ContextShift, ExitCase, Resource, Sync }
 import cats.effect.concurrent.MVar
+import cats.effect.syntax.bracket._
 import cats.effect.syntax.effect._
-import cats.effect.{ Blocker, Concurrent, ConcurrentEffect, ContextShift, Resource, Sync }
 import cats.instances.function._
-import cats.syntax.apply._
+import cats.syntax.flatMap._
+import cats.syntax.functor._
 import cats.syntax.parallel._
 import org.neo4j.driver.{ Driver, Record, Session, Transaction, TransactionWork, Value }
 import org.neo4j.driver.internal.types.InternalTypeSystem
@@ -54,8 +56,19 @@ class Neo4jCypherTransactor[F[_]: Monad: ConcurrentEffect: ContextShift](
   protected def transactionResource(run: TransactionWork[Unit] => Unit): Resource[F, Transaction] =
     for {
       txVar <- Resource liftF MVar.empty[F, Transaction]
-      lock  <- Resource.make(MVar.empty[F, Unit])(_.put(()))
-      runTx = Sync[F].delay(run{ tx => (txVar.put(tx) *> lock.read).toIO.unsafeRunSync() })
+      lock  <- Resource.makeCase(MVar.empty[F, Boolean]) {
+        case (v, ExitCase.Completed) => v.put(true)
+        case (v, _)                  => v.put(false)
+      }
+      runTx = delay(run{ tx => (
+                          for {
+                            _ <- txVar.put(tx)
+                            b <- lock.read
+                            _ <- if (b) delay(tx.commit()) else delay(tx.rollback())
+                          } yield ()
+                        ).guarantee(delay(tx.close()))
+                         .toIO.unsafeRunSync()
+                    })
       _     <- Concurrent[F].background(runTx)
       tx    <- Resource.liftF(txVar.read)
     } yield tx
@@ -77,13 +90,15 @@ class Neo4jCypherTransactor[F[_]: Monad: ConcurrentEffect: ContextShift](
     fs2.Stream.emit(runOperation(blocker, g.asInstanceOf[Op[A]])(tx))
 
   protected def runQuery[A](blocker: Blocker, q: CypherStatement.Prepared[A], read: Reader[A])(tx: Transaction): fs2.Stream[F, A] = {
-    val stream = Sync[F].delay {
+    val stream = delay {
       tx.run(q.template, q.params.asJava).stream()
     }
     javaStreamToFs2(blocker, stream).evalMap {
-      record => Sync[F].delay { read(record) }
+      record => delay { read(record) }
     }
   }
+
+  private def delay[A](a: => A): F[A] = Sync[F].delay(a)
 }
 
 object Neo4jCypherTransactor {
