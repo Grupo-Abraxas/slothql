@@ -2,9 +2,9 @@ package com.arkondata.slothql.cypher
 
 import scala.annotation.{ compileTimeOnly, implicitNotFound }
 import scala.language.experimental.macros
-import scala.language.implicitConversions
+import scala.language.{ dynamics, implicitConversions }
 
-import cats.data.Ior
+import cats.data.{ Ior, NonEmptyList }
 import shapeless.tag.@@
 import shapeless.{ ::, =:!=, HList, HNil, Refute, Unpack1, ops, |∨| }
 
@@ -86,6 +86,16 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   object Merge {
     // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.merge[R]
+  }
+
+  object Update {
+    type Prop = CF.Clause.SetProps.One
+
+    def apply[R](prop: Prop, props: Prop*)(res: Query[R]): Query[R] =
+      CF.Query.Clause(
+        CF.Clause.SetProps(NonEmptyList(prop, props.toList)),
+        res
+      )
   }
 
   object Delete {
@@ -596,9 +606,21 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // Union // // // //
   // // // // // // // // // //
 
-  implicit class UnionOps[A](q1: CF.Query.Query0[A]) {
+  implicit final class UnionOps[A](q1: CF.Query.Query0[A]) {
     def union(q2: CF.Query.Query0[A]): CF.Query[A] = CF.Query.Union(q1, q2, all = false)
     def unionAll(q2: CF.Query.Query0[A]): CF.Query[A] = CF.Query.Union(q1, q2, all = true)
+  }
+
+  // // // // // // // // // // //
+  // // // // Set  Ops // // // //
+  // // // // // // // // // // //
+
+  implicit final class SetPropOps(e: CF.Expr[GraphElem]) {
+    object set extends Dynamic {
+      def updateDynamic[V](prop: String)(value: Expr[V]): Update.Prop =
+        CF.Clause.SetProps.One(e.asInstanceOf[Expr[Map[String, Any]]], prop, value)
+    }
+    def setProp: set.type = set
   }
 
 }
