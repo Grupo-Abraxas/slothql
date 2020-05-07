@@ -230,9 +230,6 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   def `return`[A](expr: CF.Expr[A]): CF.Query.Return[A] = cypherSyntaxExprToQueryReturn(expr)
   def `return`[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] = cypherSyntaxTupleToQueryReturn(tuple)
 
-  def nothing      : Query[Nothing] = CF.Query.Nothing
-  def returnNothing: Query[Nothing] = CF.Query.Nothing
-
   implicit def cypherSyntaxExprToReturn[A](expr: CF.Expr[A]): CF.Return[A] = CF.Return.Expr(expr, as = None)
   implicit def cypherSyntaxExprToQueryReturn[A](expr: CF.Expr[A]): CF.Query.Return[A] = CF.Query.Return(expr)
   implicit def cypherSyntaxReturnToQueryReturn[A](ret: CF.Return[A]): CF.Query.Return[A] = CF.Query.Return(ret)
