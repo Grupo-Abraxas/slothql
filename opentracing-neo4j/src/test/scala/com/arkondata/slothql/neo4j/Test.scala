@@ -27,7 +27,8 @@ class Test[F[_]: ContextShift](session: F[Session])(implicit tracingBundle: Trac
   def transactorTracingSetup = TransactorTracing.setup[F](
     runRead  = traceStreamK("Transactor#runRead"),
     runWrite = traceStreamK("Transactor#runWrite"),
-    run      = traceStreamK("Transactor#run"),
+    run      = traceStreamK("Transactor#run") andThen
+               logStreamK((log, e) => log.debug("Next stream element", "element" -> e)),
     blockerResource = traceResource[Blocker](_.traceUsage("Transactor#blocker")),
     sessionResource = traceResource[Session](_.traceUsage("Transactor#session")),
     transactionResource = traceResource[Transaction](_.traceCreation("Transactor#transaction:build")

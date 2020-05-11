@@ -13,11 +13,11 @@ import cats.instances.option._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
-import cats.{ Eval, Id, Later, ~> }
+import cats.{ Eval, Id, ~> }
 import com.github.fehu.opentracing.Tracing.TracingSetup
-import com.github.fehu.opentracing.{ SpanLog, TraceLaterEval, Tracing, trace }
+import com.github.fehu.opentracing.{ SpanLog, TraceLaterEval, Tracing }
 import com.github.fehu.opentracing.effect.{ ResourceTracingOps, activateSpan, activeSpan }
-import com.github.fehu.opentracing.fs2.fs2StreamTracing
+import com.github.fehu.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
 import com.github.fehu.opentracing.util.TraceBundle
 import io.opentracing.{ Span, Tracer }
 import org.neo4j.driver.async.ResultCursor
@@ -68,6 +68,12 @@ object TransactorTracing {
     private val streamTracing = fs2StreamTracing[F]
 
     def traceStreamK: Tracing.Interface[EndoK[fs2.Stream[F, *]]] = new streamTracing.InterfaceImpl(locally)
+
+    def logStreamK(log: (SpanLog, Any) => Unit): EndoK[fs2.Stream[F, *]] =
+      λ[fs2.Stream[F, *] ~> fs2.Stream[F, *]](logStreamElem1(_, log))
+
+    private def logStreamElem1[A](s: fs2.Stream[F, A], log: (SpanLog, Any) => Unit): fs2.Stream[F, A] =
+      logStreamElems(s)(log.asInstanceOf[(SpanLog, A) => Unit])
 
     def traceResource[A](f: ResourceTracingOps[F, A] => Resource[F, A]): Endo[Resource[F, A]] = r => f(new ResourceTracingOps(r))
 
