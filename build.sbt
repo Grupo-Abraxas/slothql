@@ -23,15 +23,26 @@ lazy val root = (project in file(".")).
         case _      => "-Ypartial-unification" :: Nil
       }),
       resolvers += Resolver.sonatypeRepo("releases"),
-      addCompilerPlugin(Dependencies.`kind-projector` cross CrossVersion.full)
+      resolvers += "Artifactory Realm" at "https://artifactory.arkondata.com/artifactory/sbt-dev",
+      addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
     ) ++ versionWithGit),
 
     crossScalaVersions := Nil,
     name := "slothql"
   )
   .settings(ammSettings: _*)
-  .aggregate(cypher, apoc)
+  .aggregate(cypher, apoc, opentracingNeo4j)
 
+lazy val enableMacroAnnotations = Seq(
+  scalacOptions in Compile ++= (scalaBinaryVersion.value match {
+    case "2.13" => "-Ymacro-annotations" :: Nil
+    case _      => Nil
+  }),
+  libraryDependencies ++= (scalaBinaryVersion.value match {
+    case "2.13" => Nil
+    case _      => compilerPlugin(Dependencies.Plugin.`macro-paradise`) :: Nil
+  })
+)
 
 lazy val cypher = (project in file("cypher"))
   .settings(
@@ -59,6 +70,16 @@ lazy val apoc = (project in file("cypher-apoc"))
   .settings(
     name := "slothql-cypher-apoc"
   ).dependsOn(cypher % "compile -> compile; test -> test")
+
+lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
+  .settings(
+    name := "slothql-opentracing-neo4j",
+    enableMacroAnnotations,
+    libraryDependencies ++= Seq(
+      Dependencies.`opentracing-effect`,
+      Dependencies.`opentracing-fs2`
+    )
+  ).dependsOn(cypher)
 
 
 // // // Repository // // //
