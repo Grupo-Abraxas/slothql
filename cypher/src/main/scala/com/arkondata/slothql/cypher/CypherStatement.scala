@@ -50,6 +50,10 @@ object CypherStatement {
       def asParam(a: String): AnyRef = a
       def asLiteral(a: String): String = s""""${a.replaceAll("\"", "\\\"")}""""
     }
+    implicit def liftOptionValue[T](implicit lift: LiftValue[T]): LiftValue[Option[T]] = new LiftValue[Option[T]] {
+      def asParam(a: Option[T]): AnyRef = a.map(lift.asParam).orNull
+      def asLiteral(a: Option[T]): String = a.map(lift.asLiteral).orNull
+    }
     implicit def liftListValue[T](implicit lift: LiftValue[T]): LiftValue[List[T]] = new LiftValue[List[T]] {
       import JavaConverters._
       def asParam(a: List[T]): AnyRef = a.asJava
