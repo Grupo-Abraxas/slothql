@@ -56,12 +56,12 @@ object CypherStatement {
     }
     implicit def liftListValue[T](implicit lift: LiftValue[T]): LiftValue[List[T]] = new LiftValue[List[T]] {
       import JavaConverters._
-      def asParam(a: List[T]): AnyRef = a.asJava
+      def asParam(a: List[T]): AnyRef = a.map(lift.asParam).asJava
       def asLiteral(a: List[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
     }
     implicit def liftStringMapValue[T](implicit lift: LiftValue[T]): LiftValue[Map[String, T]] = new LiftValue[Map[String, T]] {
       import JavaConverters._
-      def asParam(a: Map[String, T]): AnyRef = a.asJava
+      def asParam(a: Map[String, T]): AnyRef = a.mapValues(lift.asParam).asJava
       def asLiteral(a: Map[String, T]): String = literalMap(a.mapValues(lift.asLiteral).toMap)
     }
 
