@@ -19,7 +19,7 @@ import com.github.fehu.opentracing.{ SpanLog, TraceLaterEval, Tracing }
 import com.github.fehu.opentracing.effect.{ ResourceTracingOps, activateSpan, activeSpan }
 import com.github.fehu.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
 import com.github.fehu.opentracing.util.TraceBundle
-import io.opentracing.{ Span, Tracer }
+import io.opentracing.{ Span, SpanContext, Tracer }
 import org.neo4j.driver.async.ResultCursor
 import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver.{ Result, Session, Transaction, TransactionWork }
@@ -135,11 +135,11 @@ object TransactorTracing {
       } yield tx
 
     protected lazy val laterEvalTracing = Tracing.tracingEvalLater
-    class EagerTracingInterfaceWithParent(parent: Option[Span])
+    class EagerTracingInterfaceWithParent(parent: Option[Either[Span, SpanContext]])
       extends laterEvalTracing.InterfaceImpl[TraceLaterEval.Builder[cats.Id]](f =>
         new TraceLaterEval.Builder(f.andThen(λ[Eval ~> cats.Id](_.value)))
       ) {
-      override def apply(parent0: Option[Span], activate: Boolean, operation: String, tags: Map[String, Tracing.TagValue]): TraceLaterEval.Builder[Id] =
+      override def apply(parent0: Option[Either[Span, SpanContext]], activate: Boolean, operation: String, tags: Map[String, Tracing.TagValue]): TraceLaterEval.Builder[Id] =
         super.apply(parent0 orElse parent, activate, operation, tags)
     }
   }
@@ -229,7 +229,7 @@ class TransactorTracingMacros(val c: whitebox.Context) {
   protected def runningInsideTransactionWorkImpl(t: Tree) =
     q"""
       override protected def runInsideTxWork(span: Option[_root_.io.opentracing.Span])(run: => _root_.scala.Unit): _root_.scala.Unit =
-       $t(new this.EagerTracingInterfaceWithParent(span))(run)
+       $t(new this.EagerTracingInterfaceWithParent(span.map(_root_.scala.Left(_))))(run)
     """
 
   protected def reportSummaryImpl(F: Tree, wrap: Tree) = {
