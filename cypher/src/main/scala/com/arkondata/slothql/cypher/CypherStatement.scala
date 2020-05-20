@@ -1,8 +1,8 @@
 package com.arkondata.slothql.cypher
 
 import scala.annotation.unchecked.uncheckedVariance
-import scala.collection.JavaConverters
-import scala.language.{ higherKinds, implicitConversions }
+import scala.jdk.CollectionConverters._
+import scala.language.implicitConversions
 
 import cats.{ Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad, catsInstancesForId }
 import cats.arrow.Arrow
@@ -55,22 +55,19 @@ object CypherStatement {
       def asLiteral(a: Option[T]): String = a.map(lift.asLiteral).orNull
     }
     implicit def liftListValue[T](implicit lift: LiftValue[T]): LiftValue[List[T]] = new LiftValue[List[T]] {
-      import JavaConverters._
       def asParam(a: List[T]): AnyRef = a.map(lift.asParam).asJava
       def asLiteral(a: List[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
     }
     implicit def liftStringMapValue[T](implicit lift: LiftValue[T]): LiftValue[Map[String, T]] = new LiftValue[Map[String, T]] {
-      import JavaConverters._
-      def asParam(a: Map[String, T]): AnyRef = a.mapValues(lift.asParam).asJava
-      def asLiteral(a: Map[String, T]): String = literalMap(a.mapValues(lift.asLiteral).toMap)
+      def asParam(a: Map[String, T]): AnyRef = a.view.mapValues(lift.asParam).asJava
+      def asLiteral(a: Map[String, T]): String = literalMap(a.view.mapValues(lift.asLiteral).toMap)
     }
 
     implicit def liftStringMapLiftedValues[L <: LiftedValue]: LiftValue[Map[String, L]] =
       _liftStringMapLiftedValues.asInstanceOf[LiftValue[Map[String, L]]]
     private lazy val _liftStringMapLiftedValues: LiftValue[Map[String, LiftedValue]] = new LiftValue[Map[String, LiftedValue]] {
-      import JavaConverters._
-      def asParam(a: Map[String, LiftedValue]): AnyRef = a.mapValues(v => v.lift.asParam(v.value)).toMap.asJava
-      def asLiteral(a: Map[String, LiftedValue]): String = literalMap(a.mapValues(v => v.lift.asLiteral(v.value)).toMap)
+      def asParam(a: Map[String, LiftedValue]): AnyRef = a.view.mapValues(v => v.lift.asParam(v.value)).toMap.asJava
+      def asLiteral(a: Map[String, LiftedValue]): String = literalMap(a.view.mapValues(v => v.lift.asLiteral(v.value)).toMap)
     }
 
     private def literalMap(m: Map[String, String]) = m

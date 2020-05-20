@@ -2,8 +2,7 @@ package com.arkondata.slothql.neo4j
 
 import java.util.stream.{ Stream => JStream }
 
-import scala.language.higherKinds
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import cats.effect.{ Blocker, ContextShift, Resource, Sync }
 import cats.{ Applicative, Apply, Monad }

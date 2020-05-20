@@ -1,6 +1,6 @@
 package com.arkondata.slothql.cypher
 
-import scala.language.{ higherKinds, implicitConversions }
+import scala.language.implicitConversions
 
 import cats.{ Applicative, Functor, Id, Invariant, Monad, MonadError, MonoidK, Semigroupal, ~> }
 import cats.free.FreeT

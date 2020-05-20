@@ -1,8 +1,8 @@
 package com.arkondata.slothql.neo4j
 
 import scala.annotation.implicitNotFound
-import scala.collection.JavaConverters._
-import scala.language.{ existentials, higherKinds }
+import scala.jdk.CollectionConverters._
+import scala.language.existentials
 
 import cats.{ Applicative, Monad, StackSafeMonad, ~> }
 import cats.arrow.{ Arrow, FunctionK }

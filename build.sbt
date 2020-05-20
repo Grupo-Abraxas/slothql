@@ -2,7 +2,6 @@ import com.typesafe.sbt.SbtGit.GitKeys
 
 enablePlugins(GitVersioning)
 
-lazy val scala212 = "2.12.11"
 lazy val scala213 = "2.13.2"
 
 lazy val root = (project in file(".")).
@@ -15,13 +14,8 @@ lazy val root = (project in file(".")).
         _.asInstanceOf[com.typesafe.sbt.git.JGit]
           .headCommit.map(_.abbreviate(8).name)
       ),
-      crossScalaVersions := scala212 :: scala213 :: Nil,
 
       scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
-      scalacOptions in Compile ++= (scalaBinaryVersion.value match {
-        case "2.13" => Nil
-        case _      => "-Ypartial-unification" :: Nil
-      }),
       resolvers += Resolver.sonatypeRepo("releases"),
       resolvers += "Artifactory Realm" at "https://artifactory.arkondata.com/artifactory/sbt-dev",
       addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
@@ -32,17 +26,6 @@ lazy val root = (project in file(".")).
   )
   .settings(ammSettings: _*)
   .aggregate(cypher, apoc, opentracingNeo4j)
-
-lazy val enableMacroAnnotations = Seq(
-  scalacOptions in Compile ++= (scalaBinaryVersion.value match {
-    case "2.13" => "-Ymacro-annotations" :: Nil
-    case _      => Nil
-  }),
-  libraryDependencies ++= (scalaBinaryVersion.value match {
-    case "2.13" => Nil
-    case _      => compilerPlugin(Dependencies.Plugin.`macro-paradise`) :: Nil
-  })
-)
 
 lazy val cypher = (project in file("cypher"))
   .settings(
@@ -74,7 +57,7 @@ lazy val apoc = (project in file("cypher-apoc"))
 lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
   .settings(
     name := "slothql-opentracing-neo4j",
-    enableMacroAnnotations,
+    scalacOptions in Compile += "-Ymacro-annotations",
     libraryDependencies ++= Seq(
       Dependencies.`opentracing-effect`,
       Dependencies.`opentracing-fs2`
