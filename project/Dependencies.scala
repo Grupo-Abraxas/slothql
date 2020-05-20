@@ -33,15 +33,14 @@ object Dependencies {
     lazy val kindProjector = "0.11.0"
     lazy val macroParadise = "2.1.1"
 
-    lazy val cats       = "2.1.0"
-    lazy val catsEffect = "2.1.1"
-    lazy val droste     = "0.6.0"
+    lazy val cats       = "2.1.1"
+    lazy val catsEffect = "2.1.3"
     lazy val fs2        = "2.3.0"
 
     lazy val neo4jDriver = "4.0.1"
 
-    lazy val opentracingScala = "0.1.8.5"
+    lazy val opentracingScala = "0.1.9"
 
-    lazy val scalatest = "3.1.1"
+    lazy val scalatest = "3.1.2"
   }
 }
