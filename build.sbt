@@ -89,6 +89,8 @@ credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkond
                                         sys.env.getOrElse("ARTIFACTORY_USER", ""),
                                         sys.env.getOrElse("ARTIFACTORY_PASSWORD", ""))
 
+// Fix `java.net.ProtocolException: Unexpected status line: 0` when publishing to artifactory
+ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
 
 // Ammonite
 lazy val ammoniteVersion = "1.6.5"
