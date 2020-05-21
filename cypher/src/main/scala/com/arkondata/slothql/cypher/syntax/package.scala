@@ -384,6 +384,18 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   // // // // // // // // // // // //
+  // // // //  Null - Option // // //
+  // // // // // // // // // // // //
+
+  implicit final class CypherSyntaxOptionalOps[A](expr: CF.Expr[A]) {
+    @inline def optional: CF.Expr[Option[A]] = expr.asInstanceOf[CF.Expr[Option[A]]]
+  }
+
+  implicit final class CypherSyntaxNullableOps[A](expr: CF.Expr[Option[A]]) {
+    @inline def nullable: CF.Expr[A] = expr.asInstanceOf[CF.Expr[A]]
+  }
+
+  // // // // // // // // // // // //
   // // // //  Functions  // // // //
   // // // // // // // // // // // //
 
