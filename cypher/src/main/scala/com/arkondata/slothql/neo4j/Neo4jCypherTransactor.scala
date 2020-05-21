@@ -14,6 +14,7 @@ import cats.effect.syntax.effect._
 import cats.instances.function._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
+import cats.syntax.monadError._
 import cats.syntax.parallel._
 import org.neo4j.driver.{ Driver, Record, Result, Session, Transaction, TransactionWork, Value }
 import org.neo4j.driver.internal.types.InternalTypeSystem
@@ -68,15 +69,21 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
   protected def transactionResource(run: TransactionWork[Unit] => Unit): Resource[F, Transaction] =
     for {
       txVar <- transactionMVarResource
-      lock  <- lockMVarResource
+      cLock <- closeLockMVarResource
+      eLock <- execLockMVarResource(cLock)
       runTx = delay(run{ tx => (
                           for {
                             _ <- txVar.put(tx)
-                            b <- lock.read
+                            b <- eLock.read
                             _ <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
                           } yield ()
                         ).guarantee(closeTransaction(tx))
-                         .toIO.unsafeRunSync()
+                         .guaranteeCase {
+                           case ExitCase.Completed => cLock.put(None)
+                           case ExitCase.Error(e)  => cLock.put(Some(e))
+                           case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
+                         }.toIO
+                          .unsafeRunSync()
                     })
       _     <- backgroundWorkResource(runTx)
       tx    <- readTxAsResource(txVar)
@@ -84,11 +91,15 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
 
   protected def transactionMVarResource: Resource[F, MVar[F, Transaction]] = Resource liftF MVar.empty[F, Transaction]
 
-  protected def lockMVarResource: Resource[F, MVar[F, Boolean]] =
+  protected def execLockMVarResource(lock1: MVar[F, Option[Throwable]]): Resource[F, MVar[F, Boolean]] = {
+    def waitClose = lock1.read.map(_.toLeft(())).rethrow
     Resource.makeCase(MVar.empty[F, Boolean]) {
-      case (v, ExitCase.Completed) => v.put(true)
-      case (v, _)                  => v.put(false)
+      case (v, ExitCase.Completed) => v.put(true)  >> waitClose
+      case (v, _)                  => v.put(false) >> waitClose
     }
+  }
+
+  protected def closeLockMVarResource: Resource[F, MVar[F, Option[Throwable]]] = Resource.liftF(MVar.empty[F, Option[Throwable]])
 
   protected def commitTransaction(tx: Transaction): F[Unit]   = delay(tx.commit())
   protected def rollbackTransaction(tx: Transaction): F[Unit] = delay(tx.rollback())

@@ -8,7 +8,7 @@ import scala.reflect.macros.whitebox
 import cats.effect.concurrent.MVar
 import cats.effect.syntax.bracket._
 import cats.effect.syntax.effect._
-import cats.effect.{ Async, Blocker, Resource, Sync }
+import cats.effect.{ Async, Blocker, ExitCase, Resource, Sync }
 import cats.instances.option._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
@@ -115,19 +115,25 @@ object TransactorTracing {
     override protected def transactionResource(run: TransactionWork[Unit] => Unit): Resource[F, Transaction] =
       for {
         txVar <- transactionMVarResource
-        lock  <- lockMVarResource
+        cLock <- closeLockMVarResource
+        eLock <- execLockMVarResource(cLock)
         span  <- Resource liftF activeSpan[F]
         runTx = ce.delay(run{ tx =>
                           runInsideTxWork(span) {
                             ( for {
                                 _ <- txVar.put(tx)
                                 span1 <- activeSpan[F]
-                                b <- lock.read
+                                b <- eLock.read
                                 _ <- activateSpan(span1) // `activeSpan` is lost otherwise
                                 _ <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
                               } yield ()
                             ).guarantee(closeTransaction(tx))
-                             .toIO.unsafeRunSync()
+                             .guaranteeCase {
+                               case ExitCase.Completed => cLock.put(None)
+                               case ExitCase.Error(e)  => cLock.put(Some(e))
+                               case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
+                             }.toIO
+                              .unsafeRunSync()
                           }
                       })
         _     <- backgroundWorkResource(runTx)
