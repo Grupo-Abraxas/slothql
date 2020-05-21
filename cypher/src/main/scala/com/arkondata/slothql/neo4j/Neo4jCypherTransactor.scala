@@ -247,6 +247,9 @@ object Neo4jCypherTransactor {
     implicit lazy val defaultNeo4jRelReader : ValueReader[cypher.GraphElem.Rel]  = ValueReader("Rel",  v => mkRel (v.asRelationship()))
     implicit lazy val defaultNeo4jPathReader: ValueReader[cypher.GraphPath]      = ValueReader("Path", v => mkPath(v.asPath()))
 
+    implicit def defaultNeo4jOptionReader[A](implicit read: ValueReader[A]): ValueReader[Option[A]] =
+      ValueReader(s"Option[${read.name}]", v => Option.when(!v.isNull)(read(v)))
+
     implicit def defaultNeo4jListReader[A](implicit read: ValueReader[A]): ValueReader[List[A]] =
       ValueReader(s"List[${read.name}]", _.asList(read(_)).asScala.toList)
 
