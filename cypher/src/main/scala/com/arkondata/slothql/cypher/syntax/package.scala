@@ -620,6 +620,59 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   /** Literal map constructor */
   def dict[A](map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapDef(map)
 
+
+  // // // // // // // // // // // // // //
+  // // // //  Case Expressions // // // //
+  // // // // // // // // // // // // // //
+
+  implicit class SimpleCaseExprOps[A](expr: Expr[A]) {
+    /** Simple case expression. */
+    def whenUnsafe[B](case0: SimpleCaseExprOps.Case[A, B], cases: SimpleCaseExprOps.Case[A, B]*): Expr[B] =
+      SimpleCaseExprOps.make(expr, case0 +: cases, None)
+
+    /** Simple case expression. */
+    def when[B](case0: SimpleCaseExprOps.Case[A, B], cases: SimpleCaseExprOps.Case[A, B]*): SimpleCaseExprOps.Builder[A, B] =
+      new SimpleCaseExprOps.Builder(expr, case0 +: cases)
+  }
+
+  object SimpleCaseExprOps {
+    protected[syntax] class Builder[A, B](value: Expr[A], cases: Seq[Case[A, B]]) {
+      def otherwise(default: Expr[B]): Expr[B] = make(value, cases, Some(default))
+    }
+    protected[syntax] def make[A, B](value: Expr[A], cases: Seq[Case[A, B]], default: Option[Expr[B]]): Expr[B] =
+      CF.Expr.SimpleCaseExpr[A, B](value, cases.map(_.toPair).toMap, default)
+
+    protected[syntax] case class Case[A, B](value: Expr[A], result: Expr[B]) {
+      def toPair: (Expr[A], Expr[B]) = value -> result
+    }
+    object Case {
+      implicit def pairToCase[A, B](pair: (Expr[A], Expr[B])): Case[A, B] = Case(pair._1, pair._2)
+    }
+  }
+
+  /** Generic case expression. */
+  def whenUnsafe[A](case0: GenericCaseSyntax.Case[A], cases: GenericCaseSyntax.Case[A]*): Expr[A] =
+    GenericCaseSyntax.make(case0 +: cases, None)
+
+  /** Generic case expression. */
+  def when[A](case0: GenericCaseSyntax.Case[A], cases: GenericCaseSyntax.Case[A]*): GenericCaseSyntax.Builder[A] =
+    new GenericCaseSyntax.Builder(case0 +: cases)
+
+  object GenericCaseSyntax {
+    protected[syntax] class Builder[A](cases: Seq[Case[A]]) {
+      def otherwise(default: Expr[A]): Expr[A] = make(cases, Some(default))
+    }
+    protected[syntax] def make[A](cases: Seq[Case[A]], default: Option[Expr[A]]): Expr[A] =
+      CF.Expr.GenericCaseExpr(cases.map(_.toPair).toMap, default)
+
+    protected[syntax] case class Case[A](value: Expr[Boolean], result: Expr[A]) {
+      def toPair: (Expr[Boolean], Expr[A]) = value -> result
+    }
+    object Case {
+      implicit def pairToCase[A](pair: (Expr[Boolean], Expr[A])): Case[A] = Case(pair._1, pair._2)
+    }
+  }
+
   // // // // // // // // // // // // // // // //
   // // // // Literals and Parameters // // // //
   // // // // // // // // // // // // // // // //

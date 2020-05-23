@@ -206,4 +206,74 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
       ).returns[List[String]]
   }
 
+  "Slothql cypher syntax for CASE expressions" should {
+    "support simple CASE expressions (without default)" in
+      test(
+        Match { case v =>
+          v.prop[Int]("status") whenUnsafe (
+            lit(1) -> lit("On"),
+            lit(0) -> lit("Off")
+          )
+        },
+        "MATCH (`v0`) " +
+        "RETURN " +
+          "CASE `v0`.`status` " +
+            "WHEN 1 THEN \"On\" " +
+            "WHEN 0 THEN \"Off\" " +
+          "END"
+      ).returns[String]
+
+    "support simple CASE expressions (with default)" in
+      test(
+        Match { case v =>
+          v.prop[Int]("status") when (
+            lit(0) -> lit("OK")
+          ) otherwise lit("Failed")
+        },
+        "MATCH (`v0`) " +
+        "RETURN " +
+          "CASE `v0`.`status` " +
+            "WHEN 0 THEN \"OK\" " +
+            "ELSE \"Failed\" " +
+          "END"
+      ).returns[String]
+
+    "support generic CASE expressions (without default)" in
+      test(
+        Match { case v =>
+          val foo = v.prop[Int]("foo")
+          val bar = v.prop[Int]("bar")
+          whenUnsafe(
+            (foo > lit(0) && bar > lit(0)) -> foo * bar,
+            (foo <= lit(0))                -> -bar
+          )
+        },
+        "MATCH (`v0`) " +
+          "RETURN " +
+          "CASE " +
+            "WHEN `v0`.`foo` > 0 AND `v0`.`bar` > 0 THEN `v0`.`foo` * `v0`.`bar` " +
+            "WHEN `v0`.`foo` <= 0 THEN -`v0`.`bar` " +
+          "END"
+      ).returns[Int]
+
+    "support generic CASE expressions (with default)" in
+      test(
+        Match { case v =>
+          val age = v.prop[Int]("age")
+          when(
+            (age < lit(18))  -> lit("You must be at least 18 years old"),
+            (age > lit(100)) -> lit("Oh really?")
+          ).otherwise(          lit("You can proceed"))
+        },
+        "MATCH (`v0`) " +
+          "RETURN " +
+          "CASE " +
+            "WHEN `v0`.`age` < 18 THEN \"You must be at least 18 years old\" " +
+            "WHEN `v0`.`age` > 100 THEN \"Oh really?\" " +
+            "ELSE \"You can proceed\" " +
+          "END"
+      ).returns[String]
+
+  }
+
 }
