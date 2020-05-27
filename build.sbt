@@ -6,6 +6,8 @@ lazy val scala213 = "2.13.2"
 
 lazy val root = (project in file(".")).
   settings(
+    ammSettings,
+    docSettings,
     inThisBuild(List(
       organization := "com.arkondata",
       scalaVersion := scala213,
@@ -24,11 +26,12 @@ lazy val root = (project in file(".")).
     crossScalaVersions := Nil,
     name := "slothql"
   )
-  .settings(ammSettings: _*)
   .aggregate(cypher, apoc, opentracingNeo4j)
 
 lazy val cypher = (project in file("cypher"))
   .settings(
+    ammSettings,
+    docSettings,
     name := "slothql-cypher",
     libraryDependencies ++= Seq(
       Dependencies.Scala.reflect.value,
@@ -47,15 +50,17 @@ lazy val cypher = (project in file("cypher"))
         |import com.arkondata.slothql.cypher.CypherFragment
         |import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
       """.stripMargin
-  ).settings(ammSettings: _*)
+  )
 
 lazy val apoc = (project in file("cypher-apoc"))
   .settings(
+    docSettings,
     name := "slothql-cypher-apoc"
   ).dependsOn(cypher % "compile -> compile; test -> test")
 
 lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
   .settings(
+    docSettings,
     name := "slothql-opentracing-neo4j",
     scalacOptions in Compile += "-Ymacro-annotations",
     libraryDependencies ++= Seq(
@@ -64,6 +69,21 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
     )
   ).dependsOn(cypher)
 
+// // // Scaladoc // // //
+
+lazy val isGraphvizPresent = Def.setting {
+  import scala.sys.process._
+  try "dot -V".! == 0
+  catch { case _: Throwable => false }
+}
+
+lazy val docSettings = Seq(
+  Compile / doc / scalacOptions ++= {
+    val default  = Seq("-implicits")
+    val diagrams = if (isGraphvizPresent.value) Seq("-diagrams", "-diagrams-debug") else Seq()
+    default ++ diagrams
+  }
+)
 
 // // // Repository // // //
 
