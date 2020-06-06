@@ -6,7 +6,6 @@ lazy val scala213 = "2.13.2"
 
 lazy val root = (project in file(".")).
   settings(
-    ammSettings,
     docSettings,
     inThisBuild(List(
       organization := "com.arkondata",
@@ -29,7 +28,6 @@ lazy val root = (project in file(".")).
 
 lazy val cypher = (project in file("cypher"))
   .settings(
-    ammSettings,
     docSettings,
     name := "slothql-cypher",
     libraryDependencies ++= Seq(
@@ -44,7 +42,7 @@ lazy val cypher = (project in file("cypher"))
     ),
     initialCommands in console :=
       """
-        |import org.neo4j.driver.v1.{ AuthTokens, GraphDatabase }
+        |import org.neo4j.driver.{ AuthTokens, GraphDatabase }
         |import com.arkondata.slothql.cypher.syntax._
         |import com.arkondata.slothql.cypher.CypherFragment
         |import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
@@ -93,10 +91,3 @@ credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkond
 
 // Fix `java.net.ProtocolException: Unexpected status line: 0` when publishing to artifactory
 ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
-
-// Ammonite
-lazy val ammoniteVersion = "1.6.5"
-lazy val ammSettings = Seq(
-  ammVersion := ammoniteVersion,
-  ammHome := Some(((baseDirectory in ThisBuild).value / ".amm").getAbsolutePath) 
-)
