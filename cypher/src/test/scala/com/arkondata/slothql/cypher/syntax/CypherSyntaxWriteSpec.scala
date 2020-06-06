@@ -64,6 +64,13 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
         "RETURN true"
       ).returns[Boolean]
 
+    "support returning no rows" in
+      test(
+        Create { case Node("Foo", "id" := 1) =>
+          returnNothing
+        },
+        "CREATE (:`Foo`{ `id`: 1 }) "
+      ).returns[Nothing]
   }
 
 }
