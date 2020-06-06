@@ -19,7 +19,7 @@ import com.arkondata.slothql.test.tags.RequiresNeo4j
 class ParameterizedQueryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   implicit val cs = IO.contextShift(ExecutionContext.global)
 
-  val tx = Neo4jCypherTransactor[IO](Connection.driver)
+  lazy val tx = Neo4jCypherTransactor[IO](Connection.driver)
   import tx.readers._
   import tx.ops._
 
