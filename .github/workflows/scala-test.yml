@@ -22,7 +22,7 @@ jobs:
       run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
       
     - name: Setup Neo4j
-      uses: fehu/Setup-Neo4j@v0.1
+      uses: fehu/Setup-Neo4j@0.1
       with:
         password: neo4j
     
