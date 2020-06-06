@@ -29,12 +29,23 @@ jobs:
       with:
         password: neo4j
 
-    - name: Wait for Neo4j to startup
-      uses: nev7n/wait_for_response@v1.0.1
+    - name: "[debug] docker ps"
+      run: docker ps
+
+    - name: Sleep 1 minute
+      uses: jakejarvis/wait-action@v0.1.0
       with:
-        url: localhost:7474
-        timeout: 1200000
-        interval: 1000
+        time: '1m'
+
+    - name: "[debug] docker ps"
+      run: docker ps
+
+#     - name: Wait for Neo4j to startup
+#       uses: nev7n/wait_for_response@v1.0.1
+#       with:
+#         url: localhost:7474
+#         timeout: 1200000
+#         interval: 1000
     
     - name: Run tests (with Neo4j)
       run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j"
