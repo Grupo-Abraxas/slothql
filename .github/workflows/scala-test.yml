@@ -33,7 +33,7 @@ jobs:
       uses: nev7n/wait_for_response@v1.0.1
       with:
         url: localhost:7474
-        timeout: 60000
+        timeout: 1200000
         interval: 1000
     
     - name: Run tests (with Neo4j)
