@@ -17,14 +17,21 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
-    
+
     - name: Run tests (no Neo4j)
       run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
       
     - name: Setup Neo4j
-      uses: fehu/Setup-Neo4j@0.1
+      uses: fehu/Setup-Neo4j@0.2
       with:
         password: neo4j
+
+    - name: Wait for Neo4j to startup
+      uses: nev7n/wait_for_response@v1.0.1
+      with:
+        url: localhost:7474
+        timeout: 30000
+        interval: 1000
     
     - name: Run tests (with Neo4j)
       run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j"
