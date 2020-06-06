@@ -7,9 +7,23 @@ on:
     branches: [ master, dev ]
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
+
+    services:
+      neo4j:
+        image: neo4j:latest
+        env:
+          NEO4J_AUTH: 'neo4j/test'
+        ports: 
+          - 7474:7474
+          - 7687:7687
+        options: |
+          --health-cmd 'CMD wget --spider 0.0.0.0:7474'
+          --health-interval 20s
+          --health-timeout 10s
+          --health-retries 5
 
     steps:
     - uses: actions/checkout@v2
@@ -24,28 +38,5 @@ jobs:
     - name: Run tests (no Neo4j)
       run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
       
-#     - name: Setup Neo4j
-#       uses: fehu/Setup-Neo4j@v1.2.0
-#       with:
-#         password: neo4j
-
-#     - name: "[debug] docker ps"
-#       run: docker ps
-
-#     - name: Sleep 1 minute
-#       uses: jakejarvis/wait-action@v0.1.0
-#       with:
-#         time: '1m'
-
-#     - name: "[debug] docker ps"
-#       run: docker ps
-
-#     - name: Wait for Neo4j to startup
-#       uses: nev7n/wait_for_response@v1.0.1
-#       with:
-#         url: localhost:7474
-#         timeout: 1200000
-#         interval: 1000
-    
-#     - name: Run tests (with Neo4j)
-#       run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j"
+    - name: Run tests (with Neo4j)
+      run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j"
