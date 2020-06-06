@@ -15,7 +15,6 @@ lazy val root = (project in file(".")).
         _.asInstanceOf[com.typesafe.sbt.git.JGit]
           .headCommit.map(_.abbreviate(8).name)
       ),
-
       scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
       resolvers += Resolver.sonatypeRepo("releases"),
       addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
@@ -68,7 +67,7 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
 
 // // // Scaladoc // // //
 
-lazy val isGraphvizPresent = Def.setting {
+lazy val isGraphvizPresent = {
   import scala.sys.process._
   try "dot -V".! == 0
   catch { case _: Throwable => false }
@@ -77,7 +76,7 @@ lazy val isGraphvizPresent = Def.setting {
 lazy val docSettings = Seq(
   Compile / doc / scalacOptions ++= {
     val default  = Seq("-implicits")
-    val diagrams = if (isGraphvizPresent.value) Seq("-diagrams", "-diagrams-debug") else Seq()
+    val diagrams = if (isGraphvizPresent) Seq("-diagrams", "-diagrams-debug") else Seq()
     default ++ diagrams
   }
 )
