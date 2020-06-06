@@ -18,6 +18,9 @@ jobs:
       with:
         java-version: 1.8
 
+    - name: Compile
+      run: sbt compile
+    
     - name: Run tests (no Neo4j)
       run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
       
