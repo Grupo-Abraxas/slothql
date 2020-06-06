@@ -15,8 +15,10 @@ import com.arkondata.slothql.cypher.CypherFragment.{ Clause, Expr, Pattern, Quer
 import com.arkondata.slothql.cypher.GraphElem
 import com.arkondata.slothql.cypher.syntax._
 import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
+import com.arkondata.slothql.test.tags.RequiresNeo4j
 
 // DB should contain `populate-1.cypher`
+@RequiresNeo4j
 class Neo4jCypherTransactorReadTest extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   implicit val cs = IO.contextShift(ExecutionContext.global)
 

@@ -1,5 +1,7 @@
 package com.arkondata.slothql.cypher.syntax
 
+import org.scalatest.Ignore
+
 import com.arkondata.slothql.cypher.{ CypherFragment, CypherStatement }
 
 
@@ -57,6 +59,7 @@ import com.arkondata.slothql.cypher.{ CypherFragment, CypherStatement }
     - Nothing? [W], [R]
     - Options: distinct, orderBy, skip, limit [R]
 */
+@Ignore
 class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
 
   "Slothql cypher syntax" should {

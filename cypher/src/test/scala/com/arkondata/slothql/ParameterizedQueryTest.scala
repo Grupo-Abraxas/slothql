@@ -13,7 +13,9 @@ import com.arkondata.slothql.cypher.CypherStatement
 import com.arkondata.slothql.cypher.CypherStatement.LiftedValue
 import com.arkondata.slothql.cypher.syntax._
 import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
+import com.arkondata.slothql.test.tags.RequiresNeo4j
 
+@RequiresNeo4j
 class ParameterizedQueryTest extends AnyWordSpec with Matchers with BeforeAndAfterAll {
   implicit val cs = IO.contextShift(ExecutionContext.global)
 
