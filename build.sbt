@@ -2,21 +2,29 @@ import com.typesafe.sbt.SbtGit.GitKeys
 
 enablePlugins(GitVersioning)
 
-lazy val scala213 = "2.13.2"
+ThisBuild / scalaVersion      := "2.13.2"
+
+ThisBuild / git.baseVersion   := "0.2-dev"
+ThisBuild / git.gitHeadCommit := GitKeys.gitReader.value.withGit(
+                                   _.asInstanceOf[com.typesafe.sbt.git.JGit]
+                                    .headCommit.map(_.abbreviate(8).name)
+                                 )
+
+ThisBuild / organization := "com.arkondata"
+
+ThisBuild / homepage   := Some(url("https://github.com/Grupo-Abraxas/slothql"))
+ThisBuild / scmInfo    := Some(ScmInfo(homepage.value.get, "git@github.com:Grupo-Abraxas/slothql.git"))
+ThisBuild / developers := List(
+                            Developer("fehu", "Dmitry K", "kdn.kovalev@gmail.com", url("https://github.com/fehu"))
+                          )
+ThisBuild / licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
+
 
 lazy val root = (project in file(".")).
   settings(
     docSettings,
     inThisBuild(List(
-      organization := "com.arkondata",
-      scalaVersion := scala213,
-      git.baseVersion := "0.2",
-      git.gitHeadCommit := GitKeys.gitReader.value.withGit(
-        _.asInstanceOf[com.typesafe.sbt.git.JGit]
-          .headCommit.map(_.abbreviate(8).name)
-      ),
       scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
-      resolvers += Resolver.sonatypeRepo("releases"),
       addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
     ) ++ versionWithGit),
 
@@ -81,12 +89,22 @@ lazy val docSettings = Seq(
   }
 )
 
-// // // Repository // // //
+// Publishing
 
-publishTo in ThisBuild := Some("Artifactory Realm" at "https://artifactory.arkondata.com/artifactory/sbt-dev")
-credentials in ThisBuild += Credentials("Artifactory Realm", "artifactory.arkondata.com",
-                                        sys.env.getOrElse("ARTIFACTORY_USER", ""),
-                                        sys.env.getOrElse("ARTIFACTORY_PASSWORD", ""))
+ThisBuild / publishMavenStyle := true
+ThisBuild / publishTo := sonatypePublishToBundle.value
 
-// Fix `java.net.ProtocolException: Unexpected status line: 0` when publishing to artifactory
+// Fix for gpg 2.2.x
+// See [[https://github.com/sbt/sbt-pgp/issues/173]]
+Global / PgpKeys.gpgCommand := (baseDirectory.value / "gpg.sh").getAbsolutePath
+
+ThisBuild / credentials += Credentials(
+  "Sonatype Nexus Repository Manager",
+  "oss.sonatype.org",
+  sys.env.getOrElse("SONATYPE_USER", ""),
+  sys.env.getOrElse("SONATYPE_PWD", "")
+)
+
+// Fix for error `java.net.ProtocolException: Too many follow-up requests: 21`
+// See [[https://github.com/sbt/sbt-pgp/issues/150]]
 ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
