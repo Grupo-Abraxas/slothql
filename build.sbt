@@ -19,7 +19,6 @@ lazy val root = (project in file(".")).
 
       scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
       resolvers += Resolver.sonatypeRepo("releases"),
-      resolvers += "Artifactory Realm" at "https://artifactory.arkondata.com/artifactory/sbt-dev",
       addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
     ) ++ versionWithGit),
 

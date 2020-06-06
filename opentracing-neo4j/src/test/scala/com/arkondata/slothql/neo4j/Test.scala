@@ -8,9 +8,9 @@ import cats.syntax.apply._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.~>
-import com.github.fehu.opentracing.SpanOps
-import com.github.fehu.opentracing.effect.{ ResourceTracingOps, activeSpan }
-import com.github.fehu.opentracing.util.TraceBundle
+import com.arkondata.opentracing.SpanOps
+import com.arkondata.opentracing.effect.{ ResourceTracingOps, activeSpan }
+import com.arkondata.opentracing.util.TraceBundle
 import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver.{ Session, Transaction }
 

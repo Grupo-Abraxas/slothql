@@ -14,11 +14,11 @@ import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.{ Eval, Id, ~> }
-import com.github.fehu.opentracing.Tracing.TracingSetup
-import com.github.fehu.opentracing.{ SpanLog, TraceLaterEval, Tracing }
-import com.github.fehu.opentracing.effect.{ ResourceTracingOps, activateSpan, activeSpan }
-import com.github.fehu.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
-import com.github.fehu.opentracing.util.TraceBundle
+import com.arkondata.opentracing.Tracing.TracingSetup
+import com.arkondata.opentracing.{ SpanLog, TraceLaterEval, Tracing }
+import com.arkondata.opentracing.effect.{ ResourceTracingOps, activateSpan, activeSpan }
+import com.arkondata.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
+import com.arkondata.opentracing.util.TraceBundle
 import io.opentracing.{ Span, SpanContext, Tracer }
 import org.neo4j.driver.async.ResultCursor
 import org.neo4j.driver.summary.ResultSummary
@@ -323,11 +323,11 @@ class TransactorTracingMacros(val c: whitebox.Context) {
   protected def lostSpanFixesBody(F: Tree) =
     q"""
       protected def lostSpanFixesTracer: _root_.io.opentracing.Tracer =
-        implicitly[_root_.com.github.fehu.opentracing.util.TraceBundle.Endo[$F]].tracer
+        implicitly[_root_.com.arkondata.opentracing.util.TraceBundle.Endo[$F]].tracer
     """ ::
     q"""
-      protected def lostSpanFixesTracingSetup: _root_.com.github.fehu.opentracing.Tracing.TracingSetup =
-        implicitly[_root_.com.github.fehu.opentracing.util.TraceBundle.Endo[$F]].setup
+      protected def lostSpanFixesTracingSetup: _root_.com.arkondata.opentracing.Tracing.TracingSetup =
+        implicitly[_root_.com.arkondata.opentracing.util.TraceBundle.Endo[$F]].setup
     """ :: Nil
 
   private lazy val TransactorType = rootMirror.staticClass("com.arkondata.slothql.neo4j.Neo4jCypherTransactor").typeSignature
