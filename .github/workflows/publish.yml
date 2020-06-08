@@ -31,13 +31,7 @@ jobs:
         printf "$GPG_SECRET_KEY" | base64 --decode > ~/.gnupg/private.key
         gpg --batch --import ~/.gnupg/private.key
         chmod 700 -R ~/.gnupg/
-    
-    - name: "[debug] count private key bytes"
-      run: wc --bytes ~/.gnupg/private.key
-    
-    - name: "[debug] list secret keys"
-      run: gpg --list-secret
-    
+       
     - name: Create local staging bundle (signed)
       env:
         PGP_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
