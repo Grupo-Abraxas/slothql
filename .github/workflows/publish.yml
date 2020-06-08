@@ -35,6 +35,9 @@ jobs:
     - name: "[debug] count private key bytes"
       run: wc --bytes ~/.gnupg/private.key
     
+    - name: "[debug] list secret keys"
+      run: gpg --list-secret
+    
     - name: Create local staging bundle (signed)
       env:
         PGP_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
