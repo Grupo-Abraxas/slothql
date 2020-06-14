@@ -62,7 +62,7 @@ class ApocSyntaxSpec extends CypherSyntaxBaseSpec {
           "`v0` IS NULL, \"MATCH (`a0`{ `foo`: $`foo` }) RETURN `a0`.`n` + $`bar`\", " +
           "`type`(`e0`) = \"Foo\", \"MATCH (`a0`{ `foo`: $`foo` }) WHERE $`baz` RETURN `a0`.`n`\"" +
         "], " +
-        "\"MATCH (`a0`) RETURN $`n` + `a0`.`n` + 100\", " +
+        "\"MATCH (`a0`) RETURN ($`n` + `a0`.`n`) + 100\", " +
         "{ `n`: 10, `baz`: `v0`.`isBaz`, `bar`: `v0`.`bar`, `foo`: `e0`.`foo` }) " +
       "YIELD `value` AS `yielded0` " +
       "WITH *, `yielded0`[`head`(`keys`(`yielded0`))] AS `v1` " +
