@@ -1,27 +1,22 @@
 package com.arkondata.slothql
 
-import scala.concurrent.ExecutionContext
-
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.instances.list._
 import cats.syntax.traverse._
 import org.scalactic.source.Position
-import org.scalatest.{ Assertion, BeforeAndAfterAll }
+import org.scalatest.Assertion
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
 import com.arkondata.slothql.cypher.CypherFragment.{ Clause, Expr, Pattern, Query, Return }
 import com.arkondata.slothql.cypher.GraphElem
 import com.arkondata.slothql.cypher.syntax._
-import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
+import com.arkondata.slothql.test.Neo4jUsingTest
 import com.arkondata.slothql.test.tags.RequiresNeo4j
 
 @RequiresNeo4j
-class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with BeforeAndAfterAll {
-  implicit val cs = IO.contextShift(ExecutionContext.global)
-
-  lazy val tx = Neo4jCypherTransactor[IO](Connection.driver)
+class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsingTest {
   import tx.readers._
   import tx.ops._
 
@@ -366,10 +361,9 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with BeforeAnd
 
   override protected def afterAll(): Unit = {
     tx.runWrite[Nothing](tx.query(Neo4jCypherTransactorTest.cleanDb))
-      .onFinalize(IO{ Connection.driver.close() })
+      .onFinalize(IO{ super.afterAll() })
       .compile.drain
       .unsafeRunSync()
-    super.afterAll()
   }
 }
 
