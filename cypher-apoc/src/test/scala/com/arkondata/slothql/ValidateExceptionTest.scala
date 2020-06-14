@@ -8,9 +8,10 @@ import org.scalatest.wordspec.AnyWordSpec
 import com.arkondata.slothql.apoc.ValidateException
 import com.arkondata.slothql.cypher.syntax._
 import com.arkondata.slothql.test.Neo4jUsingTest
-import com.arkondata.slothql.test.tags.RequiresNeo4j
+import com.arkondata.slothql.test.tags.{ RequiresApoc, RequiresNeo4j }
 
 @RequiresNeo4j
+@RequiresApoc
 class ValidateExceptionTest extends AnyWordSpec with Matchers with Neo4jUsingTest with EitherValues {
   import tx.readers._
 
