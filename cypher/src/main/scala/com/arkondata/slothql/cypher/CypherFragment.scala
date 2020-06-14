@@ -9,6 +9,9 @@ import cats.instances.option._
 
 trait CypherFragment {
   type Statement <: CypherStatement
+
+  def isPrecedenceSafe: Boolean = true
+
   val toCypherF: CypherStatement.GenF[Statement]
   final def toCypher(gen: CypherStatement.Gen): (Statement, CypherStatement.Gen) = toCypherF(gen)
 }
@@ -78,6 +81,10 @@ object CypherFragment {
 
   type Aux[+S <: CypherStatement] = CypherFragment { type Statement <: S }
 
+  sealed trait PrecedenceUnsafe extends CypherFragment {
+    override def isPrecedenceSafe: Boolean = false
+  }
+
   // // // // // // // // // // // // // //
   // // // // // Expressions // // // // //
   // // // // // // // // // // // // // //
@@ -129,10 +136,10 @@ object CypherFragment {
     // // // Lists // // //
     sealed trait ListExpr[+A] extends Expr[A]
     final case class ListDef[+A](vals: List[Expr[A]]) extends ListExpr[List[A]]
-    final case class InList[+A] (list: Expr[List[A]], elem: Expr[A]) extends ListExpr[Boolean]
+    final case class InList[+A] (list: Expr[List[A]], elem: Expr[A]) extends ListExpr[Boolean] with PrecedenceUnsafe
     final case class AtIndex[+A](list: Expr[List[A]], index: Expr[Long]) extends ListExpr[A]
     final case class AtRange[+A](list: Expr[List[A]], limits: Ior[Expr[Long], Expr[Long]]) extends ListExpr[List[A]]
-    final case class Concat[+A] (pref: Expr[List[A]], suff: Expr[List[A]]) extends ListExpr[List[A]]
+    final case class Concat[+A] (pref: Expr[List[A]], suff: Expr[List[A]]) extends ListExpr[List[A]] with PrecedenceUnsafe
 
     final case class Reduce[A, B](
       list: Expr[List[A]],
@@ -200,7 +207,7 @@ object CypherFragment {
 
 
     // // // Strings // // //
-    case class StringExpr(left: Expr[String], right: Expr[String], op: StringExpr.Op) extends Expr[Boolean]
+    case class StringExpr(left: Expr[String], right: Expr[String], op: StringExpr.Op) extends Expr[Boolean] with PrecedenceUnsafe
     object StringExpr {
       sealed abstract class Op(protected[Expr] val cypher: String)
       case object StartsWith extends Op("STARTS WITH")
@@ -212,7 +219,7 @@ object CypherFragment {
     def toCypher(expr: StringExpr): GenS[Part] = part2op(expr.left, expr.right, expr.op.cypher)
 
     // // // Logic // // //
-    sealed trait LogicExpr extends Expr[Boolean]
+    sealed trait LogicExpr extends Expr[Boolean] with PrecedenceUnsafe
     case class LogicUnaryExpr(expr: Expr[Boolean], op: LogicExpr.UnaryOp) extends LogicExpr
     case class LogicBinaryExpr(left: Expr[Boolean], right: Expr[Boolean], op: LogicExpr.BinaryOp) extends LogicExpr
 
@@ -227,12 +234,12 @@ object CypherFragment {
     }
 
     def toCypher(expr: LogicExpr): GenS[Part] = expr match {
-      case LogicUnaryExpr(expr, LogicExpr.Negate) => part(expr).map(e => s"NOT $e")
+      case LogicUnaryExpr(expr, LogicExpr.Negate) => part(expr).map(e => s"NOT ${parentheses(expr, e)}")
       case LogicBinaryExpr(left, right, op)       => part2op(left, right, op.cypher)
     }
 
     // // // Compare // // //
-    sealed trait CompareExpr extends Expr[Boolean]
+    sealed trait CompareExpr extends Expr[Boolean] with PrecedenceUnsafe
     case class CompareUnaryExpr(expr: Expr[Any], op: CompareExpr.UnaryOp) extends CompareExpr
     case class CompareBinaryExpr(left: Expr[_], right: Expr[_], op: CompareExpr.BinaryOp) extends CompareExpr
 
@@ -251,13 +258,13 @@ object CypherFragment {
     }
 
     def toCypher(expr: CompareExpr): GenS[Part] = expr match {
-      case CompareUnaryExpr(expr, CompareExpr.IsNull)  => part(expr).map(e => s"$e IS NULL")
-      case CompareUnaryExpr(expr, CompareExpr.NotNull) => part(expr).map(e => s"$e IS NOT NULL")
+      case CompareUnaryExpr(expr, CompareExpr.IsNull)  => part(expr).map(e => s"${parentheses(expr, e)} IS NULL")
+      case CompareUnaryExpr(expr, CompareExpr.NotNull) => part(expr).map(e => s"${parentheses(expr, e)} IS NOT NULL")
       case CompareBinaryExpr(left, right, op)          => part2op(left, right, op.cypher)
     }
 
     // // // Mathematical // // //
-    sealed trait MathematicalExpr[N] extends Expr[N]
+    sealed trait MathematicalExpr[N] extends Expr[N] with PrecedenceUnsafe
     case class MathematicalUnaryExpr[N](expr: Expr[N], op: MathematicalExpr.UnaryOp) extends MathematicalExpr[N]
     case class MathematicalBinaryExpr[N](left: Expr[N], right: Expr[N], op: MathematicalExpr.BinaryOp) extends MathematicalExpr[N]
 
@@ -275,12 +282,12 @@ object CypherFragment {
     }
 
     def toCypher(expr: MathematicalExpr[_]): GenS[Part] = expr match {
-      case MathematicalUnaryExpr(expr, MathematicalExpr.Negation) => part(expr).map(e => s"-$e")
+      case MathematicalUnaryExpr(expr, MathematicalExpr.Negation) => part(expr).map(e => s"-${parentheses(expr, e)}")
       case MathematicalBinaryExpr(left, right, op)                => part2op(left, right, op.cypher)
     }
 
     // // // Distinct // // //
-    case class Distinct[A](expr: Expr[A]) extends Expr[A]
+    case class Distinct[A](expr: Expr[A]) extends Expr[A] with PrecedenceUnsafe
 
     // // // Pattern Predicate // // //
     case class Exists(pattern: Pattern) extends Expr[Boolean]
@@ -613,7 +620,10 @@ object CypherFragment {
     (left, part(right)).map2(f)
 
   private def part2op(left: CypherFragment.Aux[Part], right: CypherFragment.Aux[Part], op: String): GenS[Part] =
-    part2(left, right)((l, r) => s"$l $op $r")
+    part2(left, right)((l, r) => s"${parentheses(left, l)} $op ${parentheses(right, r)}")
+
+  private def parentheses(fragment: CypherFragment, str: String): String =
+    if (fragment.isPrecedenceSafe) str else s"($str)"
 
   private def funcLikePart(func: String, params: List[Expr[_]]): GenS[Part] =
     partsSequence(params).map { ps =>

@@ -118,7 +118,7 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
       test(
         // TODO: using alias `a` instead of `b` in reduction function breaks query compilation
         Match { case a => a.prop[List[Int]]("foo").reduce(lit(0)) { (acc, b) => acc / lit(2) + b * lit(2) } },
-        "MATCH (`a0`) RETURN reduce(`#0` = 0, `#1` IN `a0`.`foo` | `#0` / 2 + `#1` * 2)"
+        "MATCH (`a0`) RETURN reduce(`#0` = 0, `#1` IN `a0`.`foo` | (`#0` / 2) + (`#1` * 2))"
       ).returns[Int]
 
     "support list predicates (all, any, none, single)" in
@@ -136,7 +136,7 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
           "all(`#3` IN `a0`.`foo` WHERE `#3` >= 0), " +
           "any(`#2` IN `a0`.`foo` WHERE `#2` <> 0), " +
           "none(`#1` IN `a0`.`foo` WHERE `#1` = 0), " +
-          "single(`#0` IN `a0`.`foo` WHERE `#0` % 2 = `a0`.`bar`)"
+          "single(`#0` IN `a0`.`foo` WHERE (`#0` % 2) = `a0`.`bar`)"
       ).returns[(Boolean, Boolean, Boolean, Boolean)]
 
   }
@@ -251,7 +251,7 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
         "MATCH (`v0`) " +
           "RETURN " +
           "CASE " +
-            "WHEN `v0`.`foo` > 0 AND `v0`.`bar` > 0 THEN `v0`.`foo` * `v0`.`bar` " +
+            "WHEN (`v0`.`foo` > 0) AND (`v0`.`bar` > 0) THEN `v0`.`foo` * `v0`.`bar` " +
             "WHEN `v0`.`foo` <= 0 THEN -`v0`.`bar` " +
           "END"
       ).returns[Int]
