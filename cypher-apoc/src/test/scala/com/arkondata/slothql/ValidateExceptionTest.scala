@@ -1,11 +1,12 @@
-package com.arkondata.slothql.cypher.syntax
+package com.arkondata.slothql
 
 import cats.syntax.monadError._
 import org.scalatest.EitherValues
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
-import com.arkondata.slothql.cypher.syntax.apoc.ValidateException
+import com.arkondata.slothql.apoc.ValidateException
+import com.arkondata.slothql.cypher.syntax._
 import com.arkondata.slothql.test.Neo4jUsingTest
 import com.arkondata.slothql.test.tags.RequiresNeo4j
 

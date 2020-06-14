@@ -1,4 +1,4 @@
-package com.arkondata.slothql.cypher.syntax.apoc
+package com.arkondata.slothql.apoc
 
 import org.neo4j.driver.exceptions.ClientException
 
