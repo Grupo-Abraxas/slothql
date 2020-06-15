@@ -90,15 +90,22 @@ object Case {
   ) {
     private val cases = cases0.flatMap(c => c.condition :: lit(c.query.statement.template) :: Nil)
 
-    def apply[R](f: Expr[A] => Query[R]): Query[R] =
+    def withOneColumn[R](f: Expr[A] => Query[R]): Query[R] =
+      withAllColumns { yielded =>
+        With(**, yielded.value(yielded.keys.head)) { v =>
+          f(v)
+        }
+      }
+
+    def withAllColumns[R](f: Expr[Map[String, Any]] => Query[R]): Query[R] =
       Call("apoc.case",
         list(cases: _*),                 // [cond, query, ...]
         lit(default.statement.template), // else
         dict(params)                     // params
       ).yielding("value") { yielded: Expr[Map[String, Any]] =>
-      With(**, yielded.value(yielded.keys.head)) { v =>
-        f(v)
-      }}
+        f(yielded)
+      }
+
   }
 
 }

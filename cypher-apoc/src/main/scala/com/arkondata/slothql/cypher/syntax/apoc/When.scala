@@ -43,15 +43,23 @@ object When {
       protected val elseQ: ParameterizedCypherQuery[_, A],
       protected val params: Map[String, Expr[_]]
   ) {
-    def continue[R](f: Expr[A] => Query[R]): Query[R] =
+
+    def withOneColumn[R](f: Expr[A] => Query[R]): Query[R] =
+      withAllColumns { yielded =>
+        With(**, yielded.value[A](yielded.keys.head)) { v =>
+          f(v)
+        }
+      }
+
+    def withAllColumns[R](f: Expr[Map[String, Any]] => Query[R]): Query[R] =
       Call("apoc.when",
         cond,
         lit(thenQ.statement.template),
         lit(elseQ.statement.template),
         dict(params)
       ).yielding("value") { (yielded: Expr[Map[String, Any]]) =>
-          With(**, yielded.value[A](yielded.keys.head)) { v =>
-            f(v)
-          }}
+        f(yielded)
+      }
+
   }
 }

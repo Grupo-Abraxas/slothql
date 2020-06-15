@@ -10,7 +10,7 @@ class ApocSyntaxSpec extends CypherSyntaxBaseSpec {
             lit("foo") in x.labels,
             parameterized{ a: Param[Int]    => Match { case v if v.id === a => v.props } },
             parameterized{ b: Param[String] => Match { case v@Node("bar" := `b`) => v.props } }
-          ).withParams(a = x.prop[Int]("foo"), b = x.prop[String]("bar")).continue {
+          ).withParams(a = x.prop[Int]("foo"), b = x.prop[String]("bar")).withOneColumn {
             _.value[String]("baz")
           }
         },
@@ -52,7 +52,7 @@ class ApocSyntaxSpec extends CypherSyntaxBaseSpec {
             baz = v.prop[Boolean]("isBaz"),
             n = lit(10)
           )
-          .apply( res =>
+          .withOneColumn( res =>
             lit("Result: %n").replace(lit("%n"), res.asString)
           )
       },
