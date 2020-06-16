@@ -18,6 +18,24 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
            (query: c.Expr[(CF.Expr[T1], CF.Expr[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
 
+  def with3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
+    t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]]
+  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = false,
+      t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3])
+
+  def with4[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, R: WeakTypeTag](
+    t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]]
+  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = false,
+      t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4])
+
+  def with5[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, T5: WeakTypeTag, R: WeakTypeTag](
+    t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]], t5: c.Expr[CF.Expr[T5]]
+  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4], CF.Expr[T5]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = false,
+      t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4], t5.tree -> weakTypeOf[T5])
+
   def withWild0[R: WeakTypeTag](wildcard: c.Expr[**.type])(query: c.Expr[CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true)
 
@@ -28,6 +46,27 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
   def withWild2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]])
                (query: c.Expr[(CF.Expr[T1], CF.Expr[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
+
+  def withWild3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
+    wildcard: c.Expr[**.type],
+    t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]]
+  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = true,
+      t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3])
+
+  def withWild4[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, R: WeakTypeTag](
+    wildcard: c.Expr[**.type],
+    t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]]
+  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = true,
+      t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4])
+
+  def withWild5[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, T5: WeakTypeTag, R: WeakTypeTag](
+    wildcard: c.Expr[**.type],
+    t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]], t5: c.Expr[CF.Expr[T5]]
+  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4], CF.Expr[T5]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = true,
+      t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4], t5.tree -> weakTypeOf[T5])
 
   protected type ExprWithInnerType = (Tree, Type)
   protected def withImpl[R](query: Tree, wildcard: Boolean, exprs: ExprWithInnerType*): c.Expr[CF.Query.Query0[R]] = {

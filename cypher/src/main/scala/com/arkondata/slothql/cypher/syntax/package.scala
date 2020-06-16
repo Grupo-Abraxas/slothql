@@ -45,6 +45,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def apply[R](wildcard: **.type)(query: CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild0[R]
 
+    // 1 Expr
+
     def apply[T1, R](t1: CF.Expr[T1])
                     (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with1[T1, R]
@@ -53,6 +55,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
                     (query: CF.Expr[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild1[T1, R]
 
+    // 2 Exprs
+
     def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])
                         (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with2[T1, T2, R]
@@ -60,6 +64,37 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def apply[T1, T2, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2])
                         (query: (CF.Expr[T1], CF.Expr[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild2[T1, T2, R]
+
+    // 3 Exprs
+
+    def apply[T1, T2, T3, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])
+                                    (query: (CF.Expr[T1], CF.Expr[T2], CF.Expr[T3]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with3[T1, T2, T3, R]
+
+    def apply[T1, T2, T3, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])
+                        (query: (CF.Expr[T1], CF.Expr[T2], CF.Expr[T3]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild3[T1, T2, T3, R]
+
+    // 4 Exprs
+
+    def apply[T1, T2, T3, T4, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])
+                                    (query: (CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with4[T1, T2, T3, T4, R]
+
+    def apply[T1, T2, T3, T4, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])
+                        (query: (CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild4[T1, T2, T3, T4, R]
+
+    // 5 Exprs
+
+    def apply[T1, T2, T3, T4, T5, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4], t5: CF.Expr[T5])
+                                    (query: (CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4], CF.Expr[T5]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.with5[T1, T2, T3, T4, T5, R]
+
+    def apply[T1, T2, T3, T4, T5, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4], t5: CF.Expr[T5])
+                        (query: (CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4], CF.Expr[T5]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withWild5[T1, T2, T3, T4, T5, R]
+
   }
 
   object Unwind {
