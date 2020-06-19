@@ -94,5 +94,24 @@ class ApocSyntaxSpec extends CypherSyntaxBaseSpec {
       "RETURN `replace`(\"Result: %n\", \"%n\", `toString`(`v1`))"
     ).returns[String]
 
+    "support `apoc.do.case` call" in test(
+      APOC.`case`.write(
+        lit(true) -> parameterized { () => `return`[Int](lit(123)) }
+      ).otherwise(parameterized { () => `return`[Int](lit(321)) })
+        .withParams()
+        .withOneColumn( res =>
+          lit("Result: %n").replace(lit("%n"), res.asString)
+        ),
+      "CALL `apoc`.`do`.`case`(" +
+        "[" +
+          "true, \"RETURN 123\"" +
+        "], " +
+        "\"RETURN 321\", " +
+        "{  }) " +
+      "YIELD `value` AS `yielded0` " +
+      "WITH *, `yielded0`[`head`(`keys`(`yielded0`))] AS `v0` " +
+      "RETURN `replace`(\"Result: %n\", \"%n\", `toString`(`v0`))"
+    ).returns[String]
+
   }
 }

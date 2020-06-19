@@ -67,27 +67,29 @@ object Case {
     implicit def impl[A]: Case.Aux[A, Expr[A]] = null
   }
 
-  protected[cypher] class OtherwiseSyntax[CasesParams <: HList, A](cases: List[Case[_, A]]) {
+  protected[cypher] class OtherwiseSyntax[CasesParams <: HList, A](cases: List[Case[_, A]], write: Boolean) {
     def otherwise[OtherwiseParams <: HList, AllParams <: HList, ParamExprs <: HList]
         (default: ParameterizedCypherQuery[OtherwiseParams, A])
         (implicit mergeParams: ops.record.Merger.Aux[CasesParams, OtherwiseParams, AllParams],
                   paramsExprs: ops.record.MapValues.Aux[WrapCypherExprPoly.type, AllParams, ParamExprs],
                   paramsToMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]
-        ): ParamsSyntax[ParamExprs, A] = new ParamsSyntax(cases, default)
+        ): ParamsSyntax[ParamExprs, A] = new ParamsSyntax(cases, default, write)
   }
 
   protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
-                        (cases: Seq[Case[_, A]], default: ParameterizedCypherQuery[_, A])
+                        (cases: Seq[Case[_, A]], default: ParameterizedCypherQuery[_, A], write: Boolean)
                         (implicit toMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]) extends RecordArgs {
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
-      new QuerySyntax(cases, default, toMap(params).map{ case (k, v) => k.name -> v })
+      new QuerySyntax(cases, default, toMap(params).map{ case (k, v) => k.name -> v }, write)
   }
 
   protected[cypher] class QuerySyntax[A](
       protected val cases0: Seq[Case[_, A]],
       protected val default: ParameterizedCypherQuery[_, A],
-      protected val params: Map[String, Expr[_]]
+      protected val params: Map[String, Expr[_]],
+      protected val write: Boolean
   ) {
+    private def procedure = if (write) "apoc.do.case" else "apoc.case"
     private val cases = cases0.flatMap(c => c.condition :: lit(c.query.statement.template) :: Nil)
 
     def withOneColumn[R](f: Expr[A] => Query[R]): Query[R] =
@@ -98,7 +100,7 @@ object Case {
       }
 
     def withAllColumns[R](f: Expr[Map[String, Any]] => Query[R]): Query[R] =
-      Call("apoc.case",
+      Call(procedure,
         list(cases: _*),                 // [cond, query, ...]
         lit(default.statement.template), // else
         dict(params)                     // params

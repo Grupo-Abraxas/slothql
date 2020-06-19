@@ -16,7 +16,10 @@ object APOC {
 
   object `case` extends ProductArgs {
     def applyProduct[Cases <: HList](cases: Cases)(implicit b: Case.Builder[Cases]): Case.OtherwiseSyntax[b.Params, b.Out] =
-      new Case.OtherwiseSyntax(b.toList(cases))
+      new Case.OtherwiseSyntax(b.toList(cases), write = false)
+
+    def writeProduct[Cases <: HList](cases: Cases)(implicit b: Case.Builder[Cases]): Case.OtherwiseSyntax[b.Params, b.Out] =
+      new Case.OtherwiseSyntax(b.toList(cases), write = true)
   }
 
   def assertNot[R](pred: Expr[Boolean], msg: Expr[String], msgParams: Expr[Any]*)(res: Query[R]): Query[R] =
