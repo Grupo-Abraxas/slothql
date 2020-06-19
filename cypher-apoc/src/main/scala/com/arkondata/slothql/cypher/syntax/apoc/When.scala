@@ -31,18 +31,24 @@ object When {
   }
 
   protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
-                        (cond: Expr[Boolean], thenQ: ParameterizedCypherQuery[_, A], elseQ: ParameterizedCypherQuery[_, A])
+                        (cond: Expr[Boolean],
+                         thenQ: ParameterizedCypherQuery[_, A],
+                         elseQ: ParameterizedCypherQuery[_, A],
+                         write: Boolean
+                        )
                         (implicit toMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]) extends RecordArgs {
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
-      new QuerySyntax(cond, thenQ, elseQ, toMap(params).map{ case (k, v) => k.name -> v })
+      new QuerySyntax(cond, thenQ, elseQ, toMap(params).map{ case (k, v) => k.name -> v }, write)
   }
 
   protected[cypher] class QuerySyntax[A](
       protected val cond: Expr[Boolean],
       protected val thenQ: ParameterizedCypherQuery[_, A],
       protected val elseQ: ParameterizedCypherQuery[_, A],
-      protected val params: Map[String, Expr[_]]
+      protected val params: Map[String, Expr[_]],
+      protected val write: Boolean
   ) {
+    private def procedure = if (write) "apoc.do.when" else "apoc.when"
 
     def withOneColumn[R](f: Expr[A] => Query[R]): Query[R] =
       withAllColumns { yielded =>
@@ -52,7 +58,7 @@ object When {
       }
 
     def withAllColumns[R](f: Expr[Map[String, Any]] => Query[R]): Query[R] =
-      Call("apoc.when",
+      Call(procedure,
         cond,
         lit(thenQ.statement.template),
         lit(elseQ.statement.template),

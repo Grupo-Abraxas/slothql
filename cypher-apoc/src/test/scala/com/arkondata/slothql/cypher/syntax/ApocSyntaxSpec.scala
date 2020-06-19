@@ -28,6 +28,31 @@ class ApocSyntaxSpec extends CypherSyntaxBaseSpec {
         "RETURN `v0`.`baz`"
       ).returns[String]
 
+    "support `apoc.do.when` call" in
+      test(
+        Match { case x =>
+          APOC.when(
+            lit(true),
+            parameterized{ a: Param[Int] => `return`[Int](a) },
+            parameterized{ () => `return`(cypherNull[Int]) },
+            write = true
+          ).withParams(a = x.prop[Int]("foo")).withOneColumn {
+            _.optional.`return`
+          }
+        },
+        "MATCH (`x0`) " +
+        "CALL `apoc`.`do`.`when`(" +
+          "true, " +
+          "\"RETURN $`a`\", " +
+          "\"RETURN null\", " +
+          "{ " +
+            "`a`: `x0`.`foo`" +
+          " }" +
+        ") YIELD `value` AS `yielded0` " +
+        "WITH *, `yielded0`[`head`(`keys`(`yielded0`))] AS `v0` " +
+        "RETURN `v0`"
+      ).returns[Option[Int]]
+
     "support `apoc.case` call" in test(
       Match { case v -e> _ =>
         APOC.`case`(
