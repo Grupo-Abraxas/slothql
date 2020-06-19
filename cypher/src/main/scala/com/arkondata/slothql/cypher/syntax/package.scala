@@ -731,6 +731,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   def lit[A](a: A)(implicit lift: CypherStatement.LiftValue[A]): CF.Expr.Lit[A] = CF.Expr.Lit[A](a, lift)
 
+  def cypherNull[A]: Expr[A] = CF.Expr.Null
+
   type Param[A] = CF.Expr.Param[A]
 
   object parameterized extends ParameterizedCypherQuery.Build

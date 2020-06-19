@@ -22,6 +22,14 @@ package com.arkondata.slothql.cypher.syntax
  */
 class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
 
+  "Slothql cypher syntax" should {
+    "support null expression" in
+      test(
+        cypherNull[String].`return`,
+        "RETURN null"
+      ).returns[String]
+  }
+
   "Slothql cypher syntax for lists" should {
     "support defining lists" in
       test(
