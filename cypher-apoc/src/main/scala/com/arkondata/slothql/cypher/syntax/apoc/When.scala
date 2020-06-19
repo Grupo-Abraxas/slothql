@@ -19,10 +19,10 @@ object When {
       implicit
       merge: ops.record.Merger.Aux[PT, PE, Ps0],
       exprs: ops.record.MapValues.Aux[WrapExprHF.type, Ps0, Ps],
-      map: ops.record.ToMap.Aux[Ps, Symbol, Expr[_]]
+      map: ops.record.ToMap.Aux[Ps, _ <: Symbol, _ <: Expr[_]]
     ): Builder.Aux[PT, PE, Ps] = new Builder[PT, PE] {
       type Params = Ps
-      val toMap: ops.record.ToMap.Aux[Ps, Symbol, Expr[_]] = map
+      val toMap: ops.record.ToMap.Aux[Ps, Symbol, Expr[_]] = map.asInstanceOf[ops.record.ToMap.Aux[Ps, Symbol, Expr[_]]]
     }
 
     object WrapExprHF extends Poly1 {
@@ -32,7 +32,7 @@ object When {
 
   protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
                         (cond: Expr[Boolean], thenQ: ParameterizedCypherQuery[_, A], elseQ: ParameterizedCypherQuery[_, A])
-                        (implicit toMap: ops.record.ToMap.Aux[ParamExprs, Symbol, Expr[_]]) extends RecordArgs {
+                        (implicit toMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]) extends RecordArgs {
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
       new QuerySyntax(cond, thenQ, elseQ, toMap(params).map{ case (k, v) => k.name -> v })
   }

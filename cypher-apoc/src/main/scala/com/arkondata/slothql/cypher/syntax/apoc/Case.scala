@@ -72,13 +72,13 @@ object Case {
         (default: ParameterizedCypherQuery[OtherwiseParams, A])
         (implicit mergeParams: ops.record.Merger.Aux[CasesParams, OtherwiseParams, AllParams],
                   paramsExprs: ops.record.MapValues.Aux[WrapCypherExprPoly.type, AllParams, ParamExprs],
-                  paramsToMap: ops.record.ToMap.Aux[ParamExprs, Symbol, Expr[_]]
+                  paramsToMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]
         ): ParamsSyntax[ParamExprs, A] = new ParamsSyntax(cases, default)
   }
 
   protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
                         (cases: Seq[Case[_, A]], default: ParameterizedCypherQuery[_, A])
-                        (implicit toMap: ops.record.ToMap.Aux[ParamExprs, Symbol, Expr[_]]) extends RecordArgs {
+                        (implicit toMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]) extends RecordArgs {
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
       new QuerySyntax(cases, default, toMap(params).map{ case (k, v) => k.name -> v })
   }
