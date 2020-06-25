@@ -26,9 +26,15 @@ object CypherStatement {
 
   final case class Prepared[R](template: String, params: Map[String, AnyRef])
 
-  trait LiftValue[A] {
+  trait LiftValue[A] { outer =>
     def asParam(a: A): AnyRef
     def asLiteral(a: A): String
+
+    def contramap[B](f: B => A): LiftValue[B] =
+      new LiftValue[B] {
+        def asParam(b: B): AnyRef = outer.asParam(f(b))
+        def asLiteral(b: B): String = outer.asLiteral(f(b))
+      }
   }
 
   object LiftValue {
