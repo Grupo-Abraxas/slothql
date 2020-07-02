@@ -39,4 +39,4 @@ jobs:
         PGP_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
         SONATYPE_PWD: ${{ secrets.SONATYPE_PWD}}
-      run: sbt ";set isSnapshot := true ;publishSigned"
+      run: sbt ";set ThisBuild / isSnapshot := true ;publishSigned"
