@@ -29,6 +29,7 @@ lazy val root = (project in file(".")).
     ) ++ versionWithGit),
 
     crossScalaVersions := Nil,
+    skip in publish := true,
     name := "slothql"
   )
   .aggregate(cypher, apoc, opentracingNeo4j)
