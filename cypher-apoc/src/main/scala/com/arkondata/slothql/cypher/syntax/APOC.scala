@@ -1,5 +1,6 @@
 package com.arkondata.slothql.cypher.syntax
 
+import cats.data.NonEmptyList
 import shapeless.{ HList, ProductArgs }
 
 import com.arkondata.slothql.cypher.ParameterizedCypherQuery
@@ -28,4 +29,36 @@ object APOC {
   def assert[R](pred: Expr[Boolean], msg: Expr[String], msgParams: Expr[Any]*)(res: Query[R]): Query[R] =
     assertNot(!pred, msg, msgParams: _*)(res)
 
+  object lock {
+    object read {
+      def nodes[R](node: Node, nodes: Node*)(res: Query[R]): Query[R] =
+        this.nodes(NonEmptyList(node, nodes.toList))(res)
+
+      def nodes[R](nodes: NonEmptyList[Node])(res: Query[R]): Query[R] =
+        Call("apoc.lock.read.nodes", list(nodes.toList: _*)).void(res)
+
+      def rels[R](rel: Rel, rels: Rel*)(res: Query[R]): Query[R] =
+        this.rels(NonEmptyList(rel, rels.toList))(res)
+
+      def rels[R](rels: NonEmptyList[Rel])(res: Query[R]): Query[R] =
+        Call("apoc.lock.read.rels", list(rels.toList: _*)).void(res)
+    }
+
+    object write {
+      def apply[R](nodes: NonEmptyList[Node], rels: NonEmptyList[Rel])(res: Query[R]): Query[R] =
+        Call("apoc.lock.all", list(nodes.toList: _*), list(rels.toList: _*)).void(res)
+
+      def nodes[R](node: Node, nodes: Node*)(res: Query[R]): Query[R] =
+        this.nodes(NonEmptyList(node, nodes.toList))(res)
+
+      def nodes[R](nodes: NonEmptyList[Node])(res: Query[R]): Query[R] =
+        Call("apoc.lock.nodes", list(nodes.toList: _*)).void(res)
+
+      def rels[R](rel: Rel, rels: Rel*)(res: Query[R]): Query[R] =
+        this.rels(NonEmptyList(rel, rels.toList))(res)
+
+      def rels[R](rels: NonEmptyList[Rel])(res: Query[R]): Query[R] =
+        Call("apoc.lock.rels", list(rels.toList: _*)).void(res)
+    }
+  }
 }
