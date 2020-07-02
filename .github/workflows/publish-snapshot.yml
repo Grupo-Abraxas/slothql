@@ -1,0 +1,42 @@
+name: Scala CI - Publish Snapshot
+
+on:
+  release: 
+    types: [prereleased]
+  
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+
+    - name: Compile
+      run: sbt ";compile ;test:compile"
+    
+    - name: Run tests (no Neo4j)
+      run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
+
+    - name: Setup GPG for signing artifacts
+      env:
+        GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}
+      run: |
+        mkdir -p ~/.gnupg/
+        printf "$GPG_SECRET_KEY" | base64 --decode > ~/.gnupg/private.key
+        gpg --batch --import ~/.gnupg/private.key
+        chmod 700 -R ~/.gnupg/
+    
+    - name: Upload public key 
+      run: gpg2 --keyserver hkp://pool.sks-keyservers.net --send-keys EB735176EE656DF6DDAFF7E715368E1526A42DC6
+       
+    - name: Upload snapshot to Sonatype (signed)
+      env:
+        PGP_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        SONATYPE_USER: ${{ secrets.SONATYPE_USER }}
+        SONATYPE_PWD: ${{ secrets.SONATYPE_PWD}}
+      run: sbt ";set isSnapshot := true ;publishSigned"
