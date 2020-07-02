@@ -4,6 +4,7 @@ enablePlugins(GitVersioning)
 
 ThisBuild / scalaVersion      := "2.13.2"
 
+ThisBuild / isSnapshot        := false
 ThisBuild / git.baseVersion   := "0.2-dev"
 ThisBuild / git.gitHeadCommit := GitKeys.gitReader.value.withGit(
                                    _.asInstanceOf[com.typesafe.sbt.git.JGit]
@@ -24,6 +25,7 @@ lazy val root = (project in file(".")).
   settings(
     docSettings,
     inThisBuild(List(
+      git.gitUncommittedChanges := (git.gitUncommittedChanges.value || isSnapshot.value),
       scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
       addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
     ) ++ versionWithGit),
