@@ -1,8 +1,8 @@
-name: Scala CI - Publish
+name: Scala CI - Publish Release
 
 on:
   release: 
-    types: [released, prereleased]
+    types: [released]
   
 jobs:
   build:
