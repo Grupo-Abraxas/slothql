@@ -189,13 +189,13 @@ object CypherTransactor {
     def query[Params <: HList, R](q: ParameterizedCypherQuery[Params, R])
                                  (implicit read: Reader[R]): ParameterizedCypherQuery.Apply[Params, R, Tx[R]] = CypherTransactor.query(q)
 
-    def query(q: CF.Query[Nothing])(implicit gen: CypherStatement.Gen): Tx[Unit] = CypherTransactor.query[F, Src, C, Unit](q)
-    def query(s: CypherStatement.Complete[Nothing])                   : Tx[Unit] = CypherTransactor.query[F, Src, C, Unit](s)
+    def query(q: CF.Query[Nothing])(implicit gen: CypherStatement.Gen): Tx[Unit] = drainGathered(CypherTransactor.query(q))
+    def query(s: CypherStatement.Complete[Nothing])                   : Tx[Unit] = drainGathered(CypherTransactor.query(s))
     def query(s: CypherStatement.Prepared[Nothing])                   : Tx[Unit] =
-      CypherTransactor.query[F, Src, C, Unit](s.asInstanceOf[CypherStatement.Prepared[Unit]])
+      drainGathered(CypherTransactor.query(s.asInstanceOf[CypherStatement.Prepared[Unit]]))
 
     def query[Params <: HList](q: ParameterizedCypherQuery[Params, Nothing]): ParameterizedCypherQuery.Apply[Params, Unit, Tx[Unit]] =
-      CypherTransactor.query[F, Src, C, Unit, Params](q.asInstanceOf[ParameterizedCypherQuery[Params, Unit]])
+      new ParameterizedCypherQuery.Apply(q.asInstanceOf[ParameterizedCypherQuery[Params, Unit]], p => drainGathered(query(p)))
 
     def gather  : Tx               ~> TxC[F, Src, C, *] = CypherTransactor.gather
     def unwind  : C                ~> Tx                = CypherTransactor.unwind
@@ -223,5 +223,9 @@ object CypherTransactor {
       implicit def cypherTransactorSyntaxTraverseOps[A](ca: C[A]): CypherTransactor.SyntaxTraverseOps[F, Src, C, A] =
         new CypherTransactor.SyntaxTraverseOps[F, Src, C, A](ca)
     }
+
+    protected def drainC[R]: TxC[F, Src, C, R] => Tx[Unit]
+
+    private def drainGathered[R] = drainC compose gather.apply[R]
   }
 }

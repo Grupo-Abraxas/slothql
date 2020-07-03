@@ -329,6 +329,9 @@ object Neo4jCypherTransactor {
         }
       }
     }
+
+    final protected def drainC[R]: CypherTransactor.TxC[F, Record, fs2.Stream[F, *], R] => Tx[Unit] =
+      _.flatMap(s => liftF(s.compile.drain))
   }
 
 }
