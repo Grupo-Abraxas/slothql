@@ -23,7 +23,7 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsin
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    tx.runWrite[Nothing](tx.query(Neo4jCypherTransactorTest.populateDb))
+    tx.runWrite(tx.query(Neo4jCypherTransactorTest.populateDb))
       .compile.drain
       .unsafeRunSync()
   }
@@ -360,7 +360,7 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsin
   }
 
   override protected def afterAll(): Unit = {
-    tx.runWrite[Nothing](tx.query(Neo4jCypherTransactorTest.cleanDb))
+    tx.runWrite(tx.query(Neo4jCypherTransactorTest.cleanDb))
       .onFinalize(IO{ super.afterAll() })
       .compile.drain
       .unsafeRunSync()

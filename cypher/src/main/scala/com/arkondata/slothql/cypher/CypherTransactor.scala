@@ -77,11 +77,13 @@ object CypherTransactor {
   }
 
   object Reader {
-    implicit def nothingReader[Src]: Reader[Src, Nothing] =
-      new Reader[Src, Nothing] {
+    implicit def unitReader[Src]: Reader[Src, Unit] = unitReaderInstance.asInstanceOf[Reader[Src, Unit]]
+
+    private lazy val unitReaderInstance =
+      new Reader[Any, Unit] {
         def sourceName: String = "_"
-        def name: String = "Nothing"
-        def apply(src: Src): Nothing = sys.error("Nothing")
+        def name: String = "Unit"
+        def apply(src: Any): Unit = ()
       }
   }
 
@@ -176,7 +178,6 @@ object CypherTransactor {
   abstract class Syntax[F[_]: Applicative, Src, C[_]: Applicative: MonoidK](
     implicit txCMonad: Monad[TxC[F, Src, C, *]]
   ) {
-    import Reader.nothingReader
 
     type Tx[R]     = CypherTransactor.Tx[F, Src, C, R]
     type Reader[R] = CypherTransactor.Reader[Src, R]
@@ -188,11 +189,13 @@ object CypherTransactor {
     def query[Params <: HList, R](q: ParameterizedCypherQuery[Params, R])
                                  (implicit read: Reader[R]): ParameterizedCypherQuery.Apply[Params, R, Tx[R]] = CypherTransactor.query(q)
 
-    def query(q: CF.Query[Nothing])(implicit gen: CypherStatement.Gen): Tx[Nothing] = CypherTransactor.query[F, Src, C, Nothing](q)
-    def query(s: CypherStatement.Complete[Nothing])                   : Tx[Nothing] = CypherTransactor.query[F, Src, C, Nothing](s)
-    def query(s: CypherStatement.Prepared[Nothing])                   : Tx[Nothing] = CypherTransactor.query[F, Src, C, Nothing](s)
-    def query[Params <: HList](q: ParameterizedCypherQuery[Params, Nothing]): ParameterizedCypherQuery.Apply[Params, Nothing, Tx[Nothing]] =
-      CypherTransactor.query[F, Src, C, Nothing, Params](q)
+    def query(q: CF.Query[Nothing])(implicit gen: CypherStatement.Gen): Tx[Unit] = CypherTransactor.query[F, Src, C, Unit](q)
+    def query(s: CypherStatement.Complete[Nothing])                   : Tx[Unit] = CypherTransactor.query[F, Src, C, Unit](s)
+    def query(s: CypherStatement.Prepared[Nothing])                   : Tx[Unit] =
+      CypherTransactor.query[F, Src, C, Unit](s.asInstanceOf[CypherStatement.Prepared[Unit]])
+
+    def query[Params <: HList](q: ParameterizedCypherQuery[Params, Nothing]): ParameterizedCypherQuery.Apply[Params, Unit, Tx[Unit]] =
+      CypherTransactor.query[F, Src, C, Unit, Params](q.asInstanceOf[ParameterizedCypherQuery[Params, Unit]])
 
     def gather  : Tx               ~> TxC[F, Src, C, *] = CypherTransactor.gather
     def unwind  : C                ~> Tx                = CypherTransactor.unwind

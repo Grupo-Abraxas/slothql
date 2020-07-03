@@ -70,7 +70,7 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
           returnNothing
         },
         "CREATE (:`Foo`{ `id`: 1 }) "
-      ).returns[Nothing]
+      ).returns[Unit]
   }
 
 }
