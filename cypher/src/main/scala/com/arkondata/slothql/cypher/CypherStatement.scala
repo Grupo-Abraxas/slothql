@@ -60,9 +60,9 @@ object CypherStatement {
       def asParam(a: Option[T]): AnyRef = a.map(lift.asParam).orNull
       def asLiteral(a: Option[T]): String = a.map(lift.asLiteral).orNull
     }
-    implicit def liftListValue[T](implicit lift: LiftValue[T]): LiftValue[List[T]] = new LiftValue[List[T]] {
-      def asParam(a: List[T]): AnyRef = a.map(lift.asParam).asJava
-      def asLiteral(a: List[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
+    implicit def liftSeqValue[S[x] <: Seq[x], T](implicit lift: LiftValue[T]): LiftValue[S[T]] = new LiftValue[S[T]] {
+      def asParam(a: S[T]): AnyRef = a.map(lift.asParam).asJava
+      def asLiteral(a: S[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
     }
     implicit def liftStringMapValue[T](implicit lift: LiftValue[T]): LiftValue[Map[String, T]] = new LiftValue[Map[String, T]] {
       def asParam(a: Map[String, T]): AnyRef = a.view.mapValues(lift.asParam).asJava
