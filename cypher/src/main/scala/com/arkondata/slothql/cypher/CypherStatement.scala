@@ -64,6 +64,10 @@ object CypherStatement {
       def asParam(a: S[T]): AnyRef = a.map(lift.asParam).asJava
       def asLiteral(a: S[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
     }
+    implicit def liftSetValue[T](implicit lift: LiftValue[T]): LiftValue[Set[T]] = new LiftValue[Set[T]] {
+      def asParam(a: Set[T]): AnyRef = a.map(lift.asParam).asJava
+      def asLiteral(a: Set[T]): String = a.map(lift.asLiteral).mkString("[", ", ", "]")
+    }
     implicit def liftStringMapValue[T](implicit lift: LiftValue[T]): LiftValue[Map[String, T]] = new LiftValue[Map[String, T]] {
       def asParam(a: Map[String, T]): AnyRef = a.view.mapValues(lift.asParam).asJava
       def asLiteral(a: Map[String, T]): String = literalMap(a.view.mapValues(lift.asLiteral).toMap)
