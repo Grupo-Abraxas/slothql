@@ -26,6 +26,12 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
         }
     }
 
+  def exists(pattern: c.Expr[Node => Unit]): c.Expr[CF.Expr[Boolean]] = impl(pattern) match {
+    case (true, guard, _, _, _) => c.abort(pattern.tree.pos, "`if` guard is not supported at `exists`")
+    // case (_, _, _, _, value) => TODO: warning if rhs contains any expression
+    case (_, _, pattern, _, _)  => reify{ CF.Expr.Exists(pattern.splice) }
+  }
+
   protected def matchImpl[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]], optional: c.Expr[Boolean]): c.Expr[CF.Query.Query0[R]] =
     qImpl(query) {
       (guard, pattern) => reify {
@@ -42,7 +48,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   protected type QDefs     = List[Tree]
   protected type QInner[R] = c.Expr[CF.Query.Query0[R]]
 
-  protected def impl[R: WeakTypeTag](query: c.Expr[Node => CF.Query[R]]): (Guard, QPattern, QDefs, QInner[R]) = query.tree match {
+  protected def impl[T](expr: c.Expr[Node => T]): (Boolean, Guard, QPattern, QDefs, c.Expr[T]) = expr.tree match {
     case Function(List(_), Match(_, cases)) =>
       cases match {
         case List(CaseDef(pattern, guard0, body)) =>
@@ -67,19 +73,19 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           val rebind = (rebind0 ++ bindDefOptLet.map(_._1).toSeq).toMap
           val newBody = transformBody(rebind, body)
 
-          val guardTree = guard0 match {
-            case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrap    => q"_root_.scala.Some($expr)"
-            case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrapOpt => expr
-            case _                                                  => NoneTree
+          val (hasGuard, guardTree) = guard0 match {
+            case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrap    => true  -> q"_root_.scala.Some($expr)"
+            case q"$m($expr)" if m.symbol == SyntaxIfGuardUnwrapOpt => true  -> expr
+            case _                                                  => false -> NoneTree
           }
-          val guard = c.Expr[Option[CF.Expr[Boolean]]](transformBody(rebind, guardTree))
+          val guardExpr = c.Expr[Option[CF.Expr[Boolean]]](transformBody(rebind, guardTree))
           val elems = elems0.map{ case (nme, tpe, expr) => (nme.map(rebind), tpe, expr) }
           val patternExpr = maybeLetPattern(letAliasExprOpt, elems)
           val bindDefs = bindDefsNodeRel ++ bindDefOptLet.map(_._2).toSeq
-          (guard, patternExpr, bindDefs, c.Expr[CF.Query.Query0[R]](newBody))
-        case _ => c.abort(query.tree.pos, "Query must have a single case clause")
+          (hasGuard, guardExpr, patternExpr, bindDefs, c.Expr[T](newBody))
+        case _ => c.abort(expr.tree.pos, "A single `case` clause expected")
       }
-    case other => c.abort(query.tree.pos, s"Unexpected query function: $other")
+    case other => c.abort(expr.tree.pos, s"Unexpected function: $other")
   }
 
   private lazy val NoneTree = q"_root_.scala.None"
@@ -90,7 +96,7 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
 
   protected def qImpl[R: WeakTypeTag](query0: c.Expr[Node => CF.Query.Query0[R]])
                                      (mkClause: (Guard, QPattern) => c.Expr[CF.Clause]): c.Expr[CF.Query.Query0[R]] = {
-    val (guard, pattern, defs, inner) = impl(query0)
+    val (_, guard, pattern, defs, inner) = impl(query0)
     val clause = reify {
       CF.Query.Clause(mkClause(guard, pattern).splice, inner.splice)
     }

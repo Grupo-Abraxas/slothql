@@ -1,5 +1,7 @@
 package com.arkondata.slothql.cypher.syntax
 
+import com.arkondata.slothql.cypher.syntax.{ exists => slothqlExists }
+
 /** Variety of [[com.arkondata.slothql.cypher.CypherFragment.Expr]].
  *  - Input
  *  - Param
@@ -212,6 +214,14 @@ class CypherSyntaxExprSpec extends CypherSyntaxBaseSpec {
         Match{ case a => a.keys },
         "MATCH (`a0`) RETURN `keys`(`a0`)"
       ).returns[List[String]]
+  }
+
+  "Slothql cypher syntax for `exists`" should {
+    "build pattern existence expressions" in
+      test(
+        slothqlExists { case Node("A", "x" := "y") -Rel("foo")> Node("B") => }.`return`,
+        "RETURN EXISTS ((:`A`{ `x`: \"y\" }) -[:`foo`]-> (:`B`))"
+      ).returns[Boolean]
   }
 
   "Slothql cypher syntax for CASE expressions" should {

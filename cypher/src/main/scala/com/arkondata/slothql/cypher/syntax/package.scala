@@ -470,6 +470,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // //  Built-in functions  // // // //
   // // // // // // // // // // // // // // //
 
+  def exists(pattern: Node => Unit): CF.Expr[Boolean] = macro CypherSyntaxPatternMacros.exists
+
   /** Alias for [[Neo4jBuiltIn]]. */
   lazy val neo4j: Neo4jBuiltIn.type = Neo4jBuiltIn
 

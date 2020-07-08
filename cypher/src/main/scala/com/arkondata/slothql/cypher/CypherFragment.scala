@@ -341,7 +341,7 @@ object CypherFragment {
       case alias: Alias[_]     => liftAlias(alias)
       case Func(func, params)  => funcLikePart(func, params)
       case Distinct(expr)      => part(expr).map(e => s"DISTINCT $e")
-      case Exists(pattern)     => part(pattern).map(p => s"EXISTS ($p})")
+      case Exists(pattern)     => part(pattern).map(p => s"EXISTS ($p)")
     }
 
     private def defaultAlias[R] = Expr.Alias[R]("#")
