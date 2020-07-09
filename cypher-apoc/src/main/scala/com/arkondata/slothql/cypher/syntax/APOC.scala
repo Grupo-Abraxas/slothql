@@ -30,7 +30,7 @@ object APOC {
     assertNot(!pred, msg, msgParams: _*)(res)
 
   object lock {
-    object read {
+    object read extends CommonInterface {
       def nodes[R](node: Node, nodes: Node*)(res: Query[R]): Query[R] =
         this.nodes(NonEmptyList(node, nodes.toList))(res)
 
@@ -44,7 +44,7 @@ object APOC {
         Call("apoc.lock.read.rels", list(rels.toList: _*)).void(res)
     }
 
-    object write {
+    object write extends CommonInterface {
       def apply[R](nodes: NonEmptyList[Node], rels: NonEmptyList[Rel])(res: Query[R]): Query[R] =
         Call("apoc.lock.all", list(nodes.toList: _*), list(rels.toList: _*)).void(res)
 
@@ -59,6 +59,14 @@ object APOC {
 
       def rels[R](rels: NonEmptyList[Rel])(res: Query[R]): Query[R] =
         Call("apoc.lock.rels", list(rels.toList: _*)).void(res)
+    }
+
+    sealed trait CommonInterface {
+      def nodes[R](node: Node, nodes: Node*)(res: Query[R]): Query[R]
+      def nodes[R](nodes: NonEmptyList[Node])(res: Query[R]): Query[R]
+
+      def rels[R](rel: Rel, rels: Rel*)(res: Query[R]): Query[R]
+      def rels[R](rels: NonEmptyList[Rel])(res: Query[R]): Query[R]
     }
   }
 }
