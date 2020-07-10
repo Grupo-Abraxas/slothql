@@ -8,7 +8,7 @@ import cats.data.{ Ior, NonEmptyList }
 
 import com.arkondata.slothql.cypher.CypherFragment.{ Pattern => P }
 import com.arkondata.slothql.cypher.CypherStatement.Alias
-import com.arkondata.slothql.cypher.{ CypherStatement, syntax, CypherFragment => CF }
+import com.arkondata.slothql.cypher.{ CypherStatement, GraphElem, syntax, CypherFragment => CF }
 
 class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._
@@ -373,9 +373,9 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
     lazy val SyntaxNodeUnapplySeqSymbol = typeOf[syntax.Node.type].decl(TermName("unapplySeq")).asMethod
     lazy val SyntaxRelUnapplySeqSymbol  = typeOf[syntax.Rel.type] .decl(TermName("unapplySeq")).asMethod
     lazy val Syntax_UnapplySeqSymbol_:= = Syntax_:=.typeSignature.decl(TermName("unapply")).asMethod
-    lazy val SyntaxNodeType = typeOf[syntax.Node].typeConstructor
+    lazy val SyntaxNodeType = typeOf[CF.Expr[GraphElem.Node]]
     lazy val SyntaxRelObj   = symbolOf[syntax.Rel.type]
-    lazy val SyntaxRelType  = typeOf[syntax.Rel].typeConstructor
+    lazy val SyntaxRelType  = typeOf[CF.Expr[GraphElem.Rel]]
 
     lazy val DirectionInType  = typeOf[syntax.Rel.Incoming]
     lazy val DirectionOutType = typeOf[syntax.Rel.Outgoing]
