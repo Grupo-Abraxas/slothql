@@ -11,28 +11,28 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
   import c.universe._
 
   def with1[T1: WeakTypeTag, R: WeakTypeTag](t1: c.Expr[CF.Expr[T1]])
-           (query: c.Expr[CF.Expr[T1] => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+           (query: c.Expr[CF.Expr.Alias[T1] => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1])
 
   def with2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]])
-           (query: c.Expr[(CF.Expr[T1], CF.Expr[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+           (query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
 
   def with3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
     t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]]
-  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = false,
       t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3])
 
   def with4[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, R: WeakTypeTag](
     t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]]
-  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = false,
       t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4])
 
   def with5[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, T5: WeakTypeTag, R: WeakTypeTag](
     t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]], t5: c.Expr[CF.Expr[T5]]
-  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4], CF.Expr[T5]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4], CF.Expr.Alias[T5]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = false,
       t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4], t5.tree -> weakTypeOf[T5])
 
@@ -40,31 +40,31 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(query.tree, wildcard = true)
 
   def withWild1[T1: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]])
-               (query: c.Expr[CF.Expr[T1] => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+               (query: c.Expr[CF.Expr.Alias[T1] => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1])
 
   def withWild2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]])
-               (query: c.Expr[(CF.Expr[T1], CF.Expr[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+               (query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2] )=> CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
 
   def withWild3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
     wildcard: c.Expr[**.type],
     t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]]
-  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true,
       t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3])
 
   def withWild4[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, R: WeakTypeTag](
     wildcard: c.Expr[**.type],
     t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]]
-  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true,
       t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4])
 
   def withWild5[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, T5: WeakTypeTag, R: WeakTypeTag](
     wildcard: c.Expr[**.type],
     t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]], t3: c.Expr[CF.Expr[T3]], t4: c.Expr[CF.Expr[T4]], t5: c.Expr[CF.Expr[T5]]
-  )(query: c.Expr[(CF.Expr[T1], CF.Expr[T2], CF.Expr[T3], CF.Expr[T4], CF.Expr[T5]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4], CF.Expr.Alias[T5]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true,
       t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2], t3.tree -> weakTypeOf[T3], t4.tree -> weakTypeOf[T4], t5.tree -> weakTypeOf[T5])
 
