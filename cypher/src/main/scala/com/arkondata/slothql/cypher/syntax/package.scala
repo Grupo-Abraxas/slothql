@@ -415,7 +415,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def `type`: CF.Expr[String] = tpe
   }
 
-  implicit final class CypherSyntaxPathOps(p: Path) {
+  implicit final class CypherSyntaxPathOps(p: CF.Expr[GraphPath]) {
     def nodes: CF.Expr[List[GraphElem.Node]] = "nodes".func(p)
     def relationships: CF.Expr[List[GraphElem.Rel]] = "relationships".func(p)
     def length: CF.Expr[Long] = "length".func(p)
