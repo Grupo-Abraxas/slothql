@@ -54,7 +54,7 @@ object CypherStatement {
     }
     implicit lazy val liftStringValue: LiftValue[String] = new LiftValue[String] {
       def asParam(a: String): AnyRef = a
-      def asLiteral(a: String): String = s""""${a.replace("\"", "\\\"")}""""
+      def asLiteral(a: String): String = s""""${a.replace("\\", "\\\\").replace("\"", "\\\"")}""""
     }
     implicit def liftOptionValue[T](implicit lift: LiftValue[T]): LiftValue[Option[T]] = new LiftValue[Option[T]] {
       def asParam(a: Option[T]): AnyRef = a.map(lift.asParam).orNull
