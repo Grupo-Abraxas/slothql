@@ -57,16 +57,42 @@ object CypherTransactor {
        )
     )
   @inline
-  private def mkGather[Src, C[_], A](op: Operation[Src, C, A]): Operation[Src, C, C[A]] = Gather(op)
+  private def mkGather[Src, C[_], A](op: Operation[Src, C, A]): Operation[Src, C, C[A]] = Gather(op)(locally)
 
   // // // // // // // // // // // // // // // // //
   // // // Underlying Transactor Operations // // //
   // // // // // // // // // // // // // // // // //
 
-  sealed trait Operation[Src, C[_], R]
-  case class Query [Src, C[_], R](query: CypherStatement.Prepared[R], read: Reader[Src, R]) extends Operation[Src, C, R]
-  case class Gather[Src, C[_], R](op: Operation[Src, C, R])                          extends Operation[Src, C, C[R]]
-  case class Unwind[Src, C[_], R](values: C[R])                                      extends Operation[Src, C, R]
+  sealed trait Operation[Src, C[_], R] {
+    def imapK[G[_]](f: C ~> G, g: G ~> C): Operation[Src, G, R]
+  }
+
+  case class Query[Src, C[_], R](query: CypherStatement.Prepared[R], read: Reader[Src, R]) extends Operation[Src, C, R] {
+    def imapK[G[_]](f: C ~> G, g: G ~> C): Query[Src, G, R] = this.asInstanceOf[Query[Src, G, R]]
+  }
+
+  sealed trait Gather[Src, C[_], R] extends Operation[Src, C, R] {
+    type U
+    val op: Operation[Src, C, U]
+    val func: C[U] => R
+
+    def imapK[G[_]](f: C ~> G, g: G ~> C): Gather[Src, G, R] = Gather(op.imapK(f, g))(func compose g.apply[U])
+  }
+
+  object Gather {
+    def apply[Src, C[_], T, R](operation: Operation[Src, C, T])(f: C[T] => R): Gather[Src, C, R] =
+      new Gather[Src, C, R] {
+        type U = T
+        val op: Operation[Src, C, T] = operation
+        val func: C[T] => R = f
+      }
+
+    def unapply[Src, C[_], R](g: Gather[Src, C, R]): Option[(Operation[Src, C, g.U], C[g.U] => R)] = Some(g.op -> g.func)
+  }
+
+  case class Unwind[Src, C[_], R](values: C[R]) extends Operation[Src, C, R] {
+    def imapK[G[_]](f: C ~> G, g: G ~> C): Unwind[Src, G, R] = Unwind(f(values))
+  }
 
   trait Reader[Src, A] {
     def sourceName: String

@@ -121,16 +121,15 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
   protected def runOperation[A](blocker: Blocker, op: Op[A]): OutT[A] = op match {
-    case Unwind(out) => runUnwind(out)
-    case Gather(op)  => runGather(blocker, op)
-    case Query(q, r) =>
-      runQuery(blocker, q, r)
+    case Unwind(out)   => runUnwind(out)
+    case Gather(op, f) => runGather(blocker, op, f)
+    case Query(q, r)   => runQuery(blocker, q, r)
   }
 
   protected def runUnwind[A](out: Out[A])(tx: Transaction): Out[A] = out
 
-  protected def runGather[A, B](blocker: Blocker, g: Op[B])(tx: Transaction): Out[Out[A]] =
-    fs2.Stream.emit(runOperation(blocker, g.asInstanceOf[Op[A]])(tx))
+  protected def runGather[A, B](blocker: Blocker, op: Op[B], gather: Out[B] => A)(tx: Transaction): Out[A] =
+    fs2.Stream.emit(gather(runOperation(blocker, op)(tx)))
 
   protected def runQuery[A](blocker: Blocker, q: CypherStatement.Prepared[A], reader: Reader[A])(tx: Transaction): fs2.Stream[F, A] =
     fs2.Stream force runQuery0(tx, q).fproduct { result =>
