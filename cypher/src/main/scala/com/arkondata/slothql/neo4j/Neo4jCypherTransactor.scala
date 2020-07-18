@@ -71,19 +71,20 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
       txVar <- transactionMVarResource
       cLock <- closeLockMVarResource
       eLock <- execLockMVarResource(cLock)
-      runTx = delay(run{ tx => (
-                          for {
-                            _ <- txVar.put(tx)
-                            b <- eLock.read
-                            _ <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
-                          } yield ()
-                        ).guarantee(closeTransaction(tx))
-                         .guaranteeCase {
-                           case ExitCase.Completed => cLock.put(None)
-                           case ExitCase.Error(e)  => cLock.put(Some(e))
-                           case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
-                         }.toIO
-                          .unsafeRunSync()
+      runTx = executeSync.map(exec => run{ tx =>
+                        exec {(
+                            for {
+                              _ <- txVar.put(tx)
+                              b <- eLock.read
+                              _ <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
+                            } yield ()
+                          ).guarantee(closeTransaction(tx))
+                           .guaranteeCase {
+                             case ExitCase.Completed => cLock.put(None)
+                             case ExitCase.Error(e)  => cLock.put(Some(e))
+                             case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
+                           }
+                        }
                     })
       _     <- backgroundWorkResource(runTx)
       tx    <- readTxAsResource(txVar)
@@ -109,6 +110,8 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
 
   protected def readTxAsResource(txVar: MVar[F, Transaction]): Resource[F, Transaction] = Resource.liftF(txVar.read)
 
+  protected def executeSync: F[F[Unit] => Unit] = ce.pure(_.toIO.unsafeRunSync())
+
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
   protected type OutT[R] = Transaction => Out[R]
@@ -132,14 +135,14 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
     fs2.Stream.emit(gather(runOperation(blocker, op)(tx)))
 
   protected def runQuery[A](blocker: Blocker, q: CypherStatement.Prepared[A], reader: Reader[A])(tx: Transaction): fs2.Stream[F, A] =
-    fs2.Stream force runQuery0(tx, q).fproduct { result =>
+    fs2.Stream force execQuery(tx, q).fproduct { result =>
       javaStreamToFs2(blocker, ce.delay{ result.stream() }).evalMap(readRecord(_, reader))
-    }.map((runningQuery[A] _).tupled)
+    }.flatMap((runningQuery[A] _).tupled)
 
-  protected def runQuery0(tx: Transaction, q: CypherStatement.Prepared[_]): F[Result] =
+  protected def execQuery(tx: Transaction, q: CypherStatement.Prepared[_]): F[Result] =
     delay { tx.run(q.template, q.params.asJava) }
 
-  protected def runningQuery[A](result: Result, stream: fs2.Stream[F, A]): fs2.Stream[F, A] = stream
+  protected def runningQuery[A](result: Result, stream: fs2.Stream[F, A]): F[fs2.Stream[F, A]] = ce.pure(stream)
 
   protected def readRecord[A](record: Record, reader: Reader[A]): F[A] = ce.catchNonFatal(reader(record))
 }
