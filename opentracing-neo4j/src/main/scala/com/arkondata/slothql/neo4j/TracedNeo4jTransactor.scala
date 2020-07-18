@@ -40,7 +40,7 @@ class TracedNeo4jTransactor[T[_[*], *], F[_]: ConcurrentEffect](session: T[F, Se
   //   super.sessionResource.tracedLifetime("session")
 
   override protected def transactionResource(run: TransactionWork[Unit] => Unit): Resource[T[F, *], Transaction] =
-    super.transactionResource(run).tracedUsage("transaction: use")
+    super.transactionResource(run).tracedLifetime("transaction")
                                   .evalTap(tx => Traced.currentSpan.setTag("tx" -> tx.##))
 
   override protected def commitTransaction(tx: Transaction): T[F, Unit] =
