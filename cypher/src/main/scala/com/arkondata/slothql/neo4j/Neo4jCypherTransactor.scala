@@ -145,8 +145,23 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])
 }
 
 object Neo4jCypherTransactor {
-  def apply[F[_]: Monad: ConcurrentEffect: ContextShift](driver: Driver): Neo4jCypherTransactor[F] =
+  type Tx[F[_], R] = CypherTransactor.Tx[F, Record, fs2.Stream[F, *], R]
+
+  def apply[F[_]: ConcurrentEffect: ContextShift](driver: Driver): Neo4jCypherTransactor[F] =
     new Neo4jCypherTransactor(Sync[F].delay{ driver.session() })
+
+  def imapK[F[_], G[_]: Monad](f: F ~> G, g: G ~> F): Tx[F, *] ~> Tx[G, *] =
+    λ[Tx[F, *] ~> Tx[G, *]](_
+      .mapK(f)
+      .compile(
+        λ[Operation[Record, fs2.Stream[F, *], *] ~> Operation[Record, fs2.Stream[G, *], *]](_
+          .imapK(
+            λ[fs2.Stream[F, *] ~> fs2.Stream[G, *]](_.translate(f)),
+            λ[fs2.Stream[G, *] ~> fs2.Stream[F, *]](_.translate(g))
+          )
+        )
+      )
+    )
 
   // // // // // // // // //
   // // //  Readers // // //
