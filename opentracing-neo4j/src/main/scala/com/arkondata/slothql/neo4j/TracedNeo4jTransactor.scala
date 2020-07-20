@@ -31,10 +31,10 @@ class TracedNeo4jTransactor[T[_[*], *], F[_]: ConcurrentEffect](session: T[F, Se
     } yield f0
 
 
-  override def runRead[A](tx: Tx[A]): fs2.Stream[T[F, *], A] = super.runRead(tx).traced("runRead")
+  override def runRead[A](tx: Tx[A]): fs2.Stream[T[F, *], A] = super.runRead(tx).trace("runRead")
     .tracedElemLog
 
-  override def runWrite[A](tx: Tx[A]): fs2.Stream[T[F, *], A] = super.runWrite(tx).traced("runWrite")
+  override def runWrite[A](tx: Tx[A]): fs2.Stream[T[F, *], A] = super.runWrite(tx).trace("runWrite")
 
   // override protected def sessionResource: Resource[T[F, *], Session] =
   //   super.sessionResource.tracedLifetime("session")
@@ -53,15 +53,15 @@ class TracedNeo4jTransactor[T[_[*], *], F[_]: ConcurrentEffect](session: T[F, Se
     Traced.currentSpan.log("close transaction") *> super.closeTransaction(tx)
 
   override protected def runUnwind[A](out: fs2.Stream[T[F, *], A])(tx: Transaction): fs2.Stream[T[F, *], A] =
-    super.runUnwind(out)(tx).traced("runUnwind")
+    super.runUnwind(out)(tx).trace("runUnwind")
 
   override protected def runGather[A, B](blocker: Blocker, op: Op[B], gather: fs2.Stream[T[F, *], B] => A)
                                         (tx: Transaction): fs2.Stream[T[F, *], A] =
-    super.runGather(blocker, op, gather)(tx).traced("runGather")
+    super.runGather(blocker, op, gather)(tx).trace("runGather")
 
   override protected def runQuery[A](blocker: Blocker, q: CypherStatement.Prepared[A], reader: Reader[A])(tx: Transaction): fs2.Stream[T[F, *], A] =
-    super.runQuery(blocker, q, reader)(tx).traced("runQuery", Tags.DB_TYPE -> "cypher/neo4j",
-                                                              Tags.DB_STATEMENT -> q.template)
+    super.runQuery(blocker, q, reader)(tx).trace("runQuery", Tags.DB_TYPE -> "cypher/neo4j",
+                                                             Tags.DB_STATEMENT -> q.template)
 
   override protected def execQuery(tx: Transaction, q: CypherStatement.Prepared[_]): T[F, Result] =
     super.execQuery(tx, q) <* traced.currentSpan.log("execute")
