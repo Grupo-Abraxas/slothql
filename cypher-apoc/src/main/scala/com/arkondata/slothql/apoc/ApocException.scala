@@ -9,7 +9,7 @@ object ApocException {
   def adapt: PartialFunction[Throwable, ApocException] =
     readapt{ case err => new ApocException(err) }
 
-  def readapt[E <: Exception](pf : PartialFunction[String, E]): PartialFunction[Throwable, E] = {
+  def readapt[E <: Throwable](pf : PartialFunction[String, E]): PartialFunction[Throwable, E] = {
     val readapt0: PartialFunction[Throwable, String] = {
       case ce: ClientException if ce.getMessage matches regex =>
         regex.r.findFirstMatchIn(ce.getMessage).get.group(1)
