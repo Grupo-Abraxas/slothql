@@ -19,9 +19,7 @@ object Dependencies {
 
   lazy val `neo4j-driver` = "org.neo4j.driver" % "neo4j-java-driver" % Version.neo4jDriver
 
-  lazy val `opentracing-scala`  = "com.arkondata" %% "opentracing-scala"  % Version.opentracingScala
-  lazy val `opentracing-effect` = "com.arkondata" %% "opentracing-effect" % Version.opentracingScala
-  lazy val `opentracing-fs2`    = "com.arkondata" %% "opentracing-fs2"    % Version.opentracingScala
+  lazy val `opentracing-fs2` = "com.arkondata" %% "opentracing-fs2" % Version.opentracingScala
 
   object Test {
     lazy val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest % sbt.Test
@@ -39,7 +37,7 @@ object Dependencies {
 
     lazy val neo4jDriver = "4.0.2"
 
-    lazy val opentracingScala = "0.2.0"
+    lazy val opentracingScala = "0.3.0-RC2"
 
     lazy val scalatest = "3.1.2"
   }
