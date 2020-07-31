@@ -14,9 +14,9 @@ import io.opentracing.tag.Tags
 import org.neo4j.driver.async.ResultCursor
 import org.neo4j.driver.summary.ResultSummary
 
-import com.github.fehu.opentracing.v2.{ Traced, Traced2 }
-import com.github.fehu.opentracing.v2.fs2._
-import com.github.fehu.opentracing.v2.syntax._
+import com.arkondata.opentracing.{ Traced, Traced2 }
+import com.arkondata.opentracing.fs2._
+import com.arkondata.opentracing.syntax._
 import com.arkondata.slothql.cypher.CypherStatement
 
 class TracedNeo4jTransactor[T[_[*], *], F[_]: ConcurrentEffect](session: T[F, Session])
