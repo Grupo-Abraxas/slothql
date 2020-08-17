@@ -34,7 +34,7 @@ lazy val root = (project in file(".")).
     skip in publish := true,
     name := "slothql"
   )
-  .aggregate(cypher, apoc, opentracingNeo4j)
+  .aggregate(cypher, apoc, opentracingNeo4j, mapper)
 
 lazy val cypher = (project in file("cypher"))
   .settings(
@@ -75,6 +75,16 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
       Dependencies.`opentracing-fs2`
     )
   ).dependsOn(cypher)
+
+lazy val mapper = (project in file("mapper"))
+  .settings(
+    docSettings,
+    name := "slothql-mapper",
+    libraryDependencies ++= Seq(
+      Dependencies.`cats-core`,
+      Dependencies.`shapeless`
+    )
+  )
 
 // // // Scaladoc // // //
 
