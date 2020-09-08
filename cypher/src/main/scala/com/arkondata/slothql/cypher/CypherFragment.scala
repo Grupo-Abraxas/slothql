@@ -3,8 +3,6 @@ package com.arkondata.slothql.cypher
 import scala.annotation.unchecked.uncheckedVariance
 
 import cats.data.{ Ior, NonEmptyList }
-import cats.instances.list._
-import cats.instances.option._
 
 
 trait CypherFragment {

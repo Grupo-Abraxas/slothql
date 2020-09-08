@@ -2,7 +2,6 @@ package com.arkondata.slothql
 
 import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.instances.list._
 import cats.syntax.traverse._
 import org.scalactic.source.Position
 import org.scalatest.Assertion
