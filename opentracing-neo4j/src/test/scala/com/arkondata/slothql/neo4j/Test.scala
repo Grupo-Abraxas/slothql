@@ -3,7 +3,6 @@ package com.arkondata.slothql.neo4j
 import java.util.concurrent.TimeUnit
 
 import cats.effect.{ Blocker, ConcurrentEffect, ContextShift }
-import cats.instances.option._
 import cats.syntax.apply._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._

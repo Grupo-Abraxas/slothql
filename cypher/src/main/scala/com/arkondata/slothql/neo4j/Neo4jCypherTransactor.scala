@@ -11,7 +11,6 @@ import cats.effect.{ Blocker, Concurrent, ConcurrentEffect, ContextShift, ExitCa
 import cats.effect.concurrent.MVar
 import cats.effect.syntax.bracket._
 import cats.effect.syntax.effect._
-import cats.instances.function._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.monadError._

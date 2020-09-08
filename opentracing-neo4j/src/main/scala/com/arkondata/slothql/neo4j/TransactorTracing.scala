@@ -9,7 +9,6 @@ import cats.effect.concurrent.MVar
 import cats.effect.syntax.bracket._
 import cats.effect.syntax.effect._
 import cats.effect.{ Async, Blocker, ExitCase, Resource, Sync }
-import cats.instances.option._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._

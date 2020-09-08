@@ -6,8 +6,6 @@ import scala.language.implicitConversions
 
 import cats.{ Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad, catsInstancesForId }
 import cats.arrow.Arrow
-import cats.instances.function._
-import cats.instances.map._
 import cats.syntax.applicative._
 import cats.syntax.apply._
 import cats.syntax.foldable._
