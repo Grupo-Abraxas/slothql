@@ -39,7 +39,7 @@ object Dependencies {
 
     lazy val neo4jDriver = "4.0.2"
 
-    lazy val opentracingScala = "0.2.0"
+    lazy val opentracingScala = "0.2.1"
 
     lazy val scalatest = "3.1.2"
   }
