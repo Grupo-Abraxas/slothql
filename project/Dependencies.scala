@@ -35,7 +35,7 @@ object Dependencies {
 
     lazy val cats       = "2.1.1"
     lazy val catsEffect = "2.1.3"
-    lazy val fs2        = "2.4.2"
+    lazy val fs2        = "2.4.6"
 
     lazy val neo4jDriver = "4.0.2"
 
