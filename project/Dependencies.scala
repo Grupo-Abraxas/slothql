@@ -41,6 +41,6 @@ object Dependencies {
 
     lazy val opentracingScala = "0.2.0"
 
-    lazy val scalatest = "3.1.2"
+    lazy val scalatest = "3.1.4"
   }
 }
