@@ -23,11 +23,17 @@ Cypher
 
 Contributing
 -----------------------------------------------------
-Prerequisites:
+### Prerequisites:
   - Docker
-  - Docker Compose 
+  - Docker Compose
 
-How to run test:
+### Enable scalafmt hook
+
+``` shell
+git config core.hooksPath .git-hooks
+```
+
+### How to run test:
 
 - Clone the project
 - Start dependencies
