@@ -21,3 +21,31 @@ Cypher
 
 [Cypher syntax](cypher/doc/syntax.md)
 
+Contributing
+-----------------------------------------------------
+Prerequisites:
+  - Docker
+  - Docker Compose 
+
+How to run test:
+
+- Clone the project
+- Start dependencies
+``` shell
+make start_dependencies
+```
+note: You can check healthy with `make ps`
+- Run test
+``` shell
+make test
+```
+or yo can start sbt and test inside
+``` shell
+make sbt
+```
+- After all, stop dependencies
+``` shell
+make stop_dependencies
+```
+
+

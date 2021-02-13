@@ -32,3 +32,6 @@ logs: neo4j/plugins/apoc-4.1.0.0-all.jar
 
 sbt:
 	$(COMPOSE_CMD) -f cicd/docker-compose.dev.yml run --rm sbt
+
+test:
+	$(COMPOSE_CMD) -f cicd/docker-compose.dev.yml run --rm sbt test

@@ -1,0 +1,31 @@
+#!/bin/sh
+
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+
+if [[ -z "$UID" ]]; then UID=$(id -g); fi
+if [[ -z "$GID" ]]; then GID=$(id -g); fi
+
+runDockerComposeDev() {
+  export UID
+  export GID
+  CURRENT_SBT=$(docker ps -qf "name=${BRANCH_NAME,,}_sbt_run")
+
+  if [ -z $CURRENT_SBT ]; then
+      echo "Using new sbt execution"
+      docker-compose -p $BRANCH_NAME -f cicd/docker-compose.dev.yml run --rm $1
+  else
+      echo "Using current sbt execution"
+      docker exec $CURRENT_SBT $1
+  fi
+}
+
+# Ensure code is formatted appropriately
+echo -e "\e[33mRunning scalafmt checks...\e[0m";
+if runDockerComposeDev "sbt -warn -batch scalafmtCheckAll scalafmtSbtCheck"
+  then
+    echo -e "\e[32mCode format is fine.\e[0m"
+    exit 0
+  else
+    echo -e "\e[31mCode is badly formatted!\e[0m"
+    exit 1
+fi
