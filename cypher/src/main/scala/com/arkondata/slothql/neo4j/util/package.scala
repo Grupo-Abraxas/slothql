@@ -10,11 +10,9 @@ import cats.syntax.applicative._
 
 import com.arkondata.slothql.cypher.CypherTransactor.{ TxC => TxC0, _ }
 
-
 package object util {
 
-  implicit def fs2StreamTxCMonad[F[_], Src](
-    implicit
+  implicit def fs2StreamTxCMonad[F[_], Src](implicit
     A: Applicative[F],
     compiler: fs2.Stream.Compiler[F, F]
   ): Monad[TxC0[F, Src, fs2.Stream[F, *], *]] =
@@ -27,9 +25,8 @@ package object util {
 
       def flatMap[A, B](fa: TxC[A])(f: A => TxC[B]): TxC[B] =
         fa.flatMap { sa =>
-          val chained = sa.compile.fold(const[F, Src, fs2.Stream[F, *]].apply(fs2.Stream.empty): TxC[B])(
-            (acc, a) =>
-              Apply[Tx[F, Src, fs2.Stream[F, *], *]].product(acc, f(a)).map{ case (l, r) => l append r }
+          val chained = sa.compile.fold(const[F, Src, fs2.Stream[F, *]].apply(fs2.Stream.empty): TxC[B])((acc, a) =>
+            Apply[Tx[F, Src, fs2.Stream[F, *], *]].product(acc, f(a)).map { case (l, r) => l append r }
           )
           liftTx[F, Src, fs2.Stream[F, *]].apply(chained)
         }

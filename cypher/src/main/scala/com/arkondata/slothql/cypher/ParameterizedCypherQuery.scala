@@ -6,14 +6,14 @@ import scala.reflect.macros.whitebox
 
 import shapeless._
 
-
-final class ParameterizedCypherQuery[Params <: HList, T] protected(val query: CypherFragment.Query[T])
-                                                                  (implicit
-                                                                  val gen: CypherStatement.Gen,
-                                                                  val toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]) {
+final class ParameterizedCypherQuery[Params <: HList, T] protected (val query: CypherFragment.Query[T])(implicit
+  val gen: CypherStatement.Gen,
+  val toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]
+) {
   override def hashCode(): Int = query.hashCode()
-  override def equals(obj: Any): Boolean = PartialFunction.cond(obj){
-    case pcq: ParameterizedCypherQuery[_, _] => this.query == pcq.query
+
+  override def equals(obj: Any): Boolean = PartialFunction.cond(obj) { case pcq: ParameterizedCypherQuery[_, _] =>
+    this.query == pcq.query
   }
 
   private[cypher] lazy val statement: query.Statement = query.toCypher(gen)._1
@@ -31,17 +31,25 @@ object ParameterizedCypherQuery {
   def manually[Params <: HList]: ManuallyBuilder[Params] = ManuallyBuilder.asInstanceOf[ManuallyBuilder[Params]]
 
   class ManuallyBuilder[Params <: HList] {
-    def apply[T](query: CypherFragment.Query[T])(implicit gen: CypherStatement.Gen, toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParameterizedCypherQuery[Params, T] =
+
+    def apply[T](query: CypherFragment.Query[T])(implicit
+      gen: CypherStatement.Gen,
+      toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]
+    ): ParameterizedCypherQuery[Params, T] =
       new ParameterizedCypherQuery(query)
   }
   private object ManuallyBuilder extends ManuallyBuilder
 
   /** Interface for applying parameters to [[ParameterizedCypherQuery]]. */
-  class Apply[Params <: HList, T, Out](pcq: ParameterizedCypherQuery[Params, T], out: CypherStatement.Prepared[T] => Out) extends RecordArgs {
+  class Apply[Params <: HList, T, Out](
+    pcq: ParameterizedCypherQuery[Params, T],
+    out: CypherStatement.Prepared[T] => Out
+  ) extends RecordArgs {
+
     final def withParamsRecord(params: Params): Out =
       out {
         pcq.statement.withParamsUnchecked {
-          pcq.toMap(params).map{ case (k, v) => k.name -> v }
+          pcq.toMap(params).map { case (k, v) => k.name -> v }
         }
       }
   }
@@ -51,8 +59,10 @@ object ParameterizedCypherQuery {
   }
 
   object Internal {
-    def create[Params <: HList, T](query: CypherFragment.Query[T])
-                                  (implicit toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]): ParameterizedCypherQuery[Params, T] =
+
+    def create[Params <: HList, T](query: CypherFragment.Query[T])(implicit
+      toMap: ops.record.ToMap.Aux[Params, _ <: Symbol, _ <: Any]
+    ): ParameterizedCypherQuery[Params, T] =
       new ParameterizedCypherQuery(query)
   }
 }
@@ -65,7 +75,7 @@ class ParameterizedCypherStatementMacros(val c: whitebox.Context) { outer =>
   def buildImpl(f: Tree): Tree =
     f match {
       case Function(params, body) =>
-        val (paramTrees, recTpes) = params.map{ p =>
+        val (paramTrees, recTpes) = params.map { p =>
           val tpe = p.tpt.tpe match {
             case p if p <:< typeOf[CypherFragment.Expr.Param[_]] =>
               val List(t) = p.baseType(symbolOf[CypherFragment.Expr.Param[_]]).typeArgs
@@ -82,7 +92,7 @@ class ParameterizedCypherStatementMacros(val c: whitebox.Context) { outer =>
           val recEntry = helper.mkFieldTpe(p.name, tpe)
           argTree -> recEntry
         }.unzip
-        val recTpe = helper.mkHListTpe(recTpes)
+        val recTpe        = helper.mkHListTpe(recTpes)
         val List(retType) = body.tpe.baseType(symbolOf[CypherFragment.Query[_]]).typeArgs
 
         q"""

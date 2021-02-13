@@ -7,22 +7,22 @@ class CypherSyntaxCallSpec extends CypherSyntaxBaseSpec {
 
   "Cypher syntax" should {
     "support yielding procedure calls" in
-      test(
-        Call("test", lit(1)).yielding("foo") { (bar: Expr[GraphElem.Node]) =>
-          bar.prop[String]("x")
-        },
-        "CALL `test`(1) YIELD `foo` AS `bar0` " +
-        "RETURN `bar0`.`x`"
-      ).returns[String]
+    test(
+      Call("test", lit(1)).yielding("foo") { (bar: Expr[GraphElem.Node]) =>
+        bar.prop[String]("x")
+      },
+      "CALL `test`(1) YIELD `foo` AS `bar0` " +
+      "RETURN `bar0`.`x`"
+    ).returns[String]
 
     "support void procedure calls" in
-      test(
-        Call("test", lit(1)).void {
-          lit(1)
-        },
-        "CALL `test`(1) " +
-        "RETURN 1"
-      ).returns[Int]
+    test(
+      Call("test", lit(1)).void {
+        lit(1)
+      },
+      "CALL `test`(1) " +
+      "RETURN 1"
+    ).returns[Int]
   }
 
 }

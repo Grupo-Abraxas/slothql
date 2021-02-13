@@ -9,15 +9,16 @@ import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.~>
 import com.arkondata.opentracing.SpanOps
-import com.arkondata.opentracing.effect.{ ResourceTracingOps, activeSpan }
+import com.arkondata.opentracing.effect.{ activeSpan, ResourceTracingOps }
 import com.arkondata.opentracing.util.TraceBundle
 import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver.{ Session, Transaction }
 
 @TransactorTracing
-class Test[F[_]: ContextShift](session: F[Session])(implicit tracingBundle: TraceBundle.Endo[F], ce: ConcurrentEffect[F])
-  extends Neo4jCypherTransactor[F](session)
-{
+class Test[F[_]: ContextShift](session: F[Session])(implicit
+  tracingBundle: TraceBundle.Endo[F],
+  ce: ConcurrentEffect[F]
+) extends Neo4jCypherTransactor[F](session) {
   import tracingBundle.Implicits._
 
   import TransactorTracing._
@@ -27,50 +28,57 @@ class Test[F[_]: ContextShift](session: F[Session])(implicit tracingBundle: Trac
   def transactorTracingSetup = TransactorTracing.setup[F](
     runRead  = traceStreamK("Transactor#runRead"),
     runWrite = traceStreamK("Transactor#runWrite"),
-    run      = traceStreamK("Transactor#run") andThen
-               logStreamK((log, e) => log.debug("Next stream element", "element" -> e)),
+    run = traceStreamK("Transactor#run") andThen
+      logStreamK((log, e) => log.debug("Next stream element", "element" -> e)),
     blockerResource = traceResource[Blocker](_.traceUsage("Transactor#blocker")),
     sessionResource = traceResource[Session](_.traceUsage("Transactor#session")),
-    transactionResource = traceResource[Transaction](_.traceCreation("Transactor#transaction:build")
-                                                      .traceUsage("Transactor#transaction:usage")),
-    backgroundWorkResource   = traceResource[F[Unit]](_.traceUsage("Transactor#backgroundWork")),
-    runInsideTxWork          = (_: EagerTracingInterface)("TransactionWork"),
-    commitTransaction        = traceLog(_.debug("commit")),
-    rollbackTransaction      = traceLog(_.debug("rollback")),
-    closeTransaction         = traceLog(_.debug("close")),
-    runUnwind = traceStreamK("Transactor#unwind"),
-    runGather = traceStreamK("Transactor#gather"),
-    runQuery  = traceStreamK("Transactor#query"),
-    readRecord = trace((span, _) => read => λ[F ~> F](_ <* span.traverse_(s => ce.delay(s.debug("Read value", "value" -> read.toString))))),
-    reportSummary = (summary: ResultSummary) => activeSpan.flatMap(_.traverse_(s =>
-                    ce.delay(s.debug(
-                      "Result fully consumed.",
-                      "summary.queryType"                     -> summary.queryType,
-                      "summary.notifications"                 -> summary.notifications,
-                      "summary.resultAvailableAfter"          -> summary.resultAvailableAfter(TimeUnit.MILLISECONDS),
-                      "summary.resultAvailableAfter.unit"     -> "milliseconds",
-                      "summary.resultConsumedAfter"           -> summary.resultConsumedAfter(TimeUnit.MILLISECONDS),
-                      "summary.resultConsumedAfter.unit"      -> "milliseconds",
-                      "summary.server.address"                -> summary.server.address,
-                      "summary.server.version"                -> summary.server.version,
-                      "summary.database.name"                 -> summary.database.name,
-                      "summary.counters.containsUpdates"      -> summary.counters.containsUpdates,
-                      "summary.counters.nodesCreated"         -> summary.counters.nodesCreated,
-                      "summary.counters.nodesDeleted"         -> summary.counters.nodesDeleted,
-                      "summary.counters.relationshipsCreated" -> summary.counters.relationshipsCreated,
-                      "summary.counters.relationshipsDeleted" -> summary.counters.relationshipsDeleted,
-                      "summary.counters.propertiesSet"        -> summary.counters.propertiesSet,
-                      "summary.counters.labelsAdded"          -> summary.counters.labelsAdded,
-                      "summary.counters.labelsRemoved"        -> summary.counters.labelsRemoved,
-                      "summary.counters.indexesAdded"         -> summary.counters.indexesAdded,
-                      "summary.counters.indexesRemoved"       -> summary.counters.indexesRemoved,
-                      "summary.counters.constraintsAdded"     -> summary.counters.constraintsAdded,
-                      "summary.counters.constraintsRemoved"   -> summary.counters.constraintsRemoved,
-                      "summary.counters.containsSystemUpdates" -> summary.counters.containsSystemUpdates,
-                      "summary.counters.systemUpdates"        -> summary.counters.systemUpdates
-                    ))
-                  ))
+    transactionResource = traceResource[Transaction](
+      _.traceCreation("Transactor#transaction:build")
+        .traceUsage("Transactor#transaction:usage")
+    ),
+    backgroundWorkResource = traceResource[F[Unit]](_.traceUsage("Transactor#backgroundWork")),
+    runInsideTxWork        = (_: EagerTracingInterface)("TransactionWork"),
+    commitTransaction      = traceLog(_.debug("commit")),
+    rollbackTransaction    = traceLog(_.debug("rollback")),
+    closeTransaction       = traceLog(_.debug("close")),
+    runUnwind              = traceStreamK("Transactor#unwind"),
+    runGather              = traceStreamK("Transactor#gather"),
+    runQuery               = traceStreamK("Transactor#query"),
+    readRecord = trace((span, _) =>
+      read => λ[F ~> F](_ <* span.traverse_(s => ce.delay(s.debug("Read value", "value" -> read.toString))))
+    ),
+    reportSummary = (summary: ResultSummary) =>
+      activeSpan.flatMap(
+        _.traverse_(s =>
+          ce.delay(
+            s.debug(
+              "Result fully consumed.",
+              "summary.queryType"                      -> summary.queryType,
+              "summary.notifications"                  -> summary.notifications,
+              "summary.resultAvailableAfter"           -> summary.resultAvailableAfter(TimeUnit.MILLISECONDS),
+              "summary.resultAvailableAfter.unit"      -> "milliseconds",
+              "summary.resultConsumedAfter"            -> summary.resultConsumedAfter(TimeUnit.MILLISECONDS),
+              "summary.resultConsumedAfter.unit"       -> "milliseconds",
+              "summary.server.address"                 -> summary.server.address,
+              "summary.server.version"                 -> summary.server.version,
+              "summary.database.name"                  -> summary.database.name,
+              "summary.counters.containsUpdates"       -> summary.counters.containsUpdates,
+              "summary.counters.nodesCreated"          -> summary.counters.nodesCreated,
+              "summary.counters.nodesDeleted"          -> summary.counters.nodesDeleted,
+              "summary.counters.relationshipsCreated"  -> summary.counters.relationshipsCreated,
+              "summary.counters.relationshipsDeleted"  -> summary.counters.relationshipsDeleted,
+              "summary.counters.propertiesSet"         -> summary.counters.propertiesSet,
+              "summary.counters.labelsAdded"           -> summary.counters.labelsAdded,
+              "summary.counters.labelsRemoved"         -> summary.counters.labelsRemoved,
+              "summary.counters.indexesAdded"          -> summary.counters.indexesAdded,
+              "summary.counters.indexesRemoved"        -> summary.counters.indexesRemoved,
+              "summary.counters.constraintsAdded"      -> summary.counters.constraintsAdded,
+              "summary.counters.constraintsRemoved"    -> summary.counters.constraintsRemoved,
+              "summary.counters.containsSystemUpdates" -> summary.counters.containsSystemUpdates,
+              "summary.counters.systemUpdates"         -> summary.counters.systemUpdates
+            )
+          )
+        )
+      )
   )
 }
-
-

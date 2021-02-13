@@ -2,34 +2,33 @@ import com.typesafe.sbt.SbtGit.GitKeys
 
 enablePlugins(GitVersioning)
 
-ThisBuild / scalaVersion      := "2.13.2"
+ThisBuild / scalaVersion := "2.13.2"
 
-ThisBuild / isSnapshot        := false
-ThisBuild / git.baseVersion   := "0.2-dev"
+ThisBuild / isSnapshot := false
+ThisBuild / git.baseVersion := "0.2-dev"
 ThisBuild / git.gitHeadCommit := GitKeys.gitReader.value.withGit(
-                                   _.asInstanceOf[com.typesafe.sbt.git.JGit]
-                                    .headCommit.map(_.abbreviate(8).name)
-                                 )
+  _.asInstanceOf[com.typesafe.sbt.git.JGit].headCommit.map(_.abbreviate(8).name)
+)
 
 ThisBuild / organization := "com.arkondata"
 
-ThisBuild / homepage   := Some(url("https://github.com/Grupo-Abraxas/slothql"))
-ThisBuild / scmInfo    := Some(ScmInfo(homepage.value.get, "git@github.com:Grupo-Abraxas/slothql.git"))
+ThisBuild / homepage := Some(url("https://github.com/Grupo-Abraxas/slothql"))
+ThisBuild / scmInfo := Some(ScmInfo(homepage.value.get, "git@github.com:Grupo-Abraxas/slothql.git"))
 ThisBuild / developers := List(
-                            Developer("fehu", "Dmitry K", "kdn.kovalev@gmail.com", url("https://github.com/fehu"))
-                          )
+  Developer("fehu", "Dmitry K", "kdn.kovalev@gmail.com", url("https://github.com/fehu"))
+)
 ThisBuild / licenses += ("MIT", url("https://opensource.org/licenses/MIT"))
 
-
-lazy val root = (project in file(".")).
-  settings(
+lazy val root = (project in file("."))
+  .settings(
     docSettings,
-    inThisBuild(List(
-      git.gitUncommittedChanges := (git.gitUncommittedChanges.value || isSnapshot.value),
-      scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
-      addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
-    ) ++ versionWithGit),
-
+    inThisBuild(
+      List(
+        git.gitUncommittedChanges := (git.gitUncommittedChanges.value || isSnapshot.value),
+        scalacOptions in Compile ++= Seq("-unchecked", "-feature", "-deprecation"),
+        addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
+      ) ++ versionWithGit
+    ),
     crossScalaVersions := Nil,
     skip in publish := true,
     name := "slothql"
@@ -63,7 +62,8 @@ lazy val apoc = (project in file("cypher-apoc"))
   .settings(
     docSettings,
     name := "slothql-cypher-apoc"
-  ).dependsOn(cypher % "compile -> compile; test -> test")
+  )
+  .dependsOn(cypher % "compile -> compile; test -> test")
 
 lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
   .settings(
@@ -74,7 +74,8 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
       Dependencies.`opentracing-effect`,
       Dependencies.`opentracing-fs2`
     )
-  ).dependsOn(cypher)
+  )
+  .dependsOn(cypher)
 
 // // // Scaladoc // // //
 

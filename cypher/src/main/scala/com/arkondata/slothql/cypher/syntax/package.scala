@@ -6,39 +6,46 @@ import scala.language.{ dynamics, implicitConversions }
 
 import cats.data.{ Ior, NonEmptyList }
 import shapeless.tag.@@
-import shapeless.{ ::, =:!=, HList, HNil, Refute, Unpack1, ops, |∨| }
+import shapeless.{ ::, =:!=, |∨|, ops, HList, HNil, Refute, Unpack1 }
 
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 
 package object syntax extends CypherSyntaxLowPriorityImplicits {
 
-  type Expr[+A] = CF.Expr[A]
+  type Expr[+A]  = CF.Expr[A]
   type Query[+A] = CF.Query.Query0[A]
 
   object Match {
-    def apply[R]              (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]
-    def optional[R]           (query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.optional[R]
-    def maybe[R](opt: Boolean)(query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.maybe[R]
+    def apply[R](query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.match_[R]
+    def optional[R](query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.optional[R]
+
+    def maybe[R](opt: Boolean)(query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxPatternMacros.maybe[R]
   }
 
   object With extends {
+
     @compileTimeOnly("would have been replaced at With.apply")
     def where(cond: CF.Expr[Boolean]): Nothing = ???
 
     @compileTimeOnly("would have been replaced at With.apply")
     def distinct: Nothing = ???
+
     @compileTimeOnly("would have been replaced at With.apply")
     def distinct(boolean: Boolean): Nothing = ???
 
     @compileTimeOnly("would have been replaced at With.apply")
     def orderBy(expr: CF.Expr[_], ord: CF.Return.Order = CF.Return.Order.Ascending): Nothing = ???
+
     @compileTimeOnly("would have been replaced at With.apply")
     def orderBy(expr: CF.Expr[_], ord: CF.Return.Order.type => CF.Return.Order): Nothing = ???
+
     @compileTimeOnly("would have been replaced at With.apply")
     def orderBy(seq: Seq[(CF.Expr[_], CF.Return.Order)]): Nothing = ???
 
     @compileTimeOnly("would have been replaced at With.apply")
     def skip(n: CF.Expr.Input[Long]): Nothing = ???
+
     @compileTimeOnly("would have been replaced at With.apply")
     def limit(n: CF.Expr.Input[Long]): Nothing = ???
 
@@ -47,58 +54,93 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     // 1 Expr
 
-    def apply[T1, R](t1: CF.Expr[T1])
-                    (query: CF.Expr.Alias[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, R](t1: CF.Expr[T1])(query: CF.Expr.Alias[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with1[T1, R]
 
-    def apply[T1, R](wildcard: **.type, t1: CF.Expr[T1])
-                    (query: CF.Expr.Alias[T1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, R](wildcard: **.type, t1: CF.Expr[T1])(
+      query: CF.Expr.Alias[T1] => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild1[T1, R]
 
     // 2 Exprs
 
-    def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])
-                        (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with2[T1, T2, R]
 
-    def apply[T1, T2, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2])
-                        (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild2[T1, T2, R]
 
     // 3 Exprs
 
-    def apply[T1, T2, T3, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])
-                            (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, T3, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with3[T1, T2, T3, R]
 
-    def apply[T1, T2, T3, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])
-                            (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, T3, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild3[T1, T2, T3, R]
 
     // 4 Exprs
 
-    def apply[T1, T2, T3, T4, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])
-             (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, T3, T4, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with4[T1, T2, T3, T4, R]
 
-    def apply[T1, T2, T3, T4, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])
-             (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, T3, T4, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild4[T1, T2, T3, T4, R]
 
     // 5 Exprs
 
-    def apply[T1, T2, T3, T4, T5, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4], t5: CF.Expr[T5])
-             (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4], CF.Expr.Alias[T5]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, T3, T4, T5, R](
+      t1: CF.Expr[T1],
+      t2: CF.Expr[T2],
+      t3: CF.Expr[T3],
+      t4: CF.Expr[T4],
+      t5: CF.Expr[T5]
+    )(
+      query: (
+        CF.Expr.Alias[T1],
+        CF.Expr.Alias[T2],
+        CF.Expr.Alias[T3],
+        CF.Expr.Alias[T4],
+        CF.Expr.Alias[T5]
+      ) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.with5[T1, T2, T3, T4, T5, R]
 
-    def apply[T1, T2, T3, T4, T5, R](wildcard: **.type, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4], t5: CF.Expr[T5])
-             (query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4], CF.Expr.Alias[T5]) => CF.Query.Query0[R]): CF.Query.Query0[R] =
+    def apply[T1, T2, T3, T4, T5, R](
+      wildcard: **.type,
+      t1: CF.Expr[T1],
+      t2: CF.Expr[T2],
+      t3: CF.Expr[T3],
+      t4: CF.Expr[T4],
+      t5: CF.Expr[T5]
+    )(
+      query: (
+        CF.Expr.Alias[T1],
+        CF.Expr.Alias[T2],
+        CF.Expr.Alias[T3],
+        CF.Expr.Alias[T4],
+        CF.Expr.Alias[T5]
+      ) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild5[T1, T2, T3, T4, T5, R]
 
   }
 
   object Unwind {
-    def apply[A, R](list: CF.Expr[List[A]])(func: CF.Expr.Alias[A] => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxUnwindMacros.unwind[A, R]
+
+    def apply[A, R](list: CF.Expr[List[A]])(func: CF.Expr.Alias[A] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxUnwindMacros.unwind[A, R]
   }
 
   object Call {
@@ -107,9 +149,17 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     class CallOps {
       def void[R](res: CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.void[R]
-      def yielding[A1, R](yields1: String)(res: CF.Expr.Alias[A1] => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield1[A1, R]
-      def yielding[A1, A2, R](yields1: String, yields2: String)(res:( CF.Expr.Alias[A1], CF.Expr.Alias[A2]) => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield2[A1, A2, R]
-      def yielding[A1, A2, A3, R](yields1: String, yields2: String, yields3: String)(res:( CF.Expr.Alias[A1], CF.Expr.Alias[A2], CF.Expr.Alias[A3]) => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield3[A1, A2, A3, R]
+
+      def yielding[A1, R](yields1: String)(res: CF.Expr.Alias[A1] => CF.Query.Query0[R]): CF.Query.Query0[R] =
+        macro CypherSyntaxCallMacros.yield1[A1, R]
+
+      def yielding[A1, A2, R](yields1: String, yields2: String)(
+        res: (CF.Expr.Alias[A1], CF.Expr.Alias[A2]) => CF.Query.Query0[R]
+      ): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield2[A1, A2, R]
+
+      def yielding[A1, A2, A3, R](yields1: String, yields2: String, yields3: String)(
+        res: (CF.Expr.Alias[A1], CF.Expr.Alias[A2], CF.Expr.Alias[A3]) => CF.Query.Query0[R]
+      ): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.yield3[A1, A2, A3, R]
     }
 
     // @compileTimeOnly("would have been replaced at Call.apply")
@@ -135,16 +185,19 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Delete {
-    def apply[R](elems: Expr[GraphElem]*)      (res: Query[R]): Query[R] = make(elems, detach = false, res)
+    def apply[R](elems: Expr[GraphElem]*)(res: Query[R]): Query[R]       = make(elems, detach = false, res)
     def detach[R](elems: Expr[GraphElem.Node]*)(res: Query[R]): Query[R] = make(elems, detach = true, res)
 
     private def make[R](elems: Seq[Expr[GraphElem]], detach: Boolean, res: Query[R]): Query[R] =
-      NonEmptyList.fromList(elems.toList).map { elemsNel =>
-        CF.Query.Clause(
-          CF.Clause.Delete(elemsNel, detach),
-          res
-        )
-      }.getOrElse(res)
+      NonEmptyList
+        .fromList(elems.toList)
+        .map { elemsNel =>
+          CF.Query.Clause(
+            CF.Clause.Delete(elemsNel, detach),
+            res
+          )
+        }
+        .getOrElse(res)
   }
 
   object Foreach {
@@ -156,13 +209,13 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // // // //
 
   type Node = CF.Expr[GraphElem.Node] with CypherStatement.Alias
-  type Rel  = CF.Expr[GraphElem.Rel]  with CypherStatement.Alias
-  type Path = CF.Expr[GraphPath]      with CypherStatement.Alias
+  type Rel  = CF.Expr[GraphElem.Rel] with CypherStatement.Alias
+  type Path = CF.Expr[GraphPath] with CypherStatement.Alias
 
   object CypherSyntaxFromMacro {
-    def mkNode(name: String): Node                          =     CF.Expr.Alias[GraphElem.Node](name)
+    def mkNode(name: String): Node                          = CF.Expr.Alias[GraphElem.Node](name)
     def mkRel[D <: Rel.Direction](name: String): Rel.Aux[D] = new CF.Expr.Alias[GraphElem.Rel](name) { type Dir = D }
-    def mkPath(name: String): Path                          =     CF.Expr.Alias[GraphPath](name)
+    def mkPath(name: String): Path                          = CF.Expr.Alias[GraphPath](name)
   }
 
   // // // // // //
@@ -178,13 +231,14 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // RNX => RN
 
   protected object CypherSyntaxInternal {
+
     sealed trait NR {
       type Dir <: Rel.Direction
     }
     sealed trait NRI extends NR { type Dir = Rel.Incoming }
     sealed trait NRO extends NR { type Dir = Rel.Outgoing }
 
-    sealed trait RN{
+    sealed trait RN {
       type Dir <: Rel.Direction
     }
     sealed trait RNI extends RN { type Dir = Rel.Incoming }
@@ -192,7 +246,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     sealed trait RNX extends RN {
       type Dir = DirRight
-      type DirLeft  <: Rel.Direction
+      type DirLeft <: Rel.Direction
       type DirRight <: Rel.Direction
     }
     sealed trait RNXII { type DirLeft = Rel.Incoming; type DirRight = Rel.Incoming }
@@ -204,7 +258,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object < {
-    def unapply(n: Node): Option[(Node, RNI)] = ???
+    def unapply(n: Node): Option[(Node, RNI)]  = ???
     def unapply(n: NRI): Option[(Node, RNXII)] = ???
     def unapply(n: NRO): Option[(Node, RNXIO)] = ???
   }
@@ -212,16 +266,16 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object > {
     def unapply(n: Node): Option[(NRO, Node)] = ???
-    def unapply(n: NRI): Option[(NRO, NRI)] = ???
-    def unapply(n: NRO): Option[(NRO, NRO)] = ???
+    def unapply(n: NRI): Option[(NRO, NRI)]   = ???
+    def unapply(n: NRO): Option[(NRO, NRO)]   = ???
   }
 
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object - {
-    def unapply(r: NRI): Option[(Node, Rel.Aux[Rel.Incoming])] = ???
-    def unapply(r: NRO): Option[(Node, Rel.Aux[Rel.Outgoing])] = ???
-    def unapply(l: RNI): Option[(Rel.Aux[Rel.Incoming], Node)] = ???
-    def unapply(l: RNO): Option[(Rel.Aux[Rel.Outgoing], Node)] = ???
+    def unapply(r: NRI): Option[(Node, Rel.Aux[Rel.Incoming])]  = ???
+    def unapply(r: NRO): Option[(Node, Rel.Aux[Rel.Outgoing])]  = ???
+    def unapply(l: RNI): Option[(Rel.Aux[Rel.Incoming], Node)]  = ???
+    def unapply(l: RNO): Option[(Rel.Aux[Rel.Outgoing], Node)]  = ???
     def unapply(l: RNXII): Option[(RNI, Rel.Aux[Rel.Incoming])] = ???
     def unapply(l: RNXIO): Option[(RNI, Rel.Aux[Rel.Outgoing])] = ???
 //    def unapply(l: RNXOI): Option[(RNO, Rel[Rel.Incoming])] = ???
@@ -230,12 +284,14 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object Node {
+
     /** Supported params: {{{String}}}, {{{Iterable[String]}}}, {{{:=[_]}}}. */
     def unapplySeq(n: Node): Option[Seq[Any]] = ???
   }
+
   @compileTimeOnly("Con only be used inside `Match` / `Create`")
   object Rel {
-    type Aux[D <: Rel.Direction]  = Rel { type Dir = D }
+    type Aux[D <: Rel.Direction] = Rel { type Dir = D }
 
     type Direction = CF.Pattern.Rel.Direction
     type Incoming  = CF.Pattern.Rel.Incoming.type
@@ -249,10 +305,12 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   object := {
     def unapply(any: Any): Option[(String, Any)] = ???
   }
+
   @compileTimeOnly("Con only be used inside `Match`")
   object ** {
     def unapply(any: Any): Option[(Int, Int)] = ???
   }
+
   @compileTimeOnly("Con only be used inside `Match`")
   object ::= {
     def unapply(any: Any): Option[(Path, Node)] = ???
@@ -263,32 +321,44 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // // // //
 
   def `return`[A](expr: CF.Expr[A]): CF.Query.Return[A] = cypherSyntaxExprToQueryReturn(expr)
-  def `return`[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] = cypherSyntaxTupleToQueryReturn(tuple)
 
-  def nothing      : Query[Nothing] = CF.Query.Nothing
+  def `return`[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] =
+    cypherSyntaxTupleToQueryReturn(tuple)
+
+  def nothing: Query[Nothing]       = CF.Query.Nothing
   def returnNothing: Query[Nothing] = CF.Query.Nothing
 
-  implicit def cypherSyntaxExprToReturn[A](expr: CF.Expr[A]): CF.Return[A] = CF.Return.Expr(expr, as = None)
-  implicit def cypherSyntaxExprToQueryReturn[A](expr: CF.Expr[A]): CF.Query.Return[A] = CF.Query.Return(expr)
+  implicit def cypherSyntaxExprToReturn[A](expr: CF.Expr[A]): CF.Return[A]               = CF.Return.Expr(expr, as = None)
+  implicit def cypherSyntaxExprToQueryReturn[A](expr: CF.Expr[A]): CF.Query.Return[A]    = CF.Query.Return(expr)
   implicit def cypherSyntaxReturnToQueryReturn[A](ret: CF.Return[A]): CF.Query.Return[A] = CF.Query.Return(ret)
 
   implicit final class CypherSyntaxReturnAsOps[A](expr: CF.Expr[A]) {
     def as(alias: CypherStatement.Alias): CF.Return.Expr[A] = CF.Return.Expr(expr, as = Option(alias))
-    def as(alias: String): CF.Return.Expr[A] = as(CF.Expr.Alias.Fixed(alias))
+    def as(alias: String): CF.Return.Expr[A]                = as(CF.Expr.Alias.Fixed(alias))
   }
 
-  implicit def cypherSyntaxTupleToReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Return[ret.Out] = ret(tuple)
-  implicit def cypherSyntaxTupleToQueryReturn[T <: Product](tuple: T)(implicit ret: CypherSyntaxReturnTuple[T]): CF.Query.Return[ret.Out] = CF.Query.Return(ret(tuple))
+  implicit def cypherSyntaxTupleToReturn[T <: Product](tuple: T)(implicit
+    ret: CypherSyntaxReturnTuple[T]
+  ): CF.Return[ret.Out] = ret(tuple)
+
+  implicit def cypherSyntaxTupleToQueryReturn[T <: Product](tuple: T)(implicit
+    ret: CypherSyntaxReturnTuple[T]
+  ): CF.Query.Return[ret.Out] = CF.Query.Return(ret(tuple))
 
   trait CypherSyntaxReturnTuple[T <: Product] {
     type Out
     def apply(t: T): CF.Return.Return0[Out]
   }
+
   object CypherSyntaxReturnTuple {
-    implicit def cypherSyntaxReturnTuple[T <: Product]: CypherSyntaxReturnTuple[T] = macro CypherSyntaxMacros.returnTuple[T]
+
+    implicit def cypherSyntaxReturnTuple[T <: Product]: CypherSyntaxReturnTuple[T] =
+      macro CypherSyntaxMacros.returnTuple[T]
   }
 
-  implicit def toCypherSyntaxReturnOps[T](t: T)(implicit canReturn: CypherSyntaxReturnOps.CanReturn[T]): CypherSyntaxReturnOps[T, HNil, canReturn.Out] =
+  implicit def toCypherSyntaxReturnOps[T](t: T)(implicit
+    canReturn: CypherSyntaxReturnOps.CanReturn[T]
+  ): CypherSyntaxReturnOps[T, HNil, canReturn.Out] =
     new CypherSyntaxReturnOps(t, false, Nil, None, None)(canReturn)
 
   final class CypherSyntaxReturnOps[T, Done <: HList, R](
@@ -305,40 +375,50 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     def orderBy(expr: CF.Expr[_], ord: CF.Return.Order = CF.Return.Order.Ascending): CypherSyntaxReturnOps[T, Done, R] =
       copy(orderBy = orderBy0 :+ (expr -> ord))
+
     def orderBy(expr: CF.Expr[_], ord: CF.Return.Order.type => CF.Return.Order): CypherSyntaxReturnOps[T, Done, R] =
       orderBy(expr, ord(CF.Return.Order))
 
-    def skip[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])
-                                 (implicit notYet: NotYet[Done, Opt.Skip]): CypherSyntaxReturnOps[T, Opt.Skip :: Done, R] =
+    def skip[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])(implicit
+      notYet: NotYet[Done, Opt.Skip]
+    ): CypherSyntaxReturnOps[T, Opt.Skip :: Done, R] =
       copy(skip = Some(inp.asInstanceOf[CF.Expr.Input[Long]]))
 
-    def limit[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])
-                                  (implicit notYet: NotYet[Done, Opt.Limit]): CypherSyntaxReturnOps[T, Opt.Limit :: Done, R] =
+    def limit[N: (Int |∨| Long)#λ](inp: CF.Expr.Input[N])(implicit
+      notYet: NotYet[Done, Opt.Limit]
+    ): CypherSyntaxReturnOps[T, Opt.Limit :: Done, R] =
       copy(limit = Some(inp.asInstanceOf[CF.Expr.Input[Long]]))
 
     private def copy[Steps <: HList](
-      distinct: Boolean                  = distinct0,
-      orderBy: CF.Return.OrderBy         = orderBy0,
-      skip: Option[CF.Expr.Input[Long]]  = skip0,
+      distinct: Boolean = distinct0,
+      orderBy: CF.Return.OrderBy = orderBy0,
+      skip: Option[CF.Expr.Input[Long]] = skip0,
       limit: Option[CF.Expr.Input[Long]] = limit0
     ): CypherSyntaxReturnOps[T, Steps, R] =
       new CypherSyntaxReturnOps(t, distinct, orderBy, skip, limit)
 
     def `return`: CF.Return[R] = {
       val options = distinct0 || orderBy0.nonEmpty || skip0.nonEmpty || limit0.nonEmpty
-      val ret = canReturn(t)
+      val ret     = canReturn(t)
       if (options) CF.Return.Options(ret, distinct0, orderBy0, skip0, limit0) else ret
     }
   }
 
   object CypherSyntaxReturnOps {
-    implicit def returnClauseFromCypherSyntaxReturnOps[T, L <: HList, R](ops: CypherSyntaxReturnOps[T, L, R]): CF.Return[R] = ops.`return`
-    implicit def query0FromCypherSyntaxReturnOps[T, L <: HList, R](ops: CypherSyntaxReturnOps[T, L, R]): CF.Query.Query0[R] = CF.Query.Return(ops.`return`)
+
+    implicit def returnClauseFromCypherSyntaxReturnOps[T, L <: HList, R](
+      ops: CypherSyntaxReturnOps[T, L, R]
+    ): CF.Return[R] = ops.`return`
+
+    implicit def query0FromCypherSyntaxReturnOps[T, L <: HList, R](
+      ops: CypherSyntaxReturnOps[T, L, R]
+    ): CF.Query.Query0[R] = CF.Query.Return(ops.`return`)
 
     sealed trait CanReturn[T] {
       type Out
       def apply(t: T): CF.Return.Return0[Out]
     }
+
     object CanReturn {
       type Aux[T, R] = CanReturn[T] { type Out = R }
 
@@ -356,10 +436,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     }
 
     sealed trait Opt
+
     object Opt {
       case object Distinct extends Opt
-      case object Skip     extends Opt
-      case object Limit    extends Opt
+      case object Skip extends Opt
+      case object Limit extends Opt
 
       type Distinct = Distinct.type
       type Skip     = Skip.type
@@ -368,9 +449,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     @implicitNotFound("${S} has already been configured")
     trait NotYet[Done <: HList, S <: Opt]
+
     object NotYet {
-      implicit def notYet[Done <: HList, S <: Opt](
-        implicit not: Refute[ops.hlist.Selector[Done, S]]
+
+      implicit def notYet[Done <: HList, S <: Opt](implicit
+        not: Refute[ops.hlist.Selector[Done, S]]
       ): NotYet[Done, S] = instance.asInstanceOf[NotYet[Done, S]]
 
       private lazy val instance = new NotYet[HList, Opt] {}
@@ -382,6 +465,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // // // // //
 
   implicit final class CypherSyntaxGraphElemOps(g: CF.Expr[GraphElem]) {
+
     /** Select all vertex/edge properties */
     def props: CF.Expr[Map[String, Any]] = g.asInstanceOf[CF.Expr[Map[String, Any]]]
 
@@ -396,18 +480,22 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     /** Call built-in `id` function. */
     def id: CF.Expr[Long] = func("id")
+
     /** Call built-in `count` function. */
     def count: CF.Expr[Long] = func("count")
+
     /** Call built-in `keys` function. */
     def keys: CF.Expr[List[String]] = func("keys")
   }
 
   implicit final class CypherSyntaxNodeOps(n: CF.Expr[GraphElem.Node]) {
+
     /** Call built-in `labels` function. */
     def labels: CF.Expr[List[String]] = n.func("labels")
   }
 
   implicit final class CypherSyntaxRelOps(r: CF.Expr[GraphElem.Rel]) {
+
     /** Call built-in `type` function. */
     def tpe: CF.Expr[String] = r.func("type")
 
@@ -416,9 +504,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   implicit final class CypherSyntaxPathOps(p: CF.Expr[GraphPath]) {
-    def nodes: CF.Expr[List[GraphElem.Node]] = "nodes".func(p)
+    def nodes: CF.Expr[List[GraphElem.Node]]        = "nodes".func(p)
     def relationships: CF.Expr[List[GraphElem.Rel]] = "relationships".func(p)
-    def length: CF.Expr[Long] = "length".func(p)
+    def length: CF.Expr[Long]                       = "length".func(p)
   }
 
   // // // // // // // // // // // //
@@ -444,6 +532,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // specifying WHERE condition is not supported by this syntax helper
   // assigning aliases to procedure outputs is not supported by this syntax helper
   protected[syntax] object CypherSyntaxProcedureOps {
+
     class CallBuilder(procedure: String, params: List[CF.Expr[_]]) {
       // TODO ==========================================================================================================
 //      def void[R](res: Match.Result[R]): Match.Result[R] = impl.Call.void(procedure, params, res)
@@ -453,6 +542,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   implicit final class CypherSyntaxAsStringOps[A: CypherSyntaxAsString.Can](expr: CF.Expr[A]) {
+
     /** Call built-in `toString` function. */
     def asString: CF.Expr[String] = CF.Expr.Func("toString", List(expr))
   }
@@ -461,8 +551,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     trait Can[A]
     private object Can extends Can[Any]
 
-    implicit lazy val canString: Can[String] = Can.asInstanceOf[Can[String]]
-    implicit lazy val canBoolean: Can[Boolean] = Can.asInstanceOf[Can[Boolean]]
+    implicit lazy val canString: Can[String]    = Can.asInstanceOf[Can[String]]
+    implicit lazy val canBoolean: Can[Boolean]  = Can.asInstanceOf[Can[Boolean]]
     implicit def canNumeric[N: Numeric]: Can[N] = Can.asInstanceOf[Can[N]]
   }
 
@@ -488,42 +578,45 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def unary_! : CF.Expr[Boolean] = CF.Expr.LogicUnaryExpr(expr0, CF.Expr.LogicExpr.Negate)
 
     def and(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.And)
-    def && (expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = and(expr1)
+    def &&(expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = and(expr1)
 
-    def or (expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Or)
-    def || (expr1: CF.Expr[Boolean]): CF.Expr[Boolean]  = or(expr1)
+    def or(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Or)
+    def ||(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = or(expr1)
 
     def xor(expr1: CF.Expr[Boolean]): CF.Expr[Boolean] = binary(expr1, CF.Expr.LogicExpr.Xor)
 
-    private def binary(expr1: CF.Expr[Boolean], op: CF.Expr.LogicExpr.BinaryOp) = CF.Expr.LogicBinaryExpr(expr0, expr1, op)
+    private def binary(expr1: CF.Expr[Boolean], op: CF.Expr.LogicExpr.BinaryOp) =
+      CF.Expr.LogicBinaryExpr(expr0, expr1, op)
   }
 
   implicit final class CypherSyntaxCompareExprOps[A](expr0: CF.Expr[A]) {
-    def eq (expr1: CF.Expr[_]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Eq)
+    def eq(expr1: CF.Expr[_]): CF.Expr[Boolean]  = binary(expr1, CF.Expr.CompareExpr.Eq)
     def ===(expr1: CF.Expr[_]): CF.Expr[Boolean] = eq(expr1)
 
     def neq(expr1: CF.Expr[_]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Neq)
-    def <> (expr1: CF.Expr[_]): CF.Expr[Boolean] = neq(expr1)
+    def <>(expr1: CF.Expr[_]): CF.Expr[Boolean]  = neq(expr1)
 
-    def isNull : CF.Expr[Boolean] = unary(CF.Expr.CompareExpr.IsNull)
+    def isNull: CF.Expr[Boolean]  = unary(CF.Expr.CompareExpr.IsNull)
     def notNull: CF.Expr[Boolean] = unary(CF.Expr.CompareExpr.NotNull)
 
-    def lt (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
-    def <  (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
+    def lt(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lt)
+    def <(expr1: CF.Expr[A]): CF.Expr[Boolean]  = binary(expr1, CF.Expr.CompareExpr.Lt)
 
     def lte(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lte)
-    def <= (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Lte)
+    def <=(expr1: CF.Expr[A]): CF.Expr[Boolean]  = binary(expr1, CF.Expr.CompareExpr.Lte)
 
     def gte(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gte)
-    def >= (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gte)
+    def >=(expr1: CF.Expr[A]): CF.Expr[Boolean]  = binary(expr1, CF.Expr.CompareExpr.Gte)
 
-    def gt (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
-    def > (expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
+    def gt(expr1: CF.Expr[A]): CF.Expr[Boolean] = binary(expr1, CF.Expr.CompareExpr.Gt)
+    def >(expr1: CF.Expr[A]): CF.Expr[Boolean]  = binary(expr1, CF.Expr.CompareExpr.Gt)
 
     def in(expr1: CF.Expr[List[A]]): CF.Expr[Boolean] = CF.Expr.InList(expr1, expr0)
 
     private def unary(op: CF.Expr.CompareExpr.UnaryOp) = CF.Expr.CompareUnaryExpr(expr0, op)
-    private def binary(expr1: CF.Expr[_], op: CF.Expr.CompareExpr.BinaryOp) = CF.Expr.CompareBinaryExpr(expr0, expr1, op)
+
+    private def binary(expr1: CF.Expr[_], op: CF.Expr.CompareExpr.BinaryOp) =
+      CF.Expr.CompareBinaryExpr(expr0, expr1, op)
   }
 
   // // // // // // // // // // // // // // // //
@@ -531,19 +624,20 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // // // // // // //
 
   implicit final class CypherSyntaxStringExprOps(expr0: CF.Expr[String]) {
+
     /** Regular expression match */
-    def matches   (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.Regex)
-    def contains  (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.Contains)
+    def matches(expr1: CF.Expr[String]): CF.Expr[Boolean]    = binary(expr1, CF.Expr.StringExpr.Regex)
+    def contains(expr1: CF.Expr[String]): CF.Expr[Boolean]   = binary(expr1, CF.Expr.StringExpr.Contains)
     def startsWith(expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.StartsWith)
-    def endsWith  (expr1: CF.Expr[String]): CF.Expr[Boolean] = binary(expr1, CF.Expr.StringExpr.EndsWith)
+    def endsWith(expr1: CF.Expr[String]): CF.Expr[Boolean]   = binary(expr1, CF.Expr.StringExpr.EndsWith)
 
     def toLower: CF.Expr[String] = "toLower".func(expr0)
     def toUpper: CF.Expr[String] = "toUpper".func(expr0)
-    def size:    CF.Expr[Long]   = "size".func(expr0)
+    def size: CF.Expr[Long]      = "size".func(expr0)
 
     def toBoolean: CF.Expr[Boolean] = "toBoolean".func(expr0)
-    def toDouble:  CF.Expr[Double]  = "toFloat".func(expr0)
-    def toLong:    CF.Expr[Long]    = "toInteger".func(expr0)
+    def toDouble: CF.Expr[Double]   = "toFloat".func(expr0)
+    def toLong: CF.Expr[Long]       = "toInteger".func(expr0)
 
     /** Returns a string containing the specified number of leftmost characters of the original string. */
     def takeLeft(n: CF.Expr[Long]): CF.Expr[String] = "left".func(expr0, n)
@@ -552,7 +646,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def takeRight(n: CF.Expr[Long]): CF.Expr[String] = "right".func(expr0, n)
 
     /** Returns a string in which all occurrences of a specified string in the original string have been replaced by another (specified) string. */
-    def replace(search: CF.Expr[String], replace: CF.Expr[String]): CF.Expr[String] = "replace".func(expr0, search, replace)
+    def replace(search: CF.Expr[String], replace: CF.Expr[String]): CF.Expr[String] =
+      "replace".func(expr0, search, replace)
 
     def reverse: CF.Expr[String] = "reverse".func(expr0)
 
@@ -567,8 +662,10 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     /** Returns the original string with leading and trailing whitespace removed. */
     def trim: CF.Expr[String] = "trim".func(expr0)
+
     /** Returns the original string with leading whitespace removed. */
     def trimLeft: CF.Expr[String] = "lTrim".func(expr0)
+
     /** Returns the original string with trailing whitespace removed. */
     def trimRight: CF.Expr[String] = "rTrim".func(expr0)
 
@@ -585,7 +682,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def %(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.ModuloDivision)
     def ^(expr1: CF.Expr[N]): CF.Expr[N] = binary(expr1, CF.Expr.MathematicalExpr.Exponentiation)
 
-    private def binary(expr1: CF.Expr[N], op: CF.Expr.MathematicalExpr.BinaryOp) = CF.Expr.MathematicalBinaryExpr(expr0, expr1, op)
+    private def binary(expr1: CF.Expr[N], op: CF.Expr.MathematicalExpr.BinaryOp) =
+      CF.Expr.MathematicalBinaryExpr(expr0, expr1, op)
   }
 
   // // // // // // // // // // // // // // // //
@@ -594,16 +692,19 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   implicit final class ListOps[A](list: CF.Expr[List[A]]) {
     def concat(that: CF.Expr[List[A]]): CF.Expr[List[A]] = CF.Expr.Concat(list, that)
-    def ++(that: CF.Expr[List[A]]): CF.Expr[List[A]] = concat(that)
+    def ++(that: CF.Expr[List[A]]): CF.Expr[List[A]]     = concat(that)
 
     def at[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[A] = CF.Expr.AtIndex(list, i.asInstanceOf[CF.Expr[Long]])
 
-    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](l: CF.Expr[I1], r: CF.Expr[I2]): CF.Expr[List[A]] = slice(Ior.Both(l, r))
+    def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](l: CF.Expr[I1], r: CF.Expr[I2]): CF.Expr[List[A]] = slice(
+      Ior.Both(l, r)
+    )
+
     def slice[I1: (Int |∨| Long)#λ, I2: (Int |∨| Long)#λ](range: Ior[CF.Expr[I1], CF.Expr[I2]]): CF.Expr[List[A]] =
       CF.Expr.AtRange(list, range.asInstanceOf[Ior[CF.Expr[Long], CF.Expr[Long]]])
 
     def from[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]] = slice[I, I](Ior.Left(i))
-    def to  [I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]] = slice[I, I](Ior.Right(i))
+    def to[I: (Int |∨| Long)#λ](i: CF.Expr[I]): CF.Expr[List[A]]   = slice[I, I](Ior.Right(i))
 
     def head: CF.Expr[A]       = "head".func(list)
     def tail: CF.Expr[List[A]] = "tail".func(list)
@@ -611,16 +712,16 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def size: CF.Expr[Long]    = "size".func(list)
 
     def withFilter(f: CF.Expr[A] => CF.Expr[Boolean]): ListOps.WithFilter[A] = new ListOps.WithFilter(list, f)
-    def filter(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[List[A]] = CF.Expr.ListComprehension(list, Some(f), None)
+    def filter(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[List[A]]          = CF.Expr.ListComprehension(list, Some(f), None)
 
     def map[B](f: CF.Expr[A] => CF.Expr[B]): CF.Expr[List[B]] = CF.Expr.ListComprehension(list, None, Some(f))
 
     def reduce[B](b: CF.Expr[B])(f: (CF.Expr[B], CF.Expr[A]) => CF.Expr[B]): CF.Expr[B] = CF.Expr.Reduce(list, b, f)
 
     // predicates
-    def all   (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.All, f)
-    def any   (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.Any, f)
-    def none  (f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.None, f)
+    def all(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean]    = predicate(CF.Expr.ListPredicate.All, f)
+    def any(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean]    = predicate(CF.Expr.ListPredicate.Any, f)
+    def none(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean]   = predicate(CF.Expr.ListPredicate.None, f)
     def single(f: CF.Expr[A] => CF.Expr[Boolean]): CF.Expr[Boolean] = predicate(CF.Expr.ListPredicate.Single, f)
 
     private def predicate(pred: CF.Expr.ListPredicate.Predicate, f: CF.Expr[A] => CF.Expr[Boolean]) =
@@ -628,7 +729,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object ListOps {
-    protected final class WithFilter[A](list: CF.Expr[List[A]], filter: CF.Expr[A] => CF.Expr[Boolean]) {
+
+    final protected class WithFilter[A](list: CF.Expr[List[A]], filter: CF.Expr[A] => CF.Expr[Boolean]) {
       def map[B](f: CF.Expr[A] => CF.Expr[B]): CF.Expr[List[B]] = CF.Expr.ListComprehension(list, Some(filter), Some(f))
     }
   }
@@ -638,53 +740,60 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   implicit final class MapNotAnyOps[A](map: CF.Expr[Map[String, A]])(implicit ev: A =:!= Any) {
-    def value(key: String): CF.Expr[A] = CF.Expr.MapKey(map, key)
+    def value(key: String): CF.Expr[A]          = CF.Expr.MapKey(map, key)
     def value(key: CF.Expr[String]): CF.Expr[A] = CF.Expr.MapDynKey(map, key)
 
     def add(entries: (String, CF.Expr[A])*): CF.Expr[Map[String, A]] = CF.Expr.MapAdd(map, entries.toMap)
-    def add(map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapAdd(this.map, map)
+    def add(map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]]   = CF.Expr.MapAdd(this.map, map)
   }
 
   implicit final class MapAnyOps[A](map: CF.Expr[Map[String, A]])(implicit ev: A =:= Any) {
-    def value[V](key: String): CF.Expr[V] = CF.Expr.MapKey(map, key)
+    def value[V](key: String): CF.Expr[V]          = CF.Expr.MapKey(map, key)
     def value[V](key: CF.Expr[String]): CF.Expr[V] = CF.Expr.MapDynKey(map, key)
 
     def add(entries: (String, CF.Expr[Any])*): CF.Expr[Map[String, Any]] = CF.Expr.MapAdd(map, entries.toMap)
-    def add(map: Map[String, CF.Expr[Any]]): CF.Expr[Map[String, Any]] = CF.Expr.MapAdd(this.map, map)
+    def add(map: Map[String, CF.Expr[Any]]): CF.Expr[Map[String, Any]]   = CF.Expr.MapAdd(this.map, map)
   }
 
   def list[A](elems: CF.Expr[A]*): CF.Expr[List[A]] = CF.Expr.ListDef(elems.toList)
 
   /** Literal map constructor */
   def dict[A](entries: (String, CF.Expr[A])*): CF.Expr[Map[String, A]] = CF.Expr.MapDef(entries.toMap)
+
   /** Literal map constructor */
   def dict[A](map: Map[String, CF.Expr[A]]): CF.Expr[Map[String, A]] = CF.Expr.MapDef(map)
-
 
   // // // // // // // // // // // // // //
   // // // //  Case Expressions // // // //
   // // // // // // // // // // // // // //
 
   implicit class SimpleCaseExprOps[A](expr: Expr[A]) {
+
     /** Simple case expression. */
     def whenUnsafe[B](case0: SimpleCaseExprOps.Case[A, B], cases: SimpleCaseExprOps.Case[A, B]*): Expr[B] =
       SimpleCaseExprOps.make(expr, case0 +: cases, None)
 
     /** Simple case expression. */
-    def when[B](case0: SimpleCaseExprOps.Case[A, B], cases: SimpleCaseExprOps.Case[A, B]*): SimpleCaseExprOps.Builder[A, B] =
+    def when[B](
+      case0: SimpleCaseExprOps.Case[A, B],
+      cases: SimpleCaseExprOps.Case[A, B]*
+    ): SimpleCaseExprOps.Builder[A, B] =
       new SimpleCaseExprOps.Builder(expr, case0 +: cases)
   }
 
   object SimpleCaseExprOps {
+
     protected[syntax] class Builder[A, B](value: Expr[A], cases: Seq[Case[A, B]]) {
       def otherwise(default: Expr[B]): Expr[B] = make(value, cases, Some(default))
     }
+
     protected[syntax] def make[A, B](value: Expr[A], cases: Seq[Case[A, B]], default: Option[Expr[B]]): Expr[B] =
       CF.Expr.SimpleCaseExpr[A, B](value, cases.map(_.toPair).toMap, default)
 
     protected[syntax] case class Case[A, B](value: Expr[A], result: Expr[B]) {
       def toPair: (Expr[A], Expr[B]) = value -> result
     }
+
     object Case {
       implicit def pairToCase[A, B](pair: (Expr[A], Expr[B])): Case[A, B] = Case(pair._1, pair._2)
     }
@@ -699,15 +808,18 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     new GenericCaseSyntax.Builder(case0 +: cases)
 
   object GenericCaseSyntax {
+
     protected[syntax] class Builder[A](cases: Seq[Case[A]]) {
       def otherwise(default: Expr[A]): Expr[A] = make(cases, Some(default))
     }
+
     protected[syntax] def make[A](cases: Seq[Case[A]], default: Option[Expr[A]]): Expr[A] =
       CF.Expr.GenericCaseExpr(cases.map(_.toPair).toMap, default)
 
     protected[syntax] case class Case[A](value: Expr[Boolean], result: Expr[A]) {
       def toPair: (Expr[Boolean], Expr[A]) = value -> result
     }
+
     object Case {
       implicit def pairToCase[A](pair: (Expr[Boolean], Expr[A])): Case[A] = Case(pair._1, pair._2)
     }
@@ -719,13 +831,15 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   /** Use [[lit]] to build one. */
   type LiftedValue = CypherStatement.LiftedValue
-  type LiftedMap = Map[String, LiftedValue]
+  type LiftedMap   = Map[String, LiftedValue]
 
   object LiftedMap {
     def apply(entries: LiftedMapEntry*): LiftedMap = Map(entries.map(_.pair): _*)
 
     final class LiftedMapEntry(val pair: (String, LiftedValue)) extends AnyVal
+
     object LiftedMapEntry {
+
       implicit def liftedMapEntry[A: CypherStatement.LiftValue](pair: (String, A)): LiftedMapEntry =
         new LiftedMapEntry(pair._1 -> lit(pair._2))
     }
@@ -750,7 +864,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // //
 
   implicit final class UnionOps[A](q1: CF.Query.Query0[A]) {
-    def union(q2: CF.Query.Query0[A]): CF.Query[A] = CF.Query.Union(q1, q2, all = false)
+    def union(q2: CF.Query.Query0[A]): CF.Query[A]    = CF.Query.Union(q1, q2, all = false)
     def unionAll(q2: CF.Query.Query0[A]): CF.Query[A] = CF.Query.Union(q1, q2, all = true)
   }
 
@@ -759,7 +873,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   // // // // // // // // // // //
 
   implicit final class SetPropOps(e: CF.Expr[GraphElem]) {
+
     object set extends Dynamic {
+
       def updateDynamic[V](prop: String)(value: Expr[V]): Update.Prop =
         CF.Clause.SetProps.One(e.asInstanceOf[Expr[Map[String, Any]]], prop, value)
     }

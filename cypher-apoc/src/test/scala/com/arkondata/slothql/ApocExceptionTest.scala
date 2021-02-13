@@ -18,9 +18,12 @@ class ApocExceptionTest extends AnyWordSpec with Matchers with Neo4jUsingTest wi
   "Exception raised by `apoc.*` function" should {
     "Be extracted/adapted from neo4j exception" in {
       val message = "Test Assertion Failed"
-      val query = APOC.assert(lit(false), lit(message)) { lit(true) }
-      val io = tx.runRead(tx.query(query)).compile.drain
-                 .adaptError(ApocException.adapt)
+      val query   = APOC.assert(lit(false), lit(message))(lit(true))
+      val io = tx
+        .runRead(tx.query(query))
+        .compile
+        .drain
+        .adaptError(ApocException.adapt)
       val result = io.attempt.unsafeRunSync()
 
       result.left.value shouldBe an[ApocException]

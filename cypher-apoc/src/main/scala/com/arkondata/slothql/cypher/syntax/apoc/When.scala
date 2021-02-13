@@ -6,6 +6,7 @@ import com.arkondata.slothql.cypher.ParameterizedCypherQuery
 import com.arkondata.slothql.cypher.syntax._
 
 object When {
+
   protected[cypher] trait Builder[ParamsThen <: HList, ParamsElse <: HList] {
     type Params <: HList
 
@@ -13,10 +14,12 @@ object When {
   }
 
   object Builder {
-    type Aux[ParamsThen <: HList, ParamsElse <: HList, Ps <: HList] = Builder[ParamsThen, ParamsElse] { type Params = Ps }
 
-    implicit def builder[PT <: HList, PE <: HList, Ps0 <: HList, Ps <: HList](
-      implicit
+    type Aux[ParamsThen <: HList, ParamsElse <: HList, Ps <: HList] = Builder[ParamsThen, ParamsElse] {
+      type Params = Ps
+    }
+
+    implicit def builder[PT <: HList, PE <: HList, Ps0 <: HList, Ps <: HList](implicit
       merge: ops.record.Merger.Aux[PT, PE, Ps0],
       exprs: ops.record.MapValues.Aux[WrapExprHF.type, Ps0, Ps],
       map: ops.record.ToMap.Aux[Ps, _ <: Symbol, _ <: Expr[_]]
@@ -30,23 +33,24 @@ object When {
     }
   }
 
-  protected[cypher] class ParamsSyntax[ParamExprs <: HList, A]
-                        (cond: Expr[Boolean],
-                         thenQ: ParameterizedCypherQuery[_, A],
-                         elseQ: ParameterizedCypherQuery[_, A],
-                         write: Boolean
-                        )
-                        (implicit toMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]]) extends RecordArgs {
+  protected[cypher] class ParamsSyntax[ParamExprs <: HList, A](
+    cond: Expr[Boolean],
+    thenQ: ParameterizedCypherQuery[_, A],
+    elseQ: ParameterizedCypherQuery[_, A],
+    write: Boolean
+  )(implicit toMap: ops.record.ToMap.Aux[ParamExprs, _ <: Symbol, _ <: Expr[_]])
+      extends RecordArgs {
+
     def withParamsRecord(params: ParamExprs): QuerySyntax[A] =
-      new QuerySyntax(cond, thenQ, elseQ, toMap(params).map{ case (k, v) => k.name -> v }, write)
+      new QuerySyntax(cond, thenQ, elseQ, toMap(params).map { case (k, v) => k.name -> v }, write)
   }
 
   protected[cypher] class QuerySyntax[A](
-      protected val cond: Expr[Boolean],
-      protected val thenQ: ParameterizedCypherQuery[_, A],
-      protected val elseQ: ParameterizedCypherQuery[_, A],
-      protected val params: Map[String, Expr[_]],
-      protected val write: Boolean
+    protected val cond: Expr[Boolean],
+    protected val thenQ: ParameterizedCypherQuery[_, A],
+    protected val elseQ: ParameterizedCypherQuery[_, A],
+    protected val params: Map[String, Expr[_]],
+    protected val write: Boolean
   ) {
     private def procedure = if (write) "apoc.do.when" else "apoc.when"
 
@@ -58,14 +62,10 @@ object When {
       }
 
     def withAllColumns[R](f: Expr[Map[String, Any]] => Query[R]): Query[R] =
-      Call(procedure,
-        cond,
-        lit(thenQ.statement.template),
-        lit(elseQ.statement.template),
-        dict(params)
-      ).yielding("value") { (yielded: Expr[Map[String, Any]]) =>
-        f(yielded)
-      }
+      Call(procedure, cond, lit(thenQ.statement.template), lit(elseQ.statement.template), dict(params))
+        .yielding("value") { (yielded: Expr[Map[String, Any]]) =>
+          f(yielded)
+        }
 
   }
 }
