@@ -1,7 +1,8 @@
 version: "3"
 services:
   sbt:
-    image: 'grupoabraxas/sbt-docker:jre-11'
+    build:
+      context: .
     user: ${UID}:${GID}
     working_dir: ${PWD}
     volumes:
