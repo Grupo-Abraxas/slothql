@@ -13,7 +13,7 @@ class CypherSyntaxMacros(val c: whitebox.Context) {
     val tupleTypes = (T: @unchecked) match {
       case TypeRef(ScalaPackageType, s, tuple) if s.name.toString matches """Tuple\d+""" => tuple
     }
-    val arg = c.internal.reificationSupport.freshTermName("t")
+    val arg         = c.internal.reificationSupport.freshTermName("t")
     def sel(i: Int) = q"$arg.${TermName(s"_${i + 1}")}"
     val (outTypes, returns) = tupleTypes.zipWithIndex.map {
       case (TypeRef(_, ExprSymb, List(t)), i)       => t -> returnExprTree(t, sel(i))
@@ -42,7 +42,7 @@ class CypherSyntaxMacros(val c: whitebox.Context) {
   protected lazy val ReturnExprSymb = symbolOf[CF.Return.Expr[_]]
 
   protected def mkTupleType(types: List[Type]): Type = {
-    val n = types.length
+    val n         = types.length
     val tupleSymb = ScalaPackageType.decl(TypeName(s"Tuple$n")).asClass
     c.internal.typeRef(ScalaPackageType, tupleSymb, types)
   }

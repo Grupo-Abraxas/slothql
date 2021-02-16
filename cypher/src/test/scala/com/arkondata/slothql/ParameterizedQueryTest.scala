@@ -17,22 +17,20 @@ class ParameterizedQueryTest extends AnyWordSpec with Matchers with Neo4jUsingTe
   import tx.readers._
   import tx.ops._
 
-  lazy val query1 = parameterized {
-    (x: Param[Long], y: Param[String], z: Param[List[String]]) =>
-      Unwind(z) { i =>
-        Match.optional { case v@Node("i" := `i`) =>
-          `return`(i, v.prop[String]("foo"), y)
-            // TODO: .limit(x)
-        }
+  lazy val query1 = parameterized { (x: Param[Long], y: Param[String], z: Param[List[String]]) =>
+    Unwind(z) { i =>
+      Match.optional { case v @ Node("i" := `i`) =>
+        `return`(i, v.prop[String]("foo"), y)
+      // TODO: .limit(x)
       }
+    }
   }
-
 
   "Parameterized Query API" should {
     "build cypher parameterized statements" in {
       val x = Random.nextInt(100).toLong
       val y = Random.alphanumeric.take(10).mkString
-      val z = List.fill(5){ Random.alphanumeric.take(5).mkString }
+      val z = List.fill(5)(Random.alphanumeric.take(5).mkString)
 
       query1.prepared.withParams(x = x, y = y, z = z)
 
@@ -59,7 +57,7 @@ class ParameterizedQueryTest extends AnyWordSpec with Matchers with Neo4jUsingTe
 
     "support creating node with properties from values map input" in {
       val query = parameterized { props: Param[LiftedMap] =>
-        Create { case n@Node("Test", `props`) =>
+        Create { case n @ Node("Test", `props`) =>
           n.id
         }
       }
@@ -72,6 +70,5 @@ class ParameterizedQueryTest extends AnyWordSpec with Matchers with Neo4jUsingTe
       )
     }
   }
-
 
 }

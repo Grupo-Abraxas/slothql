@@ -1,6 +1,6 @@
 package com.arkondata.slothql.neo4j
 
-import scala.annotation.{ StaticAnnotation, compileTimeOnly }
+import scala.annotation.{ compileTimeOnly, StaticAnnotation }
 import scala.jdk.FutureConverters._
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
@@ -13,10 +13,10 @@ import cats.instances.option._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
-import cats.{ Eval, Id, ~> }
+import cats.{ ~>, Eval, Id }
 import com.arkondata.opentracing.Tracing.TracingSetup
 import com.arkondata.opentracing.{ SpanLog, TraceLaterEval, Tracing }
-import com.arkondata.opentracing.effect.{ ResourceTracingOps, activateSpan, activeSpan }
+import com.arkondata.opentracing.effect.{ activateSpan, activeSpan, ResourceTracingOps }
 import com.arkondata.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
 import com.arkondata.opentracing.util.TraceBundle
 import io.opentracing.{ Span, SpanContext, Tracer }
@@ -24,9 +24,11 @@ import org.neo4j.driver.async.ResultCursor
 import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver.{ Result, Session, Transaction, TransactionWork }
 
-@compileTimeOnly("Macro transformation was not applied. " +
-                 "Have you forgotten to set `-Ymacro-annotations` compiler flag (Scala 2.13) " +
-                                      "or add `org.scalamacros:paradise` plugin (Scala 2.12)?" )
+@compileTimeOnly(
+  "Macro transformation was not applied. " +
+  "Have you forgotten to set `-Ymacro-annotations` compiler flag (Scala 2.13) " +
+  "or add `org.scalamacros:paradise` plugin (Scala 2.12)?"
+)
 class TransactorTracing extends StaticAnnotation {
   def macroTransform(annottees: Any*): Any = macro TransactorTracingMacros.transform
 }
@@ -37,30 +39,30 @@ object TransactorTracing {
 
   @compileTimeOnly("@TransactorTracing macro annotation must be put on the enclosing class")
   def setup[F[_]](
-    runRead:  EndoK[fs2.Stream[F, *]] = null,
+    runRead: EndoK[fs2.Stream[F, *]] = null,
     runWrite: EndoK[fs2.Stream[F, *]] = null,
-    run:      EndoK[fs2.Stream[F, *]] = null,
+    run: EndoK[fs2.Stream[F, *]] = null,
     // dependencies of `run` //
-    blockerResource:     Endo[Resource[F, Blocker]]     = null,
-    sessionResource:     Endo[Resource[F, Session]]     = null,
+    blockerResource: Endo[Resource[F, Blocker]] = null,
+    sessionResource: Endo[Resource[F, Session]] = null,
     transactionResource: Endo[Resource[F, Transaction]] = null,
     // dependencies of `transactionResource` //
     backgroundWorkResource: Endo[Resource[F, F[Unit]]] = null,
-    runInsideTxWork:        EagerTracing               = null.asInstanceOf[EagerTracing],
-    commitTransaction:      F[Unit]                    = null.asInstanceOf[F[Unit]],
-    rollbackTransaction:    F[Unit]                    = null.asInstanceOf[F[Unit]],
-    closeTransaction:       F[Unit]                    = null.asInstanceOf[F[Unit]],
+    runInsideTxWork: EagerTracing = null.asInstanceOf[EagerTracing],
+    commitTransaction: F[Unit] = null.asInstanceOf[F[Unit]],
+    rollbackTransaction: F[Unit] = null.asInstanceOf[F[Unit]],
+    closeTransaction: F[Unit] = null.asInstanceOf[F[Unit]],
     // transaction folding //
-    runUnwind: EndoK[fs2.Stream[F, *]]                        = null,
+    runUnwind: EndoK[fs2.Stream[F, *]] = null,
     runGather: EndoK[λ[A => fs2.Stream[F, fs2.Stream[F, A]]]] = null,
-    runQuery:  EndoK[fs2.Stream[F, *]]                        = null,
+    runQuery: EndoK[fs2.Stream[F, *]] = null,
     // reading result //
-    readRecord:    EndoK[F]                 = null,
+    readRecord: EndoK[F] = null,
     reportSummary: ResultSummary => F[Unit] = null
   ): Nothing = ???
 
   type EagerTracingInterface = Tracing.Interface[TraceLaterEval.Builder[cats.Id]]
-  type EagerTracing = EagerTracingInterface => TraceLaterEval.Builder[cats.Id]
+  type EagerTracing          = EagerTracingInterface => TraceLaterEval.Builder[cats.Id]
 
   class TracingHelper[F[_]](implicit sync: Sync[F], traceBundle: TraceBundle.Endo[F]) {
     import traceBundle.Implicits._
@@ -75,20 +77,20 @@ object TransactorTracing {
     private def logStreamElem1[A](s: fs2.Stream[F, A], log: (SpanLog, Any) => Unit): fs2.Stream[F, A] =
       logStreamElems(s)(log.asInstanceOf[(SpanLog, A) => Unit])
 
-    def traceResource[A](f: ResourceTracingOps[F, A] => Resource[F, A]): Endo[Resource[F, A]] = r => f(new ResourceTracingOps(r))
+    def traceResource[A](f: ResourceTracingOps[F, A] => Resource[F, A]): Endo[Resource[F, A]] = r =>
+      f(new ResourceTracingOps(r))
 
     def traceLog(f: SpanLog => Unit): F[Unit] =
       activeSpan.flatMap(_.traverse_(s => sync.delay(f(s))))
 
-    def trace(f: (Option[Span], Tracing.Interface[EndoK[F]]) => Any => EndoK[F]): EndoK[F] = λ[F ~> F](
-      fa =>
-        for {
-          span <- activeSpan[F]
-          i    =  new traceBundle.tracing.InterfaceImpl(locally)
-          a    <- fa
-          endo =  f(span, i)(a)
-          res  <- endo(sync.pure(a))
-        } yield res
+    def trace(f: (Option[Span], Tracing.Interface[EndoK[F]]) => Any => EndoK[F]): EndoK[F] = λ[F ~> F](fa =>
+      for {
+        span <- activeSpan[F]
+        i = new traceBundle.tracing.InterfaceImpl(locally)
+        a <- fa
+        endo = f(span, i)(a)
+        res <- endo(sync.pure(a))
+      } yield res
     )
   }
 
@@ -100,8 +102,8 @@ object TransactorTracing {
     protected def lostSpanFixesTracer: Tracer
     protected def lostSpanFixesTracingSetup: TracingSetup
 
-    private implicit def tracer = lostSpanFixesTracer
-    private implicit def tracingSetup = lostSpanFixesTracingSetup
+    implicit private def tracer       = lostSpanFixesTracer
+    implicit private def tracingSetup = lostSpanFixesTracingSetup
 
     override protected def readTxAsResource(txVar: MVar[F, Transaction]): Resource[F, Transaction] =
       for {
@@ -118,34 +120,42 @@ object TransactorTracing {
         cLock <- closeLockMVarResource
         eLock <- execLockMVarResource(cLock)
         span  <- Resource liftF activeSpan[F]
-        runTx = ce.delay(run{ tx =>
-                          runInsideTxWork(span) {
-                            ( for {
-                                _ <- txVar.put(tx)
-                                span1 <- activeSpan[F]
-                                b <- eLock.read
-                                _ <- activateSpan(span1) // `activeSpan` is lost otherwise
-                                _ <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
-                              } yield ()
-                            ).guarantee(closeTransaction(tx))
-                             .guaranteeCase {
-                               case ExitCase.Completed => cLock.put(None)
-                               case ExitCase.Error(e)  => cLock.put(Some(e))
-                               case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
-                             }.toIO
-                              .unsafeRunSync()
-                          }
-                      })
-        _     <- backgroundWorkResource(runTx)
-        tx    <- readTxAsResource(txVar)
+        runTx = ce.delay(run { tx =>
+                  runInsideTxWork(span) {
+                    (for {
+                      _     <- txVar.put(tx)
+                      span1 <- activeSpan[F]
+                      b     <- eLock.read
+                      _     <- activateSpan(span1) // `activeSpan` is lost otherwise
+                      _     <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
+                    } yield ())
+                      .guarantee(closeTransaction(tx))
+                      .guaranteeCase {
+                        case ExitCase.Completed => cLock.put(None)
+                        case ExitCase.Error(e)  => cLock.put(Some(e))
+                        case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
+                      }
+                      .toIO
+                      .unsafeRunSync()
+                  }
+                })
+        _  <- backgroundWorkResource(runTx)
+        tx <- readTxAsResource(txVar)
       } yield tx
 
     protected lazy val laterEvalTracing = Tracing.tracingEvalLater
+
     class EagerTracingInterfaceWithParent(parent: Option[Either[Span, SpanContext]])
-      extends laterEvalTracing.InterfaceImpl[TraceLaterEval.Builder[cats.Id]](f =>
-        new TraceLaterEval.Builder(f.andThen(λ[Eval ~> cats.Id](_.value)))
-      ) {
-      override def apply(parent0: Option[Either[Span, SpanContext]], activate: Boolean, operation: String, tags: Map[String, Tracing.TagValue]): TraceLaterEval.Builder[Id] =
+        extends laterEvalTracing.InterfaceImpl[TraceLaterEval.Builder[cats.Id]](f =>
+          new TraceLaterEval.Builder(f.andThen(λ[Eval ~> cats.Id](_.value)))
+        ) {
+
+      override def apply(
+        parent0: Option[Either[Span, SpanContext]],
+        activate: Boolean,
+        operation: String,
+        tags: Map[String, Tracing.TagValue]
+      ): TraceLaterEval.Builder[Id] =
         super.apply(parent0 orElse parent, activate, operation, tags)
     }
   }
@@ -153,22 +163,21 @@ object TransactorTracing {
   trait SummaryReport[F[_]] extends Neo4jCypherTransactor[F] {
     protected def reportSummary(summary: ResultSummary): F[Unit]
 
-    override protected def runningQuery[A](result: Result, stream: fs2.Stream[F, A]): fs2.Stream[F, A] = {
+    override protected def runningQuery[A](result: Result, stream: fs2.Stream[F, A]): fs2.Stream[F, A] =
       stream.onFinalize {
         for {
           cursor  <- internalResultCursor(result)
-          summary <- Async.fromFuture(ce.delay{ cursor.consumeAsync().asScala })
+          summary <- Async.fromFuture(ce.delay(cursor.consumeAsync().asScala))
           _       <- reportSummary(summary)
         } yield ()
       }
-    }
 
     // Use java reflection for getting access to private field
     private def internalResultCursor(result: Result): F[ResultCursor] = for {
       clazz  <- ce.pure(result.getClass)
-      field  <- ce.catchNonFatal{ clazz.getDeclaredField("cursor") }
-      _      <- ce.catchNonFatal{ field.setAccessible(true) }
-      cursor <- ce.catchNonFatal{ field.get(result).asInstanceOf[ResultCursor] }
+      field  <- ce.catchNonFatal(clazz.getDeclaredField("cursor"))
+      _      <- ce.catchNonFatal(field.setAccessible(true))
+      cursor <- ce.catchNonFatal(field.get(result).asInstanceOf[ResultCursor])
     } yield cursor
   }
 
@@ -181,17 +190,18 @@ class TransactorTracingMacros(val c: whitebox.Context) {
   import TransactorTracing.setupDeclarationName
 
   def transform(annottees: Tree*): Tree = {
-    val (classDef0, rest) = annottees.partition{ case ClassDef(_, _, _, _) => true
-                                                 case _ => false }
+    val (classDef0, rest) = annottees.partition {
+      case ClassDef(_, _, _, _) => true
+      case _                    => false
+    }
     val classDef = classDef0.headOption
-                    .getOrElse(c.abort(c.enclosingPosition, Msg.notClass))
-                    .asInstanceOf[ClassDef]
+      .getOrElse(c.abort(c.enclosingPosition, Msg.notClass))
+      .asInstanceOf[ClassDef]
     val (setup0, newBody0) = findSetup(classDef)
-    val setup = setup0.getOrElse(c.abort(classDef.pos, Msg.noSetup))
+    val setup              = setup0.getOrElse(c.abort(classDef.pos, Msg.noSetup))
 
-    val F = classDef.impl.parents
-                    .collectFirst { case q"${tq"$_[$tpe]"}(..$_)" => tpe }
-                    .getOrElse(c.abort(c.enclosingPosition, Msg.notFoundTypeF))
+    val F = classDef.impl.parents.collectFirst { case q"${tq"$_[$tpe]"}(..$_)" => tpe }
+      .getOrElse(c.abort(c.enclosingPosition, Msg.notFoundTypeF))
 
     val (extraParents, extraBody) = setup.map {
       case ("reportSummary", t)   => reportSummaryImpl(F, t)
@@ -206,7 +216,7 @@ class TransactorTracingMacros(val c: whitebox.Context) {
     val newBody = newBody0 ::: bodyHeader ::: lostSpanFixesBody(F) ::: extraBody
 
     val newClassTemplate = Template(newParents, classDef.impl.self, newBody)
-    val newClassDef = ClassDef(classDef.mods, classDef.name, classDef.tparams, newClassTemplate)
+    val newClassDef      = ClassDef(classDef.mods, classDef.name, classDef.tparams, newClassTemplate)
 
     c.info(c.enclosingPosition, showCode(newClassDef), force = true)
 
@@ -240,25 +250,31 @@ class TransactorTracingMacros(val c: whitebox.Context) {
 
   protected def reportSummaryImpl(F: Tree, wrap: Tree) = {
     val parent = tq"_root_.com.arkondata.slothql.neo4j.TransactorTracing.SummaryReport[$F]"
-    val impl = q"protected def reportSummary(summary: _root_.org.neo4j.driver.summary.ResultSummary): $F[_root_.scala.Unit] = $wrap(summary)"
+    val impl =
+      q"protected def reportSummary(summary: _root_.org.neo4j.driver.summary.ResultSummary): $F[_root_.scala.Unit] = $wrap(summary)"
     Some(parent) -> impl
   }
 
   private object Msg {
     def notClass = "@TransactorTracing macro should only be put on classes."
-    def noSetup = s"Please setup tracing configuration by defining `val $setupDeclarationName` = TransactorTracing.setup(...)"
-    def unexpectedSetup = "Unexpected tree. Expecting direct call to `com.arkondata.slothql.neo4j.TransactorTracing.setup` function."
+
+    def noSetup =
+      s"Please setup tracing configuration by defining `val $setupDeclarationName` = TransactorTracing.setup(...)"
+
+    def unexpectedSetup =
+      "Unexpected tree. Expecting direct call to `com.arkondata.slothql.neo4j.TransactorTracing.setup` function."
     def notFoundTypeF = "Failed to determine effect type."
   }
 
   protected def findSetup(clazz: ClassDef): (Option[List[(String, Tree)]], List[Tree]) = {
-    val (setup0, rest0) = clazz .impl.body.map {
+    val (setup0, rest0) = clazz.impl.body.map {
       case s: ValOrDefDef if s.name == TermName(setupDeclarationName) =>
         s.rhs match {
           case q"$_[$_](..$params)" /*if setup.symbol == setupSymbol*/ =>
-            val ps = params.map { case NamedArg(Ident(TermName(name)), t) => name -> t
-                                  case t => c.abort(t.pos, "Expecting named argument.")
-                                }
+            val ps = params.map {
+              case NamedArg(Ident(TermName(name)), t) => name -> t
+              case t                                  => c.abort(t.pos, "Expecting named argument.")
+            }
             (Some(ps), None)
           case _ => c.abort(s.rhs.pos, Msg.unexpectedSetup)
         }
@@ -269,7 +285,7 @@ class TransactorTracingMacros(val c: whitebox.Context) {
 
   protected def overrideMethod(s: MethodSymbol, f: Tree, compose: Boolean) = {
     val flags = Option.when(s.isProtected)(Flag.PROTECTED).toList :::
-                Option.when(s.isStable)(Flag.STABLE).toList
+      Option.when(s.isStable)(Flag.STABLE).toList
     val mods = Modifiers(flags.fold(Flag.OVERRIDE)(_ | _))
     val name = s.name
     val retT = detachType(s.returnType)
@@ -298,10 +314,11 @@ class TransactorTracingMacros(val c: whitebox.Context) {
     }
   }
 
-  private def mkArgs(s: List[Symbol]) = s.map(mkArg)
+  private def mkArgs(s: List[Symbol])   = s.map(mkArg)
   private def mkParams(s: List[Symbol]) = s.map(mkParam)
 
   private def mkArg(s: Symbol) = q"${s.name.toTermName}"
+
   private def mkParam(s: Symbol) =
     ValDef(Modifiers(Flag.PARAM), s.name.toTermName, detachType(s.typeSignature.resultType), EmptyTree)
 
@@ -319,7 +336,9 @@ class TransactorTracingMacros(val c: whitebox.Context) {
       tq"${other.typeSymbol.name.toTypeName}"
   }
 
-  protected def lostSpanFixesParent(F: Tree) = tq"_root_.com.arkondata.slothql.neo4j.TransactorTracing.LostSpanFixes[$F]"
+  protected def lostSpanFixesParent(F: Tree) =
+    tq"_root_.com.arkondata.slothql.neo4j.TransactorTracing.LostSpanFixes[$F]"
+
   protected def lostSpanFixesBody(F: Tree) =
     q"""
       protected def lostSpanFixesTracer: _root_.io.opentracing.Tracer =
@@ -330,5 +349,6 @@ class TransactorTracingMacros(val c: whitebox.Context) {
         implicitly[_root_.com.arkondata.opentracing.util.TraceBundle.Endo[$F]].setup
     """ :: Nil
 
-  private lazy val TransactorType = rootMirror.staticClass("com.arkondata.slothql.neo4j.Neo4jCypherTransactor").typeSignature
+  private lazy val TransactorType =
+    rootMirror.staticClass("com.arkondata.slothql.neo4j.Neo4jCypherTransactor").typeSignature
 }

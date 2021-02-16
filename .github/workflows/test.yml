@@ -35,8 +35,14 @@ jobs:
       run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
       
     - name: Run tests (require Neo4j without APOC plugin)
+      env:
+        NEO4J_HOST: 'localhost'
+        NEO4J_AUTH: 'neo4j/test'
       run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j -l com.arkondata.slothql.test.tags.RequiresApoc"
 
     - name: "[DISABLED] Run tests (require Neo4j with APOC plugin)"
+      env:
+        NEO4J_HOST: 'localhost'
+        NEO4J_AUTH: 'neo4j/test'
       run: echo "DISABLED"
       # run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j -n com.arkondata.slothql.test.tags.RequiresApoc"

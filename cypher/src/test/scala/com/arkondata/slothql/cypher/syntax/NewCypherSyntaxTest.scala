@@ -4,7 +4,6 @@ import org.scalatest.Ignore
 
 import com.arkondata.slothql.cypher.{ CypherFragment, CypherStatement }
 
-
 /* TODO: restructure the spec
 
 [M] CypherSyntaxMainSpec
@@ -58,80 +57,73 @@ import com.arkondata.slothql.cypher.{ CypherFragment, CypherStatement }
     - Tuple [M]
     - Nothing? [W], [R]
     - Options: distinct, orderBy, skip, limit [R]
-*/
+ */
 @Ignore
 class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
 
   "Slothql cypher syntax" should {
     "build path pattern matching node label" in test(
-      Match  {
-        case (x@Node("foo")) < y - z =>
-          x: Node
-          y: Rel.Aux[Rel.Incoming]
-          z: Node
-          x.props
+      Match { case (x @ Node("foo")) < y - z =>
+        x: Node
+        y: Rel.Aux[Rel.Incoming]
+        z: Node
+        x.props
       },
       "MATCH (`x`:`foo`) <-[`y`]- (`z`) " +
       "RETURN `x`"
     ).returns[Map[String, Any]]
 
     "return tuples (1)" in test(
-      Match  {
-        case x < y - z =>
-          // case x < (y - z)
-          x: Node
-          y: Rel.Aux[Rel.Incoming]
-          z: Node
-          (x.prop[String]("a"), y.tpe, z.labels)
+      Match { case x < y - z =>
+        // case x < (y - z)
+        x: Node
+        y: Rel.Aux[Rel.Incoming]
+        z: Node
+        (x.prop[String]("a"), y.tpe, z.labels)
       },
       "MATCH (`x`) <-[`y`]- (`z`) " +
       "RETURN `x`.`a`, `type`(`y`), `labels`(`z`)"
     ).returns[(String, String, List[String])]
 
     "return tuples (2)" in test(
-      Match {
-        case user < _ - _ < _ - group =>
-          (
-            user.propOpt[String]("email"),
-            user.propOpt[String]("name"),
-            user.propOpt[Int]("age"),
-            user.propOpt[Boolean]("confirmed"),
-            group.prop[String]("name")
-          )
+      Match { case user < _ - _ < _ - group =>
+        (
+          user.propOpt[String]("email"),
+          user.propOpt[String]("name"),
+          user.propOpt[Int]("age"),
+          user.propOpt[Boolean]("confirmed"),
+          group.prop[String]("name")
+        )
       },
       "MATCH (`user`) <-[]- () <-[]- (`group`) " +
       "RETURN `user`.`email`, `user`.`name`, `user`.`age`, `user`.`confirmed`, `group`.`name`"
     ).returns[(Option[String], Option[String], Option[Int], Option[Boolean], String)]
 
-
     "support built-in operators" in test(
-      Match  {
-        case x - y > z =>
-          // case (x - y) > z =>
-          x: Node
-          y: Rel.Aux[Rel.Outgoing]
-          z: Node
-          x.id + x.prop[Long]("foo") > y.prop[Long]("bar")
+      Match { case x - y > z =>
+        // case (x - y) > z =>
+        x: Node
+        y: Rel.Aux[Rel.Outgoing]
+        z: Node
+        x.id + x.prop[Long]("foo") > y.prop[Long]("bar")
       },
       "MATCH (`x`) -[`y`]-> (`z`) " +
       "RETURN `id`(`x`) + `x`.`foo` > `y`.`bar`"
     ).returns[Boolean]
 
     "support returning named expressions" in test(
-      Match  {
-        case a - b > c < d - e =>
-          // case ((a - b) > c) < (d - e) =>
-          a: Node
-          b: Rel.Aux[Rel.Outgoing]
-          c: Node
-          d: Rel.Aux[Rel.Incoming]
-          e: Node
-          a.props -> c.labels.as("qwerty")
+      Match { case a - b > c < d - e =>
+        // case ((a - b) > c) < (d - e) =>
+        a: Node
+        b: Rel.Aux[Rel.Outgoing]
+        c: Node
+        d: Rel.Aux[Rel.Incoming]
+        e: Node
+        a.props -> c.labels.as("qwerty")
       },
       "MATCH (`a`) -[`b`]-> (`c`) <-[`d`]- (`e`) " +
       "RETURN `a`, `labels`(`c`) AS `qwerty`"
     ).returns[(Map[String, Any], List[String])]
-
 
     "match vertex labels and properties, allow non-literal property values (1)" in pending /*{
       val id = "u1"
@@ -217,7 +209,6 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "`labels`(`v`)"
     ).returns[(List[Map[String, Any]], List[Map[String, Any]], Long, String, List[String])]*/
 
-
     "support `with` expression" in pending /*test(
       Match {
         case x - _ > y =>
@@ -232,7 +223,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
     ).returns[(Map[String, Any], String)]*/
 
     "not allow to use unbound variables in `with` clause [experimental]" in pending
-/*
+    /*
       shapeless.test.illTyped(
         """
           Match { case x - _ > y =>
@@ -243,7 +234,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         """,
         "Variable unbound by `with`: value y"
       )
-*/
+     */
 
     "stored procedures calls (string name)" in pending /*test(
       "apoc.nodes.get".call(lit(0)).yielding { node: Node =>
@@ -305,8 +296,8 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
     ).returns[List[Map[String, Any]]]*/
 
     "support comparison expressions" in test(
-      Match {
-        case v < _ - _ => (
+      Match { case v < _ - _ =>
+        (
           v.id,
           v.id === lit(2),
           v.id === lit("QWERTY"),
@@ -320,34 +311,33 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
       },
       "MATCH (`v`) <-[]- () " +
       "RETURN " +
-        "`id`(`v`), " +
-        "`id`(`v`) = 2, " +
-        "`id`(`v`) = \"QWERTY\", " +
-        "`id`(`v`) > 2, " +
-        "NOT `id`(`v`) > 2, " +
-        "`id`(`v`) > 2 AND `id`(`v`) <= 4, " +
-        "`id`(`v`) > 2 XOR `id`(`v`) <= 4, " +
-        "`v` IS NULL, " +
-        "NOT (`v` IS NULL OR `id`(`v`) <= 2)"
+      "`id`(`v`), " +
+      "`id`(`v`) = 2, " +
+      "`id`(`v`) = \"QWERTY\", " +
+      "`id`(`v`) > 2, " +
+      "NOT `id`(`v`) > 2, " +
+      "`id`(`v`) > 2 AND `id`(`v`) <= 4, " +
+      "`id`(`v`) > 2 XOR `id`(`v`) <= 4, " +
+      "`v` IS NULL, " +
+      "NOT (`v` IS NULL OR `id`(`v`) <= 2)"
     ).returns[(Long, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean, Boolean)]
 
     "support string comparison expressions" in test(
-      Match {
-        case v =>
-          val name = v.prop[String]("name")
-          (
-            name contains lit("foo"),
-            name startsWith lit("bar"),
-            name endsWith lit("baz"),
-            name matches lit("foo.*bar")
-          )
+      Match { case v =>
+        val name = v.prop[String]("name")
+        (
+          name contains lit("foo"),
+          name startsWith lit("bar"),
+          name endsWith lit("baz"),
+          name matches lit("foo.*bar")
+        )
       },
       "MATCH (`v`) " +
       "RETURN " +
-        "`v`.`name` CONTAINS \"foo\", " +
-        "`v`.`name` STARTS WITH \"bar\", " +
-        "`v`.`name` ENDS WITH \"baz\", " +
-        "`v`.`name` =~ \"foo.*bar\""
+      "`v`.`name` CONTAINS \"foo\", " +
+      "`v`.`name` STARTS WITH \"bar\", " +
+      "`v`.`name` ENDS WITH \"baz\", " +
+      "`v`.`name` =~ \"foo.*bar\""
     ).returns[(Boolean, Boolean, Boolean, Boolean)]
 
     "support cypher's `toString` built-in function for numbers, booleans and strings" in test(
@@ -361,10 +351,10 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
       },
       "MATCH (`v`) " +
       "RETURN " +
-        "`toString`(`v`.`long`), " +
-        "`toString`(`v`.`float`), " +
-        "`toString`(`v`.`string`), " +
-        "`toString`(`v`.`boolean`)"
+      "`toString`(`v`.`long`), " +
+      "`toString`(`v`.`float`), " +
+      "`toString`(`v`.`string`), " +
+      "`toString`(`v`.`boolean`)"
     ).returns[(String, String, String, String)]
 
     "not allow to use cypher's `toString` built-in function for other types" in ???
@@ -374,75 +364,92 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
 //      )
 
     "support built-in functions for strings" in test(
-      Match {
-        case v =>
-          val name = v.prop[String]("name")
-          (
-            name.toLower,
-            name.toUpper,
-            name.size,
-            name.toBoolean,
-            name.toDouble,
-            name.toLong,
-            name takeLeft lit(4L),
-            name takeRight lit(5L),
-            name.replace(lit("foo"), lit("bar")),
-            name.reverse,
-            name split lit("."),
-            name substring lit(2L),
-            name.substring(lit(2L), lit(10L)),
-            name.trim,
-            name.trimRight,
-            name.trimLeft
-          )
+      Match { case v =>
+        val name = v.prop[String]("name")
+        (
+          name.toLower,
+          name.toUpper,
+          name.size,
+          name.toBoolean,
+          name.toDouble,
+          name.toLong,
+          name takeLeft lit(4L),
+          name takeRight lit(5L),
+          name.replace(lit("foo"), lit("bar")),
+          name.reverse,
+          name split lit("."),
+          name substring lit(2L),
+          name.substring(lit(2L), lit(10L)),
+          name.trim,
+          name.trimRight,
+          name.trimLeft
+        )
       },
       "MATCH (`v`) " +
       "RETURN " +
-        "`toLower`(`v`.`name`), " +
-        "`toUpper`(`v`.`name`), " +
-        "`size`(`v`.`name`), " +
-        "`toBoolean`(`v`.`name`), " +
-        "`toFloat`(`v`.`name`), " +
-        "`toInteger`(`v`.`name`), " +
-        "`left`(`v`.`name`, 4), " +
-        "`right`(`v`.`name`, 5), " +
-        "`replace`(`v`.`name`, \"foo\", \"bar\"), " +
-        "`reverse`(`v`.`name`), " +
-        "`split`(`v`.`name`, \".\"), " +
-        "`substring`(`v`.`name`, 2), " +
-        "`substring`(`v`.`name`, 2, 10), " +
-        "`trim`(`v`.`name`), " +
-        "`rTrim`(`v`.`name`), " +
-        "`lTrim`(`v`.`name`)"
-    ).returns[(String, String, Long, Boolean, Double, Long, String, String, String, String, List[String], String, String, String, String, String)]
+      "`toLower`(`v`.`name`), " +
+      "`toUpper`(`v`.`name`), " +
+      "`size`(`v`.`name`), " +
+      "`toBoolean`(`v`.`name`), " +
+      "`toFloat`(`v`.`name`), " +
+      "`toInteger`(`v`.`name`), " +
+      "`left`(`v`.`name`, 4), " +
+      "`right`(`v`.`name`, 5), " +
+      "`replace`(`v`.`name`, \"foo\", \"bar\"), " +
+      "`reverse`(`v`.`name`), " +
+      "`split`(`v`.`name`, \".\"), " +
+      "`substring`(`v`.`name`, 2), " +
+      "`substring`(`v`.`name`, 2, 10), " +
+      "`trim`(`v`.`name`), " +
+      "`rTrim`(`v`.`name`), " +
+      "`lTrim`(`v`.`name`)"
+    ).returns[
+      (
+        String,
+        String,
+        Long,
+        Boolean,
+        Double,
+        Long,
+        String,
+        String,
+        String,
+        String,
+        List[String],
+        String,
+        String,
+        String,
+        String,
+        String
+      )
+    ]
 
     "support mathematical operators" in test(
-      Match {
-        case v =>
-          val i = v.prop[Long]("i")
-          val j = v.prop[Long]("j")
-          (
-            i + j,
-            i - j,
-            i * j,
-            i / j,
-            i % j,
-            i ^ j,
-            -i
-          )
+      Match { case v =>
+        val i = v.prop[Long]("i")
+        val j = v.prop[Long]("j")
+        (
+          i + j,
+          i - j,
+          i * j,
+          i / j,
+          i % j,
+          i ^ j,
+          -i
+        )
       },
       "MATCH (`v`) " +
       "RETURN " +
-        "`v`.`i` + `v`.`j`, " +
-        "`v`.`i` - `v`.`j`, " +
-        "`v`.`i` * `v`.`j`, " +
-        "`v`.`i` / `v`.`j`, " +
-        "`v`.`i` % `v`.`j`, " +
-        "`v`.`i` ^ `v`.`j`, " +
-        "-`v`.`i`"
+      "`v`.`i` + `v`.`j`, " +
+      "`v`.`i` - `v`.`j`, " +
+      "`v`.`i` * `v`.`j`, " +
+      "`v`.`i` / `v`.`j`, " +
+      "`v`.`i` % `v`.`j`, " +
+      "`v`.`i` ^ `v`.`j`, " +
+      "-`v`.`i`"
     ).returns[(Long, Long, Long, Long, Long, Long, Long)]
 
-/*
+    /*
     def supportLists[E <: CypherFragment.Expr[List[String]]: CypherFragment](l: E) = test(
       Match {
         case v < e - _ => (
@@ -469,8 +476,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "[ \"Admin\", \"Share\", \"Create\" ][2..], " +
         "[ \"Admin\", \"Share\", \"Create\" ][..2]"
     ).returns[(List[Long], List[String], List[String], Long, Boolean, String, List[String], List[String], List[String])]
-*/
-
+     */
 
     "support lists of literals" in pending // supportLists(list("Admin", "Share", "Create"))
 
@@ -609,7 +615,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "RETURN `user`.`email`, `g`.`name`"
       ).returns[(String, String)]
     }
-*/
+     */
     "support nested matches (separated, edge)" in ??? /*{
       def inner(e0: Rel) = Match {
         case (foo@Node("Foo")) -Rel(`e0`)> Node("Bar") =>
@@ -624,7 +630,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "RETURN `foo`.`name`"
       ).returns[String]
     }
-*/
+     */
     "support optional matches" in pending /*test(
       Match {
         case u@Node("User") =>
@@ -660,7 +666,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "`account`: { `email`: `u`.`email`, `confirmed`: `u`.`confirmed` } " +
         "}"
     ).returns[Map[String, Any]]
-*/
+     */
     "collect results to lists" in pending /*test(
       Match {
         case u@Node("User") =>
@@ -731,7 +737,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         CypherFragment.Expr.ListComprehension[Long, Long](
           v.prop[List[Long]]("data"),
           filter = None,
-          map = None
+          map    = None
         )
       },
       "MATCH (`v`) " +
@@ -764,7 +770,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
           s"single(`$elem5` IN `v`.`data` WHERE `$elem5` > 0)"
       ).returns[(Boolean, Boolean, Boolean, Boolean)]
     }
-*/
+     */
     "slice collected lists" in pending /*test(
       Match {
         case u@Node("User") =>
@@ -796,8 +802,8 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
       val label = "User"
       val prop  = "name"
       test(
-        Match {
-          case v@Node(`label`) => v.prop[Any](prop)
+        Match { case v @ Node(`label`) =>
+          v.prop[Any](prop)
         },
         "MATCH (`v`:`User`) " +
         "RETURN `v`.`name`"
@@ -805,7 +811,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
     }
 
     "allow to use non-literal value maps in matches" in ???
-/*
+    /*
       test(
         Match {
           case v0@Node("Foo") =>
@@ -821,7 +827,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "MATCH (`v`{ `foo`: `v0`.`n` > 0, `bar`: \"BAR\" }) " +
         "RETURN `v`.`something`"
       ).returns[Any]
-*/
+     */
 
     "allow to use non-literal label/type iterables in matches" in ??? /*{
       val labels = "User" :: Nil
@@ -834,7 +840,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "RETURN `v`, `x`"
       ).returns[(Map[String, Any], Map[String, Any])]
     }
-*/
+     */
     "allow to use non-literal, known optional conditions in `if` guard [defined]" in pending /*{
       def cond(v: Node): Option[CypherFragment.Known[CypherFragment.Expr[Boolean]]] = Some(v.prop[Int]("age") >= lit(18))
       test(
@@ -1038,7 +1044,7 @@ class NewCypherSyntaxTest extends CypherSyntaxBaseSpec {
         "RETURN `u`.`id`, `g`.`id`, `collect`(`bar`.`id`)"
       ).returns[(String, String, List[String])]
     }
-*/
+     */
     "Allow to return nothing at write queries (create)" in pending /*test(
       Create { case Node("A") => returnNothing },
       "CREATE (:`A`) "

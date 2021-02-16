@@ -7,6 +7,7 @@ import com.arkondata.slothql.cypher.ParameterizedCypherQuery
 import com.arkondata.slothql.cypher.syntax.apoc._
 
 object APOC {
+
   def when[PT <: HList, PE <: HList, Ps <: HList, A](
     cond: Expr[Boolean],
     thenQuery: ParameterizedCypherQuery[PT, A],
@@ -16,10 +17,15 @@ object APOC {
     new When.ParamsSyntax(cond, thenQuery, elseQuery, write)(b.toMap)
 
   object `case` extends ProductArgs {
-    def applyProduct[Cases <: HList](cases: Cases)(implicit b: Case.Builder[Cases]): Case.OtherwiseSyntax[b.Params, b.Out] =
+
+    def applyProduct[Cases <: HList](cases: Cases)(implicit
+      b: Case.Builder[Cases]
+    ): Case.OtherwiseSyntax[b.Params, b.Out] =
       new Case.OtherwiseSyntax(b.toList(cases), write = false)
 
-    def writeProduct[Cases <: HList](cases: Cases)(implicit b: Case.Builder[Cases]): Case.OtherwiseSyntax[b.Params, b.Out] =
+    def writeProduct[Cases <: HList](cases: Cases)(implicit
+      b: Case.Builder[Cases]
+    ): Case.OtherwiseSyntax[b.Params, b.Out] =
       new Case.OtherwiseSyntax(b.toList(cases), write = true)
   }
 
@@ -30,7 +36,9 @@ object APOC {
     assertNot(!pred, msg, msgParams: _*)(res)
 
   object lock {
+
     object read extends CommonInterface {
+
       def nodes[R](node: Node, nodes: Node*)(res: Query[R]): Query[R] =
         this.nodes(NonEmptyList(node, nodes.toList))(res)
 
@@ -45,6 +53,7 @@ object APOC {
     }
 
     object write extends CommonInterface {
+
       def apply[R](nodes: NonEmptyList[Node], rels: NonEmptyList[Rel])(res: Query[R]): Query[R] =
         Call("apoc.lock.all", list(nodes.toList: _*), list(rels.toList: _*)).void(res)
 

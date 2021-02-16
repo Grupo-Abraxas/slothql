@@ -2,16 +2,23 @@ package com.arkondata.slothql.cypher.syntax
 
 import scala.reflect.macros.whitebox
 
-class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyntaxPatternMacros(c){
+class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyntaxPatternMacros(c) {
   import c.universe._
 
   def void[R: WeakTypeTag](res: Tree): Tree =
     yieldImpl[R](res)
+
   def yield1[A1: WeakTypeTag, R: WeakTypeTag](yields1: Tree)(res: Tree): Tree =
     yieldImpl[R](res, yields1 -> weakTypeOf[A1])
+
   def yield2[A1: WeakTypeTag, A2: WeakTypeTag, R: WeakTypeTag](yields1: Tree, yields2: Tree)(res: Tree): Tree =
     yieldImpl[R](res, yields1 -> weakTypeOf[A1], yields2 -> weakTypeOf[A2])
-  def yield3[A1: WeakTypeTag, A2: WeakTypeTag, A3: WeakTypeTag, R: WeakTypeTag](yields1: Tree, yields2: Tree, yields3: Tree)(res: Tree): Tree =
+
+  def yield3[A1: WeakTypeTag, A2: WeakTypeTag, A3: WeakTypeTag, R: WeakTypeTag](
+    yields1: Tree,
+    yields2: Tree,
+    yields3: Tree
+  )(res: Tree): Tree =
     yieldImpl[R](res, yields1 -> weakTypeOf[A1], yields2 -> weakTypeOf[A2], yields3 -> weakTypeOf[A3])
 
   protected def yieldImpl[R: WeakTypeTag](func: Tree, yieldsT: (Tree, Type)*): Tree = {
@@ -20,11 +27,13 @@ class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyn
     }
     val (binds, yields, next) = func match {
       case Function(yieldsV, body) if yieldsT.nonEmpty =>
-        val (rebind, binds, rets) = yieldsT.zip(yieldsV).map {
-          case ((nme, tpe), ValDef(_, TermName(alias), _, _)) =>
+        val (rebind, binds, rets) = yieldsT
+          .zip(yieldsV)
+          .map { case ((nme, tpe), ValDef(_, TermName(alias), _, _)) =>
             val name = c.freshName(alias)
-            val bind = q"val ${TermName(name)} = _root_.com.arkondata.slothql.cypher.CypherFragment.Expr.Alias[$tpe]($alias)"
-            val ret  =
+            val bind =
+              q"val ${TermName(name)} = _root_.com.arkondata.slothql.cypher.CypherFragment.Expr.Alias[$tpe]($alias)"
+            val ret =
               q"""
                 _root_.com.arkondata.slothql.cypher.CypherFragment.Return.Expr[$tpe](
                   expr = _root_.com.arkondata.slothql.cypher.CypherFragment.Expr.Alias.Fixed($nme),
@@ -32,9 +41,11 @@ class CypherSyntaxCallMacros(override val c: whitebox.Context) extends CypherSyn
                 )
               """
             (alias -> name, bind, ret)
-        }.unzip3
+          }
+          .unzip3
         val newBody = transformBody(rebind.toMap, body)
-        val yields = q"_root_.scala.Some(_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$rets)))"
+        val yields =
+          q"_root_.scala.Some(_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$rets)))"
         (binds, yields, newBody)
       case body if yieldsT.isEmpty =>
         (Nil, q"_root_.scala.None", body)
