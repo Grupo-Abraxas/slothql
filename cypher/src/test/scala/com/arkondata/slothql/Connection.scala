@@ -3,7 +3,7 @@ package com.arkondata.slothql
 import org.neo4j.driver.{ AuthTokens, GraphDatabase }
 
 object Connection {
-  lazy val host = "neo4j"
+  lazy val host = sys.env.getOrElse("NEO4J_HOST", "neo4j")
   lazy val port = 7687
 
   private val pattern                     = "(.+)/(.+)".r
