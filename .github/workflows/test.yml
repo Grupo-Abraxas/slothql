@@ -13,9 +13,10 @@ jobs:
 
     services:
       neo4j:
-        image: neo4j:latest
+        image: 'neo4j:4.1.0-enterprise'
         env:
           NEO4J_AUTH: 'neo4j/test'
+          NEO4JLABS_PLUGINS: "[\"apoc\"]"
         ports: 
           - 7474:7474
           - 7687:7687
@@ -30,19 +31,9 @@ jobs:
 
     - name: Compile
       run: sbt ";compile ;test:compile"
-    
-    - name: Run tests (not require Neo4j)
-      run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
-      
+
     - name: Run tests (require Neo4j without APOC plugin)
       env:
         NEO4J_HOST: 'localhost'
         NEO4J_AUTH: 'neo4j/test'
-      run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j -l com.arkondata.slothql.test.tags.RequiresApoc"
-
-    - name: "[DISABLED] Run tests (require Neo4j with APOC plugin)"
-      env:
-        NEO4J_HOST: 'localhost'
-        NEO4J_AUTH: 'neo4j/test'
-      run: echo "DISABLED"
-      # run: sbt "testOnly * -- -n com.arkondata.slothql.test.tags.RequiresNeo4j -n com.arkondata.slothql.test.tags.RequiresApoc"
+      run: sbt test
