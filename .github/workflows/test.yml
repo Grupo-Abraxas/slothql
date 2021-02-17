@@ -32,7 +32,7 @@ jobs:
     - name: Compile
       run: sbt ";compile ;test:compile"
 
-    - name: Run tests (require Neo4j without APOC plugin)
+    - name: Run tests (require Neo4j with APOC plugin)
       env:
         NEO4J_HOST: 'localhost'
         NEO4J_AUTH: 'neo4j/test'
