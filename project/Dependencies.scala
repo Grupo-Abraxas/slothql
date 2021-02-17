@@ -32,7 +32,7 @@ object Dependencies {
     lazy val kindProjector = "0.11.3"
     lazy val macroParadise = "2.1.1"
 
-    lazy val cats       = "2.4.1"
+    lazy val cats       = "2.4.2"
     lazy val catsEffect = "2.1.4"
     lazy val fs2        = "2.4.6"
 
