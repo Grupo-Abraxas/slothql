@@ -21,7 +21,7 @@ jobs:
         ports: 
           - 7474:7474
           - 7687:7687
-        options: --health-cmd "wget --quiet --spider localhost:7474" --health-interval 100s --health-timeout 100s --health-retries 5
+        options: --health-cmd "wget --quiet --spider localhost:7474" --health-interval 30s --health-timeout 180s --health-retries 6
 
     steps:
     - uses: actions/checkout@v2
