@@ -500,6 +500,8 @@ object CypherFragment {
 
     case class SetNode(to: Expr[Map[String, _]], props: Expr[Map[String, Expr[_]]]) extends Write
 
+    case class ExtendNode(to: Expr[Map[String, _]], props: Expr[Map[String, Expr[_]]]) extends Write
+
     def toCypher(clause: Clause): GenS[Part] = clause match {
       case Match(pattern, optional, where) =>
         for {
@@ -526,6 +528,12 @@ object CypherFragment {
           name  <- part(n)
           props <- part(props0)
           set   <- GenS.part(s"SET $name = $props")
+        } yield set
+      case ExtendNode(n, props0) =>
+        for {
+          name  <- part(n)
+          props <- part(props0)
+          set   <- GenS.part(s"SET $name += $props")
         } yield set
       case Delete(elems, detach) =>
         val detachStr = if (detach) "DETACH " else ""

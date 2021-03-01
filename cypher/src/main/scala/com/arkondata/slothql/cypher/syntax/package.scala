@@ -187,6 +187,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
       setNode,
       res
     )
+
+    def apply[R](setNode: CF.Clause.ExtendNode)(res: Query[R]): Query[R] = CF.Query.Clause(
+      setNode,
+      res
+    )
   }
 
   object Delete {
@@ -887,6 +892,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     def :=(props: Expr[Map[String, Expr[_]]]): CF.Clause.SetNode =
       CF.Clause.SetNode(e.asInstanceOf[Expr[Map[String, Any]]], props)
+
+    def +=(props: Expr[Map[String, Expr[_]]]): CF.Clause.ExtendNode =
+      CF.Clause.ExtendNode(e.asInstanceOf[Expr[Map[String, Any]]], props)
 
     def setProp: set.type = set
   }
