@@ -6,6 +6,8 @@ import cats.data.{ Ior, NonEmptyList }
 import cats.instances.list._
 import cats.instances.option._
 
+import com.arkondata.slothql.cypher.syntax.LiftedMap
+
 trait CypherFragment {
   type Statement <: CypherStatement
 
@@ -496,6 +498,10 @@ object CypherFragment {
       }
     }
 
+    case class SetNode(to: Expr[Map[String, _]], props: Expr[Map[String, Expr[_]]]) extends Write
+
+    case class ExtendNode(to: Expr[Map[String, _]], props: Expr[Map[String, Expr[_]]]) extends Write
+
     def toCypher(clause: Clause): GenS[Part] = clause match {
       case Match(pattern, optional, where) =>
         for {
@@ -517,6 +523,18 @@ object CypherFragment {
         } yield s"WITH $ret$where"
       case Create(pattern) => partsSequence(pattern.toList).map(ps => s"CREATE ${ps.mkString(", ")}")
       case SetProps(set)   => partsSequence(set.toList).map(ss => s"SET ${ss.mkString(", ")}")
+      case SetNode(n, props0) =>
+        for {
+          name  <- part(n)
+          props <- part(props0)
+          set   <- GenS.part(s"SET $name = $props")
+        } yield set
+      case ExtendNode(n, props0) =>
+        for {
+          name  <- part(n)
+          props <- part(props0)
+          set   <- GenS.part(s"SET $name += $props")
+        } yield set
       case Delete(elems, detach) =>
         val detachStr = if (detach) "DETACH " else ""
         partsSequence(elems.toList).map(es => s"${detachStr}DELETE ${es.mkString(", ")}")
