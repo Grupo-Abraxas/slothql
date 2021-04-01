@@ -893,8 +893,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     def :=(props: Expr[Map[String, Expr[_]]]): CF.Clause.SetNode =
       CF.Clause.SetNode(e.asInstanceOf[Expr[Map[String, Any]]], props)
 
-    def +=(props: Expr[Map[String, Expr[_]]]): CF.Clause.ExtendNode =
-      CF.Clause.ExtendNode(e.asInstanceOf[Expr[Map[String, Any]]], props)
+    def +=[A](props: Expr[Map[String, A]]): CF.Clause.ExtendNode =
+      CF.Clause.ExtendNode(e.asInstanceOf[Expr[Map[String, Any]]], props.asInstanceOf[Expr[Map[String, Expr[_]]]])
 
     def setProp: set.type = set
   }

@@ -57,6 +57,18 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
       "RETURN `id`(`n0`)"
     ).returns[Long]
 
+    "support settings node properties from map extending properties with lifted map" in
+    test(
+      Match { case n @ Node("id" := "123") =>
+        Update(n += lit(LiftedMap("foo" -> "qwerty", "bar" -> 123))) {
+          n.id
+        }
+      },
+      "MATCH (`n0`{ `id`: \"123\" }) " +
+      "SET `n0` += {`foo`: \"qwerty\", `bar`: 123} " +
+      "RETURN `id`(`n0`)"
+    ).returns[Long]
+
     "support setting relationship properties" in
     test(
       Match { case (a @ Node("A")) - (e @ Rel("E")) > (b @ Node("B")) =>
