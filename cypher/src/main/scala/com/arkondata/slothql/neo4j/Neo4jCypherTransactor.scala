@@ -60,7 +60,7 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])(
 
   protected def blockerResource: Resource[F, Blocker] = Blocker[F]
 
-  protected def sessionResource: Resource[F, Session] = Resource.liftF(session)
+  protected def sessionResource: Resource[F, Session] = Resource.eval(session)
   // TODO: `Resource.make(session)(s => delay(s.close()))` fails; maybe fs2.Stream.resourceWeak should be used at `run`?
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
@@ -90,7 +90,7 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])(
       tx <- readTxAsResource(txVar)
     } yield tx
 
-  protected def transactionMVarResource: Resource[F, MVar[F, Transaction]] = Resource liftF MVar.empty[F, Transaction]
+  protected def transactionMVarResource: Resource[F, MVar[F, Transaction]] = Resource eval MVar.empty[F, Transaction]
 
   protected def execLockMVarResource(lock1: MVar[F, Option[Throwable]]): Resource[F, MVar[F, Boolean]] = {
     def waitClose = lock1.read.map(_.toLeft(())).rethrow
@@ -101,7 +101,7 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])(
   }
 
   protected def closeLockMVarResource: Resource[F, MVar[F, Option[Throwable]]] =
-    Resource.liftF(MVar.empty[F, Option[Throwable]])
+    Resource.eval(MVar.empty[F, Option[Throwable]])
 
   protected def commitTransaction(tx: Transaction): F[Unit]   = delay(tx.commit())
   protected def rollbackTransaction(tx: Transaction): F[Unit] = delay(tx.rollback())
@@ -109,7 +109,7 @@ class Neo4jCypherTransactor[F[_]](protected val session: F[Session])(
 
   protected def backgroundWorkResource(work: F[Unit]): Resource[F, F[Unit]] = Concurrent[F].background(work)
 
-  protected def readTxAsResource(txVar: MVar[F, Transaction]): Resource[F, Transaction] = Resource.liftF(txVar.read)
+  protected def readTxAsResource(txVar: MVar[F, Transaction]): Resource[F, Transaction] = Resource.eval(txVar.read)
 
   // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
