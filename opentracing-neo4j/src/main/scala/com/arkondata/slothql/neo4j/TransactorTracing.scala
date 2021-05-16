@@ -107,9 +107,9 @@ object TransactorTracing {
 
     override protected def readTxAsResource(txVar: MVar[F, Transaction]): Resource[F, Transaction] =
       for {
-        span <- Resource liftF activeSpan[F]
+        span <- Resource eval activeSpan[F]
         tx   <- super.readTxAsResource(txVar)
-        _    <- Resource liftF activateSpan(span)
+        _    <- Resource eval activateSpan(span)
       } yield tx
 
     protected def runInsideTxWork(span: Option[Span])(run: => Unit): Unit = run
@@ -119,7 +119,7 @@ object TransactorTracing {
         txVar <- transactionMVarResource
         cLock <- closeLockMVarResource
         eLock <- execLockMVarResource(cLock)
-        span  <- Resource liftF activeSpan[F]
+        span  <- Resource eval activeSpan[F]
         runTx = ce.delay(run { tx =>
                   runInsideTxWork(span) {
                     (for {
