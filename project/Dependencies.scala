@@ -33,7 +33,7 @@ object Dependencies {
     lazy val macroParadise = "2.1.1"
 
     lazy val cats       = "2.4.1"
-    lazy val catsEffect = "2.1.4"
+    lazy val catsEffect = "2.5.3"
     lazy val fs2        = "2.4.6"
 
     lazy val neo4jDriver = "4.2.0"
