@@ -29,7 +29,7 @@ object Dependencies {
 
   object Version {
     lazy val shapeless     = "2.3.3"
-    lazy val kindProjector = "0.11.3"
+    lazy val kindProjector = "0.13.1"
     lazy val macroParadise = "2.1.1"
 
     lazy val cats       = "2.4.1"
