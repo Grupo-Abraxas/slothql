@@ -25,7 +25,7 @@ lazy val root = (project in file("."))
     inThisBuild(
       List(
         git.gitUncommittedChanges := (git.gitUncommittedChanges.value || isSnapshot.value),
-        Compile / scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
+        Compile / scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation", "-Wunused:imports"),
         addCompilerPlugin(Dependencies.Plugin.`kind-projector`)
       ) ++ versionWithGit
     ),
@@ -39,6 +39,7 @@ lazy val cypher = (project in file("cypher"))
   .settings(
     docSettings,
     name := "slothql-cypher",
+    Compile / scalacOptions ++= Seq("-Wunused:imports"),
     libraryDependencies ++= Seq(
       Dependencies.Scala.reflect.value,
       Dependencies.shapeless,
@@ -61,6 +62,7 @@ lazy val cypher = (project in file("cypher"))
 lazy val apoc = (project in file("cypher-apoc"))
   .settings(
     docSettings,
+    Compile / scalacOptions ++= Seq("-Wunused:imports"),
     name := "slothql-cypher-apoc"
   )
   .dependsOn(cypher % "compile -> compile; test -> test")
@@ -69,7 +71,7 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
   .settings(
     docSettings,
     name := "slothql-opentracing-neo4j",
-    Compile / scalacOptions += "-Ymacro-annotations",
+    Compile / scalacOptions ++= Seq("-Ymacro-annotations", "-Wunused:imports"),
     libraryDependencies ++= Seq(
       Dependencies.`opentracing-effect`,
       Dependencies.`opentracing-fs2`

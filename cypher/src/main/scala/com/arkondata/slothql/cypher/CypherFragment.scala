@@ -6,8 +6,6 @@ import cats.data.{ Ior, NonEmptyList }
 import cats.instances.list._
 import cats.instances.option._
 
-import com.arkondata.slothql.cypher.syntax.LiftedMap
-
 trait CypherFragment {
   type Statement <: CypherStatement
 

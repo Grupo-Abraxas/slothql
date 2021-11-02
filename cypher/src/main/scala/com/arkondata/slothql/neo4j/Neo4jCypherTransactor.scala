@@ -4,26 +4,25 @@ import scala.annotation.implicitNotFound
 import scala.jdk.CollectionConverters._
 import scala.language.existentials
 
-import cats.{ ~>, Applicative, Monad, StackSafeMonad }
 import cats.arrow.{ Arrow, FunctionK }
 import cats.data.StateT
-import cats.effect.{ Blocker, Concurrent, ConcurrentEffect, ContextShift, ExitCase, Resource, Sync }
 import cats.effect.concurrent.MVar
 import cats.effect.syntax.bracket._
 import cats.effect.syntax.effect._
+import cats.effect.{ Blocker, Concurrent, ConcurrentEffect, ContextShift, ExitCase, Resource, Sync }
 import cats.instances.function._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.syntax.monadError._
-import cats.syntax.parallel._
-import org.neo4j.driver.{ Driver, Record, Result, Session, Transaction, TransactionWork, Value }
+import cats.{ ~>, Applicative, Monad, StackSafeMonad }
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
+import org.neo4j.driver.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
+import org.neo4j.driver.{ Driver, Record, Result, Session, Transaction, TransactionWork, Value }
 import shapeless._
 
 import com.arkondata.slothql.cypher
-import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 import com.arkondata.slothql.cypher.CypherTransactor._
+import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 import com.arkondata.slothql.neo4j.util.{ fs2StreamTxCMonad, javaStreamToFs2 }
 
 class Neo4jCypherTransactor[F[_]](protected val session: F[Session])(

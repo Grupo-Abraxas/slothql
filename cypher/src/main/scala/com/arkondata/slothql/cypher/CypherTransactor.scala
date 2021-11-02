@@ -2,11 +2,11 @@ package com.arkondata.slothql.cypher
 
 import scala.language.implicitConversions
 
-import cats.{ ~>, Applicative, Functor, Id, Invariant, Monad, MonadError, MonoidK, Semigroupal }
 import cats.free.FreeT
-import cats.syntax.apply._
 import cats.syntax.applicative._
+import cats.syntax.apply._
 import cats.syntax.functor._
+import cats.{ ~>, Applicative, Functor, Id, Invariant, Monad, MonadError, MonoidK, Semigroupal }
 import shapeless.HList
 
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }

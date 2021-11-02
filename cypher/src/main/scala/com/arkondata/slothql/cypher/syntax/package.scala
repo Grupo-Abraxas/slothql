@@ -5,7 +5,6 @@ import scala.language.experimental.macros
 import scala.language.{ dynamics, implicitConversions }
 
 import cats.data.{ Ior, NonEmptyList }
-import shapeless.tag.@@
 import shapeless.{ ::, =:!=, |∨|, ops, HList, HNil, Refute, Unpack1 }
 
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
