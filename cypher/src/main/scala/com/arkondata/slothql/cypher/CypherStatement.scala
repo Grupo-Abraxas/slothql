@@ -2,9 +2,7 @@ package com.arkondata.slothql.cypher
 
 import scala.annotation.unchecked.uncheckedVariance
 import scala.jdk.CollectionConverters._
-import scala.language.implicitConversions
 
-import cats.{ catsInstancesForId, Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad }
 import cats.arrow.Arrow
 import cats.instances.function._
 import cats.instances.map._
@@ -13,6 +11,7 @@ import cats.syntax.apply._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.syntax.semigroupk._
+import cats.{ catsInstancesForId, Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad }
 
 sealed trait CypherStatement {
   val template: String

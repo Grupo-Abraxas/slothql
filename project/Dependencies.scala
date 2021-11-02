@@ -7,8 +7,9 @@ object Dependencies {
   }
 
   object Plugin {
-    lazy val `kind-projector` = "org.typelevel"  %% "kind-projector" % Version.kindProjector cross CrossVersion.full
-    lazy val `macro-paradise` = "org.scalamacros" % "paradise"       % Version.macroParadise cross CrossVersion.full
+    lazy val `kind-projector`   = "org.typelevel"        %% "kind-projector"   % Version.kindProjector cross CrossVersion.full
+    lazy val `macro-paradise`   = "org.scalamacros"       % "paradise"         % Version.macroParadise cross CrossVersion.full
+    lazy val `organize-imports` = "com.github.liancheng" %% "organize-imports" % Version.organizeImports
   }
 
   lazy val shapeless     = "com.chuusai"   %% "shapeless"   % Version.shapeless
@@ -28,18 +29,19 @@ object Dependencies {
   }
 
   object Version {
-    lazy val shapeless     = "2.3.3"
-    lazy val kindProjector = "0.11.3"
+    lazy val shapeless     = "2.3.7"
+    lazy val kindProjector = "0.13.2"
     lazy val macroParadise = "2.1.1"
 
-    lazy val cats       = "2.4.1"
-    lazy val catsEffect = "2.1.4"
-    lazy val fs2        = "2.4.6"
+    lazy val cats       = "2.4.2"
+    lazy val catsEffect = "2.5.4"
+    lazy val fs2        = "2.5.9"
 
-    lazy val neo4jDriver = "4.2.0"
+    lazy val neo4jDriver = "4.3.0"
 
-    lazy val opentracingScala = "0.2.2"
+    lazy val opentracingScala = "0.2.3"
+    lazy val organizeImports  = "0.5.0"
 
-    lazy val scalatest = "3.1.4"
+    lazy val scalatest = "3.2.10"
   }
 }

@@ -8,7 +8,7 @@ import cats.data.{ Ior, NonEmptyList }
 
 import com.arkondata.slothql.cypher.CypherFragment.{ Pattern => P }
 import com.arkondata.slothql.cypher.CypherStatement.Alias
-import com.arkondata.slothql.cypher.{ CypherStatement, GraphElem, syntax, CypherFragment => CF }
+import com.arkondata.slothql.cypher.{ CypherFragment => CF, CypherStatement, GraphElem, syntax }
 
 class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   import c.universe._

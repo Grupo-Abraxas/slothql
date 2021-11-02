@@ -2,8 +2,6 @@ package com.arkondata.slothql.cypher.syntax
 
 import scala.util.Random
 
-import shapeless.tag.@@
-
 import com.arkondata.slothql.cypher.{ CypherFragment, GraphElem }
 
 /** Advanced pattern matching.

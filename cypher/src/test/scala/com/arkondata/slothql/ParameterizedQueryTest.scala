@@ -15,7 +15,6 @@ import com.arkondata.slothql.test.tags.RequiresNeo4j
 @RequiresNeo4j
 class ParameterizedQueryTest extends AnyWordSpec with Matchers with Neo4jUsingTest {
   import tx.readers._
-  import tx.ops._
 
   lazy val query1 = parameterized { (x: Param[Long], y: Param[String], z: Param[List[String]]) =>
     Unwind(z) { i =>

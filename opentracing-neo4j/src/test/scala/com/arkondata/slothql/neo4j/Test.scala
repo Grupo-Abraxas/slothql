@@ -2,17 +2,17 @@ package com.arkondata.slothql.neo4j
 
 import java.util.concurrent.TimeUnit
 
-import cats.effect.{ Blocker, ConcurrentEffect, ContextShift }
+import cats.effect.{ ConcurrentEffect, ContextShift }
 import cats.instances.option._
-import cats.syntax.apply._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.~>
+import org.neo4j.driver.Session
+import org.neo4j.driver.summary.ResultSummary
+
 import com.arkondata.opentracing.SpanOps
 import com.arkondata.opentracing.effect.{ activeSpan, ResourceTracingOps }
 import com.arkondata.opentracing.util.TraceBundle
-import org.neo4j.driver.summary.ResultSummary
-import org.neo4j.driver.{ Session, Transaction }
 
 @TransactorTracing
 class Test[F[_]: ContextShift](session: F[Session])(implicit

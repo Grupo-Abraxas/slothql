@@ -14,15 +14,16 @@ import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.{ ~>, Eval, Id }
-import com.arkondata.opentracing.Tracing.TracingSetup
-import com.arkondata.opentracing.{ SpanLog, TraceLaterEval, Tracing }
-import com.arkondata.opentracing.effect.{ activateSpan, activeSpan, ResourceTracingOps }
-import com.arkondata.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
-import com.arkondata.opentracing.util.TraceBundle
 import io.opentracing.{ Span, SpanContext, Tracer }
 import org.neo4j.driver.async.ResultCursor
 import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver.{ Result, Session, Transaction, TransactionWork }
+
+import com.arkondata.opentracing.Tracing.TracingSetup
+import com.arkondata.opentracing.effect.{ activateSpan, activeSpan, ResourceTracingOps }
+import com.arkondata.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
+import com.arkondata.opentracing.util.TraceBundle
+import com.arkondata.opentracing.{ SpanLog, TraceLaterEval, Tracing }
 
 @compileTimeOnly(
   "Macro transformation was not applied. " +

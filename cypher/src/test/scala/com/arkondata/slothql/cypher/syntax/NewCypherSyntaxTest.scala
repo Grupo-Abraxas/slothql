@@ -2,7 +2,7 @@ package com.arkondata.slothql.cypher.syntax
 
 import org.scalatest.Ignore
 
-import com.arkondata.slothql.cypher.{ CypherFragment, CypherStatement }
+import com.arkondata.slothql.cypher.CypherFragment
 
 /* TODO: restructure the spec
 

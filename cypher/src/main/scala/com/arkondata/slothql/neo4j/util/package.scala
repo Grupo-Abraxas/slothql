@@ -5,8 +5,8 @@ import java.util.stream.{ Stream => JStream }
 import scala.jdk.CollectionConverters._
 
 import cats.effect.{ Blocker, ContextShift, Resource, Sync }
-import cats.{ Applicative, Apply, Monad }
 import cats.syntax.applicative._
+import cats.{ Applicative, Apply, Monad }
 
 import com.arkondata.slothql.cypher.CypherTransactor.{ TxC => TxC0, _ }
 
