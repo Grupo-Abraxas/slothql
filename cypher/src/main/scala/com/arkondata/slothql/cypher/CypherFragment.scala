@@ -484,6 +484,8 @@ object CypherFragment {
 
     case class OnMatch(props: Write) extends Write
 
+    case class OnCreate(props: Write) extends Write
+
     case class SetProps(set: NonEmptyList[SetProps.One]) extends Write
 
     object SetProps {
@@ -520,6 +522,10 @@ object CypherFragment {
         for {
           ps <- part(props)
         } yield s"ON MATCH $ps"
+      case OnCreate(props) =>
+        for {
+          ps <- part(props)
+        } yield s"ON CREATE $ps"
       case Unwind(expr, as) =>
         for {
           expr  <- part(expr)

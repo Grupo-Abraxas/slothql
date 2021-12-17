@@ -159,6 +159,36 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
       "ON MATCH SET `n0` += {`id`: 2} "
     ).returns[Unit]
 
+    "support merge nodes with on create with set" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n.set.id := lit(2), n.set.bar := lit("stub")) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON CREATE SET `n0`.`id` = 2, `n0`.`bar` = \"stub\" "
+    ).returns[Unit]
+
+    "support merge nodes with on create with set node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n := lit(Map("id" -> lit(2)))) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON CREATE SET `n0` = {`id`: 2} "
+    ).returns[Unit]
+
+    "support merge nodes with on create with extend node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n += lit(Map("id" -> lit(2)))) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON CREATE SET `n0` += {`id`: 2} "
+    ).returns[Unit]
+
   }
 
 }

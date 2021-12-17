@@ -47,6 +47,30 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     )
   }
 
+  /** To use inside MERGE clause
+    */
+  object OnCreate extends {
+    type Prop = CF.Clause.SetProps.One
+
+    case class PartialCreateApply(clause: Write) {
+
+      def *>[R](res: Query[R]): Query[R] = CF.Query.Clause(
+        clause,
+        res
+      )
+    }
+
+    def apply(prop: Prop, props: Prop*): PartialCreateApply = PartialCreateApply(
+      CF.Clause.OnCreate(CF.Clause.SetProps(NonEmptyList(prop, props.toList)))
+    )
+
+    def apply(setNode: CF.Clause.SetNode): PartialCreateApply = PartialCreateApply(CF.Clause.OnCreate(setNode))
+
+    def apply(extendNode: CF.Clause.ExtendNode): PartialCreateApply = PartialCreateApply(
+      CF.Clause.OnCreate(extendNode)
+    )
+  }
+
   object With extends {
 
     @compileTimeOnly("would have been replaced at With.apply")
