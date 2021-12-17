@@ -170,7 +170,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Merge {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.merge[R]
+    def apply[R](query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.merge[R]
   }
 
   object Update {

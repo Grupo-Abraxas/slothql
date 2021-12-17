@@ -112,6 +112,14 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
       },
       "CREATE (:`Foo`{ `id`: 1 }) "
     ).returns[Unit]
+
+    "support merge nodes" in
+    test(
+      Merge { case Node("Foo", "bar" := 1, "another" := "stub") =>
+        returnNothing
+      },
+      "MERGE (:`Foo`{ `bar`: 1, `another`: \"stub\" }) "
+    ).returns[Unit]
   }
 
 }

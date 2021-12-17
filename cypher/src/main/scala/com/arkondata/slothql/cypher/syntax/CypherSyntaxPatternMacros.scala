@@ -16,6 +16,9 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
   def match_[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     matchImpl(query, reify(false))
 
+  def merge[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    mergeImpl(query)
+
   def optional[R: WeakTypeTag](query: c.Expr[Node => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
     matchImpl(query, reify(true))
 
@@ -48,6 +51,16 @@ class CypherSyntaxPatternMacros(val c: blackbox.Context) {
           optional = optional.splice,
           where    = guard.splice
         )
+      }
+    }
+
+  protected def mergeImpl[R: WeakTypeTag](
+    query: c.Expr[Node => CF.Query.Query0[R]]
+  ): c.Expr[CF.Query.Query0[R]] =
+    qImpl(query) { (guard, pattern) =>
+      if (!(guard.tree equalsStructure NoneTree)) c.abort(guard.tree.pos, "`if` guard is not allowed at Merge clause.")
+      reify {
+        CF.Clause.Merge(NonEmptyList.one[P](pattern.splice))
       }
     }
 
