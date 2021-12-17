@@ -22,6 +22,30 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
       macro CypherSyntaxPatternMacros.maybe[R]
   }
 
+  /** To use inside MERGE clause
+    */
+  object OnMatch extends {
+    type Prop = CF.Clause.SetProps.One
+
+    def apply[R](prop: Prop, props: Prop*)(res: Query[R]): Query[R] =
+      CF.Query.Clause(
+        CF.Clause.OnMatch(CF.Clause.SetProps(NonEmptyList(prop, props.toList))),
+        res
+      )
+
+    def apply[R](setNode: CF.Clause.SetNode)(res: Query[R]): Query[R] =
+      CF.Query.Clause(
+        CF.Clause.OnMatch(setNode),
+        res
+      )
+
+    def apply[R](extendNode: CF.Clause.ExtendNode)(res: Query[R]): Query[R] =
+      CF.Query.Clause(
+        CF.Clause.OnMatch(extendNode),
+        res
+      )
+  }
+
   object With extends {
 
     @compileTimeOnly("would have been replaced at With.apply")

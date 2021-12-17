@@ -482,6 +482,8 @@ object CypherFragment {
     case class Create(pattern: PatternTuple) extends Write
     case class Delete(elems: NonEmptyList[Expr[_]], detach: Boolean) extends Write
 
+    case class OnMatch(props: Write) extends Write
+
     case class SetProps(set: NonEmptyList[SetProps.One]) extends Write
 
     object SetProps {
@@ -514,6 +516,10 @@ object CypherFragment {
         for {
           ps <- partsSequence(pattern.toList)
         } yield s"MERGE ${ps.mkString(", ")}"
+      case OnMatch(props) =>
+        for {
+          ps <- part(props)
+        } yield s"ON MATCH $ps"
       case Unwind(expr, as) =>
         for {
           expr  <- part(expr)

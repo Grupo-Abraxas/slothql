@@ -115,11 +115,53 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
 
     "support merge nodes" in
     test(
-      Merge { case Node("Foo", "bar" := 1, "another" := "stub") =>
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
         returnNothing
       },
-      "MERGE (:`Foo`{ `bar`: 1, `another`: \"stub\" }) "
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) "
     ).returns[Unit]
+
+    "support merge nodes with relations" in
+    test(
+      Merge { case (n @ Node("Foo", "bar" := 1, "another" := "stub")) - Rel("do") > Node("Bar") =>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) -[:`do`]-> (:`Bar`) "
+    ).returns[Unit]
+
+    "support merge nodes with on match with set" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n.set.id = lit(2)) {
+          returnNothing
+        }
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0`.`id` = 2 "
+    ).returns[Unit]
+
+    "support merge nodes with on match with set node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n := lit(Map("id" -> lit(2)))) {
+          returnNothing
+        }
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0` = {`id`: 2} "
+    ).returns[Unit]
+
+    "support merge nodes with on match with extend node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n += lit(Map("id" -> lit(2)))) {
+          returnNothing
+        }
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0` += {`id`: 2} "
+    ).returns[Unit]
+
   }
 
 }
