@@ -7,6 +7,7 @@ import scala.language.{ dynamics, implicitConversions }
 import cats.data.{ Ior, NonEmptyList }
 import shapeless.{ ::, =:!=, |∨|, ops, HList, HNil, Refute, Unpack1 }
 
+import com.arkondata.slothql.cypher.CypherFragment.Clause.Write
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 
 package object syntax extends CypherSyntaxLowPriorityImplicits {
@@ -27,23 +28,23 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   object OnMatch extends {
     type Prop = CF.Clause.SetProps.One
 
-    def apply[R](prop: Prop, props: Prop*)(res: Query[R]): Query[R] =
-      CF.Query.Clause(
-        CF.Clause.OnMatch(CF.Clause.SetProps(NonEmptyList(prop, props.toList))),
-        res
-      )
+    case class PartialMatchApply(clause: Write) {
 
-    def apply[R](setNode: CF.Clause.SetNode)(res: Query[R]): Query[R] =
-      CF.Query.Clause(
-        CF.Clause.OnMatch(setNode),
+      def *>[R](res: Query[R]): Query[R] = CF.Query.Clause(
+        clause,
         res
       )
+    }
 
-    def apply[R](extendNode: CF.Clause.ExtendNode)(res: Query[R]): Query[R] =
-      CF.Query.Clause(
-        CF.Clause.OnMatch(extendNode),
-        res
-      )
+    def apply(prop: Prop, props: Prop*): PartialMatchApply = PartialMatchApply(
+      CF.Clause.OnMatch(CF.Clause.SetProps(NonEmptyList(prop, props.toList)))
+    )
+
+    def apply(setNode: CF.Clause.SetNode): PartialMatchApply = PartialMatchApply(CF.Clause.OnMatch(setNode))
+
+    def apply(extendNode: CF.Clause.ExtendNode): PartialMatchApply = PartialMatchApply(
+      CF.Clause.OnMatch(extendNode)
+    )
   }
 
   object With extends {
@@ -907,10 +908,21 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   implicit final class SetPropOps(e: CF.Expr[GraphElem]) {
 
+    def apply(fn: set.type => Update.Prop): Update.Prop = fn(set)
+
     object set extends Dynamic {
 
+      @deprecated("Use select dynamic + partially like: n.set.id := value")
       def updateDynamic[V](prop: String)(value: Expr[V]): Update.Prop =
         CF.Clause.SetProps.One(e.asInstanceOf[Expr[Map[String, Any]]], prop, value)
+
+      case class PartialUpd(prop: String) {
+
+        def :=[V](value: Expr[V]): Update.Prop =
+          CF.Clause.SetProps.One(e.asInstanceOf[Expr[Map[String, Any]]], prop, value)
+      }
+
+      def selectDynamic(prop: String): PartialUpd = PartialUpd(prop)
     }
 
     def :=(props: Expr[Map[String, Expr[_]]]): CF.Clause.SetNode =
