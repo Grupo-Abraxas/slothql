@@ -8,6 +8,8 @@ import cats.data.{ Ior, NonEmptyList }
 import shapeless.{ ::, =:!=, |∨|, ops, HList, HNil, Refute, Unpack1 }
 
 import com.arkondata.slothql.cypher.CypherFragment.Clause.Write
+import com.arkondata.slothql.cypher.syntax.OnCreate.PartialCreateApply
+import com.arkondata.slothql.cypher.syntax.OnMatch.PartialMatchApply
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 
 package object syntax extends CypherSyntaxLowPriorityImplicits {
@@ -34,6 +36,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
         clause,
         res
       )
+
+      def *>[R](partial: PartialCreateApply): PartialMatchCreate = PartialMatchCreate(this, partial)
+
     }
 
     def apply(prop: Prop, props: Prop*): PartialMatchApply = PartialMatchApply(
@@ -47,6 +52,10 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     )
   }
 
+  case class PartialMatchCreate(matchP: PartialMatchApply, create: PartialCreateApply) {
+    def *>[R](res: Query[R]): Query[R] = matchP.*>(create.*>(res))
+  }
+
   /** To use inside MERGE clause
     */
   object OnCreate extends {
@@ -58,6 +67,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
         clause,
         res
       )
+
+      def *>[R](partial: PartialMatchApply): PartialMatchCreate = PartialMatchCreate(partial, this)
     }
 
     def apply(prop: Prop, props: Prop*): PartialCreateApply = PartialCreateApply(
