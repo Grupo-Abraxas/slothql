@@ -470,6 +470,8 @@ object CypherFragment {
     case class With(ret: Return[_], where: Option[Expr[Boolean]]) extends Read
     case class Unwind(expr: Expr[Seq[_]], as: Alias) extends Read
 
+    case class Merge(pattern: PatternTuple) extends Write
+
     case class Call(
       procedure: String,
       params: List[Expr[_]],
@@ -479,6 +481,10 @@ object CypherFragment {
 
     case class Create(pattern: PatternTuple) extends Write
     case class Delete(elems: NonEmptyList[Expr[_]], detach: Boolean) extends Write
+
+    case class OnMatch(props: Write) extends Write
+
+    case class OnCreate(props: Write) extends Write
 
     case class SetProps(set: NonEmptyList[SetProps.One]) extends Write
 
@@ -508,6 +514,18 @@ object CypherFragment {
           opt <- part(if (optional) "OPTIONAL " else "")
           wh  <- part(wh0.map(w => s" WHERE $w").getOrElse(""))
         } yield s"${opt}MATCH ${ps.mkString(", ")}$wh"
+      case Merge(pattern) =>
+        for {
+          ps <- partsSequence(pattern.toList)
+        } yield s"MERGE ${ps.mkString(", ")}"
+      case OnMatch(props) =>
+        for {
+          ps <- part(props)
+        } yield s"ON MATCH $ps"
+      case OnCreate(props) =>
+        for {
+          ps <- part(props)
+        } yield s"ON CREATE $ps"
       case Unwind(expr, as) =>
         for {
           expr  <- part(expr)

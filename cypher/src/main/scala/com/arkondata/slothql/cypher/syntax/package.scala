@@ -7,6 +7,9 @@ import scala.language.{ dynamics, implicitConversions }
 import cats.data.{ Ior, NonEmptyList }
 import shapeless.{ ::, =:!=, |∨|, ops, HList, HNil, Refute, Unpack1 }
 
+import com.arkondata.slothql.cypher.CypherFragment.Clause.Write
+import com.arkondata.slothql.cypher.syntax.OnCreate.PartialCreateApply
+import com.arkondata.slothql.cypher.syntax.OnMatch.PartialMatchApply
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 
 package object syntax extends CypherSyntaxLowPriorityImplicits {
@@ -20,6 +23,63 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     def maybe[R](opt: Boolean)(query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxPatternMacros.maybe[R]
+  }
+
+  /** To use inside MERGE clause
+    */
+  object OnMatch extends {
+    type Prop = CF.Clause.SetProps.One
+
+    case class PartialMatchApply(clause: Write) {
+
+      def *>[R](res: Query[R]): Query[R] = CF.Query.Clause(
+        clause,
+        res
+      )
+
+      def *>[R](partial: PartialCreateApply): PartialMatchCreate = PartialMatchCreate(this, partial)
+
+    }
+
+    def apply(prop: Prop, props: Prop*): PartialMatchApply = PartialMatchApply(
+      CF.Clause.OnMatch(CF.Clause.SetProps(NonEmptyList(prop, props.toList)))
+    )
+
+    def apply(setNode: CF.Clause.SetNode): PartialMatchApply = PartialMatchApply(CF.Clause.OnMatch(setNode))
+
+    def apply(extendNode: CF.Clause.ExtendNode): PartialMatchApply = PartialMatchApply(
+      CF.Clause.OnMatch(extendNode)
+    )
+  }
+
+  case class PartialMatchCreate(matchP: PartialMatchApply, create: PartialCreateApply) {
+    def *>[R](res: Query[R]): Query[R] = matchP.*>(create.*>(res))
+  }
+
+  /** To use inside MERGE clause
+    */
+  object OnCreate extends {
+    type Prop = CF.Clause.SetProps.One
+
+    case class PartialCreateApply(clause: Write) {
+
+      def *>[R](res: Query[R]): Query[R] = CF.Query.Clause(
+        clause,
+        res
+      )
+
+      def *>[R](partial: PartialMatchApply): PartialMatchCreate = PartialMatchCreate(partial, this)
+    }
+
+    def apply(prop: Prop, props: Prop*): PartialCreateApply = PartialCreateApply(
+      CF.Clause.OnCreate(CF.Clause.SetProps(NonEmptyList(prop, props.toList)))
+    )
+
+    def apply(setNode: CF.Clause.SetNode): PartialCreateApply = PartialCreateApply(CF.Clause.OnCreate(setNode))
+
+    def apply(extendNode: CF.Clause.ExtendNode): PartialCreateApply = PartialCreateApply(
+      CF.Clause.OnCreate(extendNode)
+    )
   }
 
   object With extends {
@@ -170,7 +230,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   }
 
   object Merge {
-    // def apply[R](query: Node => CF.Query[R]): CF.Query[R] = macro CypherSyntaxPatternMacros.merge[R]
+    def apply[R](query: Node => CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxPatternMacros.merge[R]
   }
 
   object Update {
@@ -883,10 +943,21 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
   implicit final class SetPropOps(e: CF.Expr[GraphElem]) {
 
+    def apply(fn: set.type => Update.Prop): Update.Prop = fn(set)
+
     object set extends Dynamic {
 
+      @deprecated("Use select dynamic + partially like: n.set.id := value")
       def updateDynamic[V](prop: String)(value: Expr[V]): Update.Prop =
         CF.Clause.SetProps.One(e.asInstanceOf[Expr[Map[String, Any]]], prop, value)
+
+      case class PartialUpd(prop: String) {
+
+        def :=[V](value: Expr[V]): Update.Prop =
+          CF.Clause.SetProps.One(e.asInstanceOf[Expr[Map[String, Any]]], prop, value)
+      }
+
+      def selectDynamic(prop: String): PartialUpd = PartialUpd(prop)
     }
 
     def :=(props: Expr[Map[String, Expr[_]]]): CF.Clause.SetNode =

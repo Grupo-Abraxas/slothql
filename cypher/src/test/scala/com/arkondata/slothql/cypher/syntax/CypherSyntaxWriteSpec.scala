@@ -112,6 +112,109 @@ class CypherSyntaxWriteSpec extends CypherSyntaxBaseSpec {
       },
       "CREATE (:`Foo`{ `id`: 1 }) "
     ).returns[Unit]
+
+    "support merge nodes" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) "
+    ).returns[Unit]
+
+    "support merge nodes with relations" in
+    test(
+      Merge { case (n @ Node("Foo", "bar" := 1, "another" := "stub")) - Rel("do") > Node("Bar") =>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) -[:`do`]-> (:`Bar`) "
+    ).returns[Unit]
+
+    "support merge nodes with on match with set" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n.set.id := lit(2), n.set.bar := lit("stub")) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0`.`id` = 2, `n0`.`bar` = \"stub\" "
+    ).returns[Unit]
+
+    "support merge nodes with on match with set node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n := lit(Map("id" -> lit(2)))) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0` = {`id`: 2} "
+    ).returns[Unit]
+
+    "support merge nodes with on match with extend node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n += lit(Map("id" -> lit(2)))) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0` += {`id`: 2} "
+    ).returns[Unit]
+
+    "support merge nodes with on create with set" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n.set.id := lit(2), n.set.bar := lit("stub")) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON CREATE SET `n0`.`id` = 2, `n0`.`bar` = \"stub\" "
+    ).returns[Unit]
+
+    "support merge nodes with on create with set node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n := lit(Map("id" -> lit(2)))) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON CREATE SET `n0` = {`id`: 2} "
+    ).returns[Unit]
+
+    "support merge nodes with on create with extend node" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n += lit(Map("id" -> lit(2)))) *>
+        returnNothing
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON CREATE SET `n0` += {`id`: 2} "
+    ).returns[Unit]
+
+    "support merge nodes with on create and on match with return" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnMatch(n += lit(Map("id" -> lit(3)))) *>
+        OnCreate(n += lit(Map("id" -> lit(2)))) *>
+        n
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0` += {`id`: 3} " +
+      "ON CREATE SET `n0` += {`id`: 2} " +
+      "RETURN `n0`"
+    ).returns[GraphElem.Node]
+
+    "support merge nodes with on match and on create with return" in
+    test(
+      Merge { case n @ Node("Foo", "bar" := 1, "another" := "stub") =>
+        OnCreate(n += lit(Map("id" -> lit(2)))) *>
+        OnMatch(n += lit(Map("id" -> lit(3)))) *>
+        n
+      },
+      "MERGE (`n0`:`Foo`{ `bar`: 1, `another`: \"stub\" }) " +
+      "ON MATCH SET `n0` += {`id`: 3} " +
+      "ON CREATE SET `n0` += {`id`: 2} " +
+      "RETURN `n0`"
+    ).returns[GraphElem.Node]
+
   }
 
 }
