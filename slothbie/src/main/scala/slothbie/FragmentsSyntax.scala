@@ -1,0 +1,3 @@
+package slothbie
+
+trait FragmentsSyntax {}

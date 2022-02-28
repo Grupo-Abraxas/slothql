@@ -33,7 +33,7 @@ lazy val root = (project in file("."))
     publish / skip := true,
     name := "slothql"
   )
-  .aggregate(cypher, apoc, opentracingNeo4j)
+  .aggregate(cypher, slothbie, apoc, opentracingNeo4j)
 
 lazy val cypher = (project in file("cypher"))
   .settings(
@@ -58,6 +58,24 @@ lazy val cypher = (project in file("cypher"))
         |import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
       """.stripMargin
   )
+
+lazy val slothbie = (project in file("slothbie"))
+  .settings(
+    docSettings,
+    name := "slothbie",
+    Compile / scalacOptions ++= Seq("-Wunused:imports"),
+    libraryDependencies ++= Seq(
+      Dependencies.Test.scalatest
+    ),
+    console / initialCommands :=
+      """
+        |import org.neo4j.driver.{ AuthTokens, GraphDatabase }
+        |import com.arkondata.slothql.cypher.syntax._
+        |import com.arkondata.slothql.cypher.CypherFragment
+        |import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
+      """.stripMargin
+  )
+  .dependsOn(cypher)
 
 lazy val apoc = (project in file("cypher-apoc"))
   .settings(
