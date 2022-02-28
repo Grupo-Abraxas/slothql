@@ -1,5 +1,7 @@
 package com.arkondata.slothql.cypher
 
+import java.util.UUID
+
 import scala.annotation.unchecked.uncheckedVariance
 import scala.jdk.CollectionConverters._
 
@@ -56,6 +58,11 @@ object CypherStatement {
     implicit lazy val liftStringValue: LiftValue[String] = new LiftValue[String] {
       def asParam(a: String): AnyRef   = a
       def asLiteral(a: String): String = s""""${a.replace("\\", "\\\\").replace("\"", "\\\"")}""""
+    }
+
+    implicit lazy val liftUUIDValue: LiftValue[UUID] = new LiftValue[UUID] {
+      def asParam(a: UUID): AnyRef   = a
+      def asLiteral(a: UUID): String = s""""${a.toString.replace("\\", "\\\\").replace("\"", "\\\"")}""""
     }
 
     implicit def liftOptionValue[T](implicit lift: LiftValue[T]): LiftValue[Option[T]] = new LiftValue[Option[T]] {
