@@ -2,7 +2,7 @@ import java.util
 import java.util.UUID
 
 import scala.collection.{ mutable, Iterable }
-import scala.jdk.CollectionConverters.MapHasAsJava
+import scala.jdk.CollectionConverters.{ IterableHasAsScala, MapHasAsJava }
 
 import org.scalatest.{ EitherValues, OptionValues }
 import org.scalatest.matchers.should.Matchers
@@ -32,11 +32,13 @@ class BuildStatementsSpec extends AnyWordSpec with Matchers with OptionValues {
     "complex on create" in {
       val id       = UUID.randomUUID()
       val props    = Map("id" -> id)
-      val lifter   = LiftValue[Map[String, UUID]]
-      val prepared = cypher"MATCH (n:Node $props) return n".query[GraphElem.Node]
+      val prepared = cypher"MATCH (n:Node $props) WHERE id = $id return n".query[GraphElem.Node]
 
-      prepared.template shouldBe "MATCH (n:Node $`param0`) return n"
-      prepared.params.get("param0").value.toString shouldBe lifter.asParam(props).toString
+      prepared.template shouldBe "MATCH (n:Node $`param0`) WHERE id = $`param1` return n"
+      prepared.params
+        .get("param0")
+        .map(_.asInstanceOf[java.lang.Iterable[(String, AnyRef)]].asScala.toMap) should contain(props)
+      prepared.params.get("param1") should contain(id)
 
     }
   }
