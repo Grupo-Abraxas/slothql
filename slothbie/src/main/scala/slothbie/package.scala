@@ -2,6 +2,10 @@ import com.arkondata.slothql.cypher.CypherStatement.Prepared
 
 package object slothbie extends FragmentsSyntax {
 
+  object generic {
+    val semiauto: GenericSemiauto.type = GenericSemiauto
+  }
+
   case class PreparedPartially(parts: Seq[String], frs: Seq[SingleFragment[_]]) {
 
     def query[R]: Prepared[R] = {

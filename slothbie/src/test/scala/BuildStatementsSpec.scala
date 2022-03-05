@@ -2,8 +2,9 @@ import java.util
 import java.util.UUID
 
 import scala.collection.{ mutable, Iterable }
-import scala.jdk.CollectionConverters.{ IterableHasAsScala, MapHasAsJava }
+import scala.jdk.CollectionConverters.{ IterableHasAsScala, MapHasAsJava, MapHasAsScala }
 
+import BuildStatementsSpec.User
 import org.scalatest.{ EitherValues, OptionValues }
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -13,6 +14,7 @@ import com.arkondata.slothql.cypher.GraphElem
 
 class BuildStatementsSpec extends AnyWordSpec with Matchers with OptionValues {
   import slothbie._
+  import slothbie.generic.semiauto._
 
   "BuildStatement" should {
     "simple spec" in {
@@ -41,5 +43,24 @@ class BuildStatementsSpec extends AnyWordSpec with Matchers with OptionValues {
       prepared.params.get("param1") should contain(id)
 
     }
+
+    "complex on case class creation" in {
+      val id              = UUID.randomUUID()
+      val user            = User(id, "stub", 42)
+      implicit val lifter = GenericRepr[User].apply
+      val prepared        = cypher"CREATE (n:User $user) return n".query[GraphElem.Node]
+
+      prepared.template shouldBe "CREATE (n:User $`param0`) return n"
+      prepared.params
+        .get("param0")
+        .map(_.asInstanceOf[java.util.Map[String, AnyRef]].asScala.toMap) should contain(
+        Map("id" -> id, "name" -> "stub", "age" -> 42)
+      )
+
+    }
   }
+}
+
+object BuildStatementsSpec {
+  case class User(id: UUID, name: String, age: Int)
 }
