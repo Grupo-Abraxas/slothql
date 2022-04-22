@@ -29,19 +29,19 @@ object Dependencies {
   }
 
   object Version {
-    lazy val shapeless     = "2.3.7"
+    lazy val shapeless     = "2.3.9"
     lazy val kindProjector = "0.13.2"
     lazy val macroParadise = "2.1.1"
 
-    lazy val cats       = "2.4.2"
-    lazy val catsEffect = "2.5.4"
-    lazy val fs2        = "2.5.9"
+    lazy val cats       = "2.7.0"
+    lazy val catsEffect = "3.3.4"
+    lazy val fs2        = "3.2.0"
 
     lazy val neo4jDriver = "4.3.0"
 
-    lazy val opentracingScala = "0.2.3"
+    lazy val opentracingScala = "0.3.0-SNAPSHOT"
     lazy val organizeImports  = "0.5.0"
 
-    lazy val scalatest = "3.2.10"
+    lazy val scalatest = "3.2.11"
   }
 }

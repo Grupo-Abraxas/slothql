@@ -1,29 +1,23 @@
 package com.arkondata.slothql.neo4j
 
 import scala.annotation.{ compileTimeOnly, StaticAnnotation }
-import scala.jdk.FutureConverters._
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
-import cats.effect.concurrent.MVar
-import cats.effect.syntax.bracket._
-import cats.effect.syntax.effect._
-import cats.effect.{ Async, Blocker, ExitCase, Resource, Sync }
+import cats.effect.{ Resource, Sync }
 import cats.instances.option._
 import cats.syntax.flatMap._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.{ ~>, Eval, Id }
 import io.opentracing.{ Span, SpanContext, Tracer }
-import org.neo4j.driver.async.ResultCursor
-import org.neo4j.driver.summary.ResultSummary
-import org.neo4j.driver.{ Result, Session, Transaction, TransactionWork }
 
 import com.arkondata.opentracing.Tracing.TracingSetup
-import com.arkondata.opentracing.effect.{ activateSpan, activeSpan, ResourceTracingOps }
+import com.arkondata.opentracing.effect.{ activeSpan, ResourceTracingOps }
 import com.arkondata.opentracing.fs2.{ fs2StreamTracing, logStreamElems }
 import com.arkondata.opentracing.util.TraceBundle
 import com.arkondata.opentracing.{ SpanLog, TraceLaterEval, Tracing }
+import com.arkondata.slothql.neo4j.Neo4jCypherTransactor
 
 @compileTimeOnly(
   "Macro transformation was not applied. " +
@@ -42,24 +36,11 @@ object TransactorTracing {
   def setup[F[_]](
     runRead: EndoK[fs2.Stream[F, *]] = null,
     runWrite: EndoK[fs2.Stream[F, *]] = null,
-    run: EndoK[fs2.Stream[F, *]] = null,
-    // dependencies of `run` //
-    blockerResource: Endo[Resource[F, Blocker]] = null,
-    sessionResource: Endo[Resource[F, Session]] = null,
-    transactionResource: Endo[Resource[F, Transaction]] = null,
-    // dependencies of `transactionResource` //
-    backgroundWorkResource: Endo[Resource[F, F[Unit]]] = null,
-    runInsideTxWork: EagerTracing = null.asInstanceOf[EagerTracing],
-    commitTransaction: F[Unit] = null.asInstanceOf[F[Unit]],
-    rollbackTransaction: F[Unit] = null.asInstanceOf[F[Unit]],
-    closeTransaction: F[Unit] = null.asInstanceOf[F[Unit]],
+    apply: EndoK[fs2.Stream[F, *]] = null,
     // transaction folding //
     runUnwind: EndoK[fs2.Stream[F, *]] = null,
     runGather: EndoK[λ[A => fs2.Stream[F, fs2.Stream[F, A]]]] = null,
-    runQuery: EndoK[fs2.Stream[F, *]] = null,
-    // reading result //
-    readRecord: EndoK[F] = null,
-    reportSummary: ResultSummary => F[Unit] = null
+    runQuery: EndoK[fs2.Stream[F, *]] = null
   ): Nothing = ???
 
   type EagerTracingInterface = Tracing.Interface[TraceLaterEval.Builder[cats.Id]]
@@ -106,43 +87,7 @@ object TransactorTracing {
     implicit private def tracer       = lostSpanFixesTracer
     implicit private def tracingSetup = lostSpanFixesTracingSetup
 
-    override protected def readTxAsResource(txVar: MVar[F, Transaction]): Resource[F, Transaction] =
-      for {
-        span <- Resource liftF activeSpan[F]
-        tx   <- super.readTxAsResource(txVar)
-        _    <- Resource liftF activateSpan(span)
-      } yield tx
-
     protected def runInsideTxWork(span: Option[Span])(run: => Unit): Unit = run
-
-    override protected def transactionResource(run: TransactionWork[Unit] => Unit): Resource[F, Transaction] =
-      for {
-        txVar <- transactionMVarResource
-        cLock <- closeLockMVarResource
-        eLock <- execLockMVarResource(cLock)
-        span  <- Resource liftF activeSpan[F]
-        runTx = ce.delay(run { tx =>
-                  runInsideTxWork(span) {
-                    (for {
-                      _     <- txVar.put(tx)
-                      span1 <- activeSpan[F]
-                      b     <- eLock.read
-                      _     <- activateSpan(span1) // `activeSpan` is lost otherwise
-                      _     <- if (b) commitTransaction(tx) else rollbackTransaction(tx)
-                    } yield ())
-                      .guarantee(closeTransaction(tx))
-                      .guaranteeCase {
-                        case ExitCase.Completed => cLock.put(None)
-                        case ExitCase.Error(e)  => cLock.put(Some(e))
-                        case ExitCase.Canceled  => cLock.put(Some(new Exception("Canceled")))
-                      }
-                      .toIO
-                      .unsafeRunSync()
-                  }
-                })
-        _  <- backgroundWorkResource(runTx)
-        tx <- readTxAsResource(txVar)
-      } yield tx
 
     protected lazy val laterEvalTracing = Tracing.tracingEvalLater
 
@@ -159,27 +104,6 @@ object TransactorTracing {
       ): TraceLaterEval.Builder[Id] =
         super.apply(parent0 orElse parent, activate, operation, tags)
     }
-  }
-
-  trait SummaryReport[F[_]] extends Neo4jCypherTransactor[F] {
-    protected def reportSummary(summary: ResultSummary): F[Unit]
-
-    override protected def runningQuery[A](result: Result, stream: fs2.Stream[F, A]): fs2.Stream[F, A] =
-      stream.onFinalize {
-        for {
-          cursor  <- internalResultCursor(result)
-          summary <- Async.fromFuture(ce.delay(cursor.consumeAsync().asScala))
-          _       <- reportSummary(summary)
-        } yield ()
-      }
-
-    // Use java reflection for getting access to private field
-    private def internalResultCursor(result: Result): F[ResultCursor] = for {
-      clazz  <- ce.pure(result.getClass)
-      field  <- ce.catchNonFatal(clazz.getDeclaredField("cursor"))
-      _      <- ce.catchNonFatal(field.setAccessible(true))
-      cursor <- ce.catchNonFatal(field.get(result).asInstanceOf[ResultCursor])
-    } yield cursor
   }
 
   val setupDeclarationName: String = "transactorTracingSetup"
@@ -204,12 +128,8 @@ class TransactorTracingMacros(val c: whitebox.Context) {
     val F = classDef.impl.parents.collectFirst { case q"${tq"$_[$tpe]"}(..$_)" => tpe }
       .getOrElse(c.abort(c.enclosingPosition, Msg.notFoundTypeF))
 
-    val (extraParents, extraBody) = setup.map {
-      case ("reportSummary", t)   => reportSummaryImpl(F, t)
-      case ("run", t)             => None -> runImplTree(t)
-      case ("runInsideTxWork", t) => None -> runningInsideTransactionWorkImpl(t)
-      case (name, t) =>
-        None -> overrideMethod(TransactorType.decl(TermName(name)).asMethod, t, unitMethods contains name)
+    val (extraParents, extraBody) = setup.map { case (name, t) =>
+      None -> overrideMethod(TransactorType.decl(TermName(name)).asMethod, t, unitMethods contains name)
     }.unzip
 
     val newParents = classDef.impl.parents ::: lostSpanFixesParent(F) :: extraParents.flatten
@@ -227,6 +147,7 @@ class TransactorTracingMacros(val c: whitebox.Context) {
   val unitMethods = Set("inRunningTransactionWork", "commitTransaction", "rollbackTransaction", "closeTransaction")
 
   protected def bodyHeader: List[Tree] = List(
+    q"import _root_.scala.concurrent.duration.FiniteDuration",
     q"import _root_.cats.effect._",
     q"import _root_.cats.syntax.apply._",
     q"import _root_.fs2.Stream",
@@ -234,27 +155,6 @@ class TransactorTracingMacros(val c: whitebox.Context) {
     q"import _root_.com.arkondata.slothql.cypher.CypherTransactor.Operation",
     q"import _root_.com.arkondata.slothql.cypher.CypherStatement.Prepared"
   )
-
-  protected def runImplTree(wrap: Tree) =
-    q"""
-      override protected def run[A](
-        tx: Tx[A],
-        txWork0: _root_.org.neo4j.driver.Session => (_root_.org.neo4j.driver.TransactionWork[B] => B) forSome {type B}
-      ): Out[A] = $wrap(super.run(tx, txWork0))
-    """
-
-  protected def runningInsideTransactionWorkImpl(t: Tree) =
-    q"""
-      override protected def runInsideTxWork(span: Option[_root_.io.opentracing.Span])(run: => _root_.scala.Unit): _root_.scala.Unit =
-       $t(new this.EagerTracingInterfaceWithParent(span.map(_root_.scala.Left(_))))(run)
-    """
-
-  protected def reportSummaryImpl(F: Tree, wrap: Tree) = {
-    val parent = tq"_root_.com.arkondata.slothql.neo4j.TransactorTracing.SummaryReport[$F]"
-    val impl =
-      q"protected def reportSummary(summary: _root_.org.neo4j.driver.summary.ResultSummary): $F[_root_.scala.Unit] = $wrap(summary)"
-    Some(parent) -> impl
-  }
 
   private object Msg {
     def notClass = "@TransactorTracing macro should only be put on classes."
