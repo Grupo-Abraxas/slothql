@@ -1,7 +1,5 @@
 package com.arkondata.slothql.neo4j
 
-import java.util.logging.Level
-
 import scala.annotation.implicitNotFound
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
@@ -9,23 +7,20 @@ import scala.jdk.DurationConverters.ScalaDurationOps
 
 import cats.arrow.{ Arrow, FunctionK }
 import cats.data.StateT
-import cats.effect.{ Outcome, Resource }
+import cats.effect.Resource
 import cats.effect.kernel.{ Async, Deferred }
-import cats.syntax.apply._
-import cats.syntax.functor._
-import cats.syntax.applicative._
-import cats.syntax.flatMap._
 import cats.effect.std.Dispatcher
 import cats.instances.function._
-import cats.syntax.either._
+import cats.syntax.applicative._
+import cats.syntax.apply._
+import cats.syntax.flatMap._
+import cats.syntax.functor._
 import cats.{ ~>, Applicative, Monad }
 import fs2.interop.reactivestreams._
-import org.neo4j.driver.internal.logging.ConsoleLogging.ConsoleLogger
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.reactive.{ RxSession, RxTransaction }
-import org.neo4j.driver.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
-import org.neo4j.driver.{ Driver, Logger, Record, Session, Transaction, TransactionConfig, Value }
-import org.reactivestreams.Publisher
+import org.neo4j.driver.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
+import org.neo4j.driver.{ Driver, Record, TransactionConfig, Value }
 import shapeless._
 
 import com.arkondata.slothql.cypher
@@ -59,18 +54,11 @@ class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit],
         override def apply[A](fa: OpS[A]): fs2.Stream[F, A] = fa match {
           case CypherTransactor.Unwind(values) => values
           case CypherTransactor.Query(query, read) =>
-            val rxStream = transactor.run(query.template, query.params.asJava)
-            rxStream
+            transactor
+              .run(query.template, query.params.asJava)
               .records()
               .toStreamBuffered(chunkSize)
               .evalMap(r => F.delay(read(r)))
-              .onFinalizeCase(exit =>
-                rxStream
-                  .consume()
-                  .toStreamBuffered(chunkSize)
-                  .compile
-                  .drain
-              )
           case CypherTransactor.Gather(value, fn) => fs2.Stream.emit(fn(apply(value)))
         }
       }
@@ -85,29 +73,14 @@ class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit],
   def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] =
     unsafeSyncStream(tx.mapK(Tx.streamK), timeout * 2, write)
 
-  private def unsafeSyncStream[R](txs: TxS[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] = {
-
-    def runAndClose: (RxTransaction, fs2.Stream[F, R]) => Publisher[R] =
-      (tx, fromQ) => {
-        StreamUnicastPublisher(
-          fromQ.onFinalizeCase {
-            _.toOutcome[F] match {
-              case Outcome.Canceled()   => tx.rollback().toStreamBuffered(chunkSize).compile.drain
-              case Outcome.Succeeded(_) => tx.commit().toStreamBuffered(chunkSize).compile.drain
-              case Outcome.Errored(err) => tx.rollback().toStreamBuffered(chunkSize).compile.drain
-            }
-          },
-          dispatcher
-        )
-      }
-
+  private def unsafeSyncStream[R](txs: TxS[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] =
     if (write) {
       fs2.Stream
         .resource(sessionResource)
         .flatMap(session =>
           session
             .writeTransaction(
-              tx => runAndClose(tx, txs.foldMap(Tx.runOp(tx))),
+              tx => StreamUnicastPublisher(txs.foldMap(Tx.runOp(tx)), dispatcher),
               TransactionConfig.builder().withTimeout(timeout.toJava).build()
             )
             .toStreamBuffered(chunkSize)
@@ -118,13 +91,12 @@ class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit],
         .flatMap(session =>
           session
             .readTransaction(
-              tx => runAndClose(tx, txs.foldMap(Tx.runOp(tx))),
+              tx => StreamUnicastPublisher(txs.foldMap(Tx.runOp(tx)), dispatcher),
               TransactionConfig.builder().withTimeout(timeout.toJava).build()
             )
             .toStreamBuffered(chunkSize)
         )
     }
-  }
 
   private lazy val sessionResource: Resource[F, RxSession] = Resource.makeCase(
     completion.tryGet.map(_.isDefined).flatMap(F.raiseError(new IllegalStateException("Driver is closed")).whenA) *>

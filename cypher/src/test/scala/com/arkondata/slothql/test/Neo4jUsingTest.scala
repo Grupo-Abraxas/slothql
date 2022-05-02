@@ -1,9 +1,7 @@
 package com.arkondata.slothql.test
 
-import scala.concurrent.duration.DurationInt
-
 import cats.effect.std.Dispatcher
-import cats.effect.{ unsafe, Concurrent, Deferred, GenConcurrent, IO, Resource }
+import cats.effect.{ unsafe, Deferred, IO }
 import org.scalatest.{ BeforeAndAfterAll, Suite }
 
 import com.arkondata.slothql.Connection
