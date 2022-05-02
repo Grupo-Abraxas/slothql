@@ -3,7 +3,7 @@ package com.arkondata.slothql.test
 import scala.concurrent.duration.DurationInt
 
 import cats.effect.std.Dispatcher
-import cats.effect.{ unsafe, IO }
+import cats.effect.{ unsafe, Concurrent, Deferred, GenConcurrent, IO, Resource }
 import org.scalatest.{ BeforeAndAfterAll, Suite }
 
 import com.arkondata.slothql.Connection
@@ -14,10 +14,13 @@ trait Neo4jUsingTest extends BeforeAndAfterAll {
 
   implicit val runtime = unsafe.implicits.global
 
-  private lazy val (dispatcher0, release) = Dispatcher[IO].allocated.unsafeRunSync()
-  implicit val dispatcher                 = dispatcher0
+  private lazy val ((dispatcher0, defer), release) = Dispatcher[IO].evalMap { d =>
+    Deferred[IO, Unit].map((d, _))
+  }.allocated.unsafeRunSync()
 
-  lazy val tx = new Neo4jCypherTransactor[IO](Connection.driver, 10.seconds)
+  implicit val dispatcher: Dispatcher[IO] = dispatcher0
+
+  lazy val tx = new Neo4jCypherTransactor[IO](Connection.driver, defer, 1024)
 
   override protected def afterAll(): Unit = {
     release.unsafeRunSync()

@@ -1,5 +1,6 @@
 package com.arkondata.slothql
 
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 import scala.util.Random
 
@@ -50,7 +51,7 @@ class ParameterizedQueryTest extends AnyWordSpec with Matchers with Neo4jUsingTe
         .query(query1)
         .withParams(x = x, y = y, z = z)
 
-      val res = tx.runRead(readTx).compile.toList.unsafeRunSync()
+      val res = tx.runRead(readTx, 10.seconds).compile.toList.unsafeRunSync()
       res shouldBe z.map((_, "null", y))
     }
 

@@ -9,16 +9,23 @@ import scala.jdk.DurationConverters.ScalaDurationOps
 
 import cats.arrow.{ Arrow, FunctionK }
 import cats.data.StateT
-import cats.effect.Resource
-import cats.effect.kernel.Async
+import cats.effect.{ Outcome, Resource }
+import cats.effect.kernel.{ Async, Deferred }
+import cats.syntax.apply._
+import cats.syntax.functor._
+import cats.syntax.applicative._
+import cats.syntax.flatMap._
 import cats.effect.std.Dispatcher
 import cats.instances.function._
 import cats.syntax.either._
 import cats.{ ~>, Applicative, Monad }
+import fs2.interop.reactivestreams._
 import org.neo4j.driver.internal.logging.ConsoleLogging.ConsoleLogger
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
+import org.neo4j.driver.reactive.{ RxSession, RxTransaction }
+import org.neo4j.driver.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
 import org.neo4j.driver.{ Driver, Logger, Record, Session, Transaction, TransactionConfig, Value }
+import org.reactivestreams.Publisher
 import shapeless._
 
 import com.arkondata.slothql.cypher
@@ -26,17 +33,14 @@ import com.arkondata.slothql.cypher.CypherTransactor
 import com.arkondata.slothql.cypher.CypherTransactor._
 import com.arkondata.slothql.neo4j.util.fs2StreamTxCMonad
 
-class Neo4jCypherTransactor[F[_]: Async](driver: Driver, defaultTimeout: FiniteDuration)(implicit
-  dispatcher: Dispatcher[F]
-) extends Neo4jCypherTransactor.Syntax[F]
-    with CypherTransactor[F, Record, fs2.Stream[F, *]] {
-
-  private lazy val logger: Logger = new ConsoleLogger("Neo4jCypherTransactor", Level.ALL)
+class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit], chunkSize: Int)(implicit
+  dispatcher: Dispatcher[F],
+  F: Async[F]
+) extends Neo4jCypherTransactor.Syntax[F] {
 
   object readers extends Neo4jCypherTransactor.Readers
 
-  override type Tx[R]  = CypherTransactor.Tx[F, Record, fs2.Stream[F, *], R]
-  override type Out[R] = fs2.Stream[F, R]
+  override type Tx[R] = CypherTransactor.Tx[F, Record, fs2.Stream[F, *], R]
 
   private type TxS[R] = CypherTransactor.Tx[fs2.Stream[F, *], Record, fs2.Stream[F, *], R]
 
@@ -49,118 +53,98 @@ class Neo4jCypherTransactor[F[_]: Async](driver: Driver, defaultTimeout: FiniteD
       override def apply[A](fa: F[A]): fs2.Stream[F, A] = fs2.Stream.eval(fa)
     }
 
-    def runOp(transactor: Transaction): OpS ~> fs2.Stream[F, *] =
+    def runOp(transactor: RxTransaction): OpS ~> fs2.Stream[F, *] =
       new ~>[OpS, fs2.Stream[F, *]] {
 
         override def apply[A](fa: OpS[A]): fs2.Stream[F, A] = fa match {
           case CypherTransactor.Unwind(values) => values
           case CypherTransactor.Query(query, read) =>
-            fs2.Stream
-              .evalSeq(
-                Async[F].catchNonFatal(
-                  transactor
-                    .run(query.template, query.params.asJava)
-                    .list()
-                    .asScala
-                    .toList
-                    .map(record => Either.catchNonFatal(read(record)))
-                )
+            val rxStream = transactor.run(query.template, query.params.asJava)
+            rxStream
+              .records()
+              .toStreamBuffered(chunkSize)
+              .evalMap(r => F.delay(read(r)))
+              .onFinalizeCase(exit =>
+                rxStream
+                  .consume()
+                  .toStreamBuffered(chunkSize)
+                  .compile
+                  .drain
               )
-              .rethrow
-
           case CypherTransactor.Gather(value, fn) => fs2.Stream.emit(fn(apply(value)))
         }
       }
   }
 
-  @inline override def runRead[R](tx: Tx[R]): fs2.Stream[F, R] =
-    apply(tx, defaultTimeout, write = false)
+  @inline def runRead[R](tx: Tx[R], timeout: FiniteDuration): fs2.Stream[F, R] =
+    apply(tx, timeout, write = false)
 
-  @inline override def runWrite[R](tx: Tx[R]): fs2.Stream[F, R] =
-    apply(tx, defaultTimeout, write = true)
+  @inline def runWrite[R](tx: Tx[R], timeout: FiniteDuration): fs2.Stream[F, R] =
+    apply(tx, timeout, write = true)
 
   def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] =
-    unsafeSyncStream(tx.mapK(Tx.streamK), timeout, write)
+    unsafeSyncStream(tx.mapK(Tx.streamK), timeout * 2, write)
 
   private def unsafeSyncStream[R](txs: TxS[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] = {
 
-    // Imperative code, but safe!
-    def runAndClose: (Transaction, fs2.Stream[F, R]) => List[R] = (tx, fromQ) => {
-      try {
-        val out = dispatcher.unsafeRunTimed(fromQ.compile.toList, timeout)
-        this.synchronized {
-          if (tx.isOpen)
-            try {
-              tx.commit()
-              tx.close()
-            } catch {
-              case (err: Throwable) =>
-                logger.error(s"Error closing driver with ok result", err)
+    def runAndClose: (RxTransaction, fs2.Stream[F, R]) => Publisher[R] =
+      (tx, fromQ) => {
+        StreamUnicastPublisher(
+          fromQ.onFinalizeCase {
+            _.toOutcome[F] match {
+              case Outcome.Canceled()   => tx.rollback().toStreamBuffered(chunkSize).compile.drain
+              case Outcome.Succeeded(_) => tx.commit().toStreamBuffered(chunkSize).compile.drain
+              case Outcome.Errored(err) => tx.rollback().toStreamBuffered(chunkSize).compile.drain
             }
-        }
-        out
-      } catch {
-        case (err: Throwable) =>
-          this.synchronized {
-            if (tx.isOpen)
-              try {
-                tx.rollback()
-                tx.close()
-              } catch {
-                case (err: Throwable) =>
-                  logger.error(s"Error closing driver with error result", err)
-              }
-          }
-          throw err
+          },
+          dispatcher
+        )
       }
-    }
 
-    fs2.Stream
-      .evalSeq(if (write) {
-        sessionResource.use(session =>
-          Async[F].delay(
-            session.writeTransaction(
+    if (write) {
+      fs2.Stream
+        .resource(sessionResource)
+        .flatMap(session =>
+          session
+            .writeTransaction(
               tx => runAndClose(tx, txs.foldMap(Tx.runOp(tx))),
               TransactionConfig.builder().withTimeout(timeout.toJava).build()
             )
-          )
+            .toStreamBuffered(chunkSize)
         )
-      } else {
-        sessionResource.use(session =>
-          Async[F].delay(
-            session.readTransaction(
+    } else {
+      fs2.Stream
+        .resource(sessionResource)
+        .flatMap(session =>
+          session
+            .readTransaction(
               tx => runAndClose(tx, txs.foldMap(Tx.runOp(tx))),
               TransactionConfig.builder().withTimeout(timeout.toJava).build()
             )
-          )
+            .toStreamBuffered(chunkSize)
         )
-      })
+    }
   }
 
-  private lazy val sessionResource: Resource[F, Session] = Resource.makeCase(
-    Async[F].delay(driver.session())
-  )((s, _) =>
-    Async[F].delay {
-      this.synchronized {
-        if (s.isOpen)
-          try s.close()
-          catch {
-            case (err: Throwable) =>
-              logger.error(s"Error closing driver with error result", err)
-          }
-      }
-    }
-  )
+  private lazy val sessionResource: Resource[F, RxSession] = Resource.makeCase(
+    completion.tryGet.map(_.isDefined).flatMap(F.raiseError(new IllegalStateException("Driver is closed")).whenA) *>
+    F.delay(driver.rxSession())
+  )((s, _) => s.close().toStreamBuffered(chunkSize).compile.drain)
 
 }
 
 object Neo4jCypherTransactor {
   type Tx[F[_], R] = CypherTransactor.Tx[F, Record, fs2.Stream[F, *], R]
 
-  def apply[F[_]: Async](driver: Driver, defaultTimeout: FiniteDuration)(implicit
-    dispacther: Dispatcher[F]
+  def apply[F[_]: Async](
+    driver: Driver,
+    defaultTimeout: FiniteDuration,
+    completion: Deferred[F, Unit],
+    chunkSize: Int = 1024
+  )(implicit
+    dispatcher: Dispatcher[F]
   ): Neo4jCypherTransactor[F] =
-    new Neo4jCypherTransactor(driver, defaultTimeout)
+    new Neo4jCypherTransactor[F](driver, completion, chunkSize)
 
   def imapK[F[_], G[_]: Monad](f: F ~> G, g: G ~> F): Tx[F, *] ~> Tx[G, *] =
     λ[Tx[F, *] ~> Tx[G, *]](

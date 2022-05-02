@@ -47,6 +47,7 @@ lazy val cypher = (project in file("cypher"))
       Dependencies.`cats-free`,
       Dependencies.`cats-effect`,
       Dependencies.`fs2-core`,
+      Dependencies.`fs2-re`,
       Dependencies.`neo4j-driver`,
       Dependencies.Test.scalatest
     ),
@@ -72,10 +73,7 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
     docSettings,
     name := "slothql-opentracing-neo4j",
     Compile / scalacOptions ++= Seq("-Ymacro-annotations", "-Wunused:imports"),
-    libraryDependencies ++= Seq(
-      Dependencies.`opentracing-effect`,
-      Dependencies.`opentracing-fs2`
-    )
+    libraryDependencies ++= Seq()
   )
   .dependsOn(cypher)
 
@@ -124,3 +122,4 @@ inThisBuild(
     semanticdbVersion := scalafixSemanticdb.revision
   )
 )
+addCommandAlias("ff", "Test/scalafix;Test/scalafmt;scalafix;scalafmt")

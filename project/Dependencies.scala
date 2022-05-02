@@ -16,13 +16,12 @@ object Dependencies {
   lazy val `cats-core`   = "org.typelevel" %% "cats-core"   % Version.cats
   lazy val `cats-free`   = "org.typelevel" %% "cats-free"   % Version.cats
   lazy val `cats-effect` = "org.typelevel" %% "cats-effect" % Version.catsEffect
-  lazy val `fs2-core`    = "co.fs2"        %% "fs2-core"    % Version.fs2
+
+  lazy val `fs2-core` = "co.fs2" %% "fs2-core"             % Version.fs2
+  lazy val `fs2-re`   = "co.fs2" %% "fs2-reactive-streams" % Version.fs2
 
   lazy val `neo4j-driver` = "org.neo4j.driver" % "neo4j-java-driver" % Version.neo4jDriver
-
-  lazy val `opentracing-scala`  = "com.arkondata" %% "opentracing-scala"  % Version.opentracingScala
-  lazy val `opentracing-effect` = "com.arkondata" %% "opentracing-effect" % Version.opentracingScala
-  lazy val `opentracing-fs2`    = "com.arkondata" %% "opentracing-fs2"    % Version.opentracingScala
+  lazy val `natchez`      = "org.tpolecat"    %% "natchez-core"      % Version.natchez
 
   object Test {
     lazy val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest % sbt.Test
@@ -38,9 +37,9 @@ object Dependencies {
     lazy val fs2        = "3.2.0"
 
     lazy val neo4jDriver = "4.3.0"
+    lazy val natchez     = "0.1.5"
 
-    lazy val opentracingScala = "0.3.0-SNAPSHOT"
-    lazy val organizeImports  = "0.5.0"
+    lazy val organizeImports = "0.5.0"
 
     lazy val scalatest = "3.2.11"
   }

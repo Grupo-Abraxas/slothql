@@ -1,5 +1,7 @@
 package com.arkondata.slothql
 
+import scala.concurrent.duration.{ DurationInt, FiniteDuration }
+
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.instances.list._
@@ -20,16 +22,18 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsin
   import tx.readers._
   import tx.ops._
 
+  protected val timeout: FiniteDuration = 10.seconds
+
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    tx.runWrite(tx.query(Neo4jCypherTransactorTest.populateDb))
+    tx.runWrite(tx.query(Neo4jCypherTransactorTest.populateDb), timeout)
       .compile
       .drain
       .unsafeRunSync()
   }
 
   private def test[R](read: tx.Tx[R], expected: Seq[R])(implicit pos: Position): Assertion =
-    tx.runRead(read).compile.toList.unsafeRunSync() should contain theSameElementsAs expected
+    tx.runRead(read, timeout).compile.toList.unsafeRunSync() should contain theSameElementsAs expected
 
   private def resetId(node: GraphElem.Node): GraphElem.Node = node.copy(id = 0)
 
@@ -188,7 +192,7 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsin
       } yield (userId, groups)
 
       val io = for {
-        l <- tx.runRead(query).compile.toList
+        l <- tx.runRead(query, timeout).compile.toList
         (ids, gs) = l.unzip
         groups <- gs.flatTraverse(_.compile.toList)
       } yield (ids, groups)
@@ -405,7 +409,7 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsin
   }
 
   override protected def afterAll(): Unit =
-    tx.runWrite(tx.query(Neo4jCypherTransactorTest.cleanDb))
+    tx.runWrite(tx.query(Neo4jCypherTransactorTest.cleanDb), timeout)
       .onFinalize(IO(super.afterAll()))
       .compile
       .drain
