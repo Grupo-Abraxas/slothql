@@ -1,22 +1,20 @@
 package com.arkondata.slothql.neo4j
 
-import java.io.{ PrintStream, PrintWriter, StringWriter }
+import java.io.{ PrintWriter, StringWriter }
+import java.util.concurrent.TimeUnit
 
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
-import scala.util.Try
 
-import cats.effect.{ Outcome, Resource }
 import cats.effect.kernel.{ Async, Deferred, MonadCancel }
 import cats.effect.std.Dispatcher
+import cats.effect.{ Outcome, Resource }
 import cats.syntax.apply._
-import cats.syntax.either._
-import cats.syntax.flatMap._
 import cats.syntax.functor._
 import cats.~>
-import fs2.interop.reactivestreams.StreamUnicastPublisher
+import fs2.interop.reactivestreams.PublisherOps
 import natchez.{ Span, Tags }
-import org.neo4j.driver.{ Driver, Record, TransactionConfig }
 import org.neo4j.driver.reactive.{ RxSession, RxTransaction }
+import org.neo4j.driver.{ Driver, Record }
 
 import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 
@@ -45,7 +43,7 @@ class TransactorTracing[F[_]: MonadCancel[*[_], Throwable]](
     new Neo4jCypherTransactor[F](driver, completion, defaultTimeout, chunkSize) {
 
       override protected def unwind[A](out: fs2.Stream[F, A]): fs2.Stream[F, A] =
-        fs2.Stream.resource(qSpan.span("unwind")).flatMap(s => super.unwind(out))
+        fs2.Stream.resource(qSpan.span("transaction-unwind")).flatMap(s => super.unwind(out))
 
       override protected def query[A](
         transactor: RxTransaction,
@@ -53,15 +51,42 @@ class TransactorTracing[F[_]: MonadCancel[*[_], Throwable]](
         read: CypherTransactor.Reader[Record, A]
       ): fs2.Stream[F, A] =
         fs2.Stream
-          .resource(qSpan.span("query"))
-          .evalTap(_.put("query" -> query.template, "params" -> query.params.toString()))
-          .flatMap(_ => super.query(transactor, query, read))
+          .resource(qSpan.span("transaction-query"))
+          .flatMap { span =>
+            val (res, rx) = super.queryWithSummary(transactor, query, read)
+            res.onFinalizeCase(out =>
+              rx.consume()
+                .toStreamBuffered(chunkSize)
+                .evalMap { rs =>
+                  span.put(
+                    "exit-case"                     -> out.toString,
+                    "query-type"                    -> rs.queryType().toString,
+                    "query"                         -> rs.query().text(),
+                    "parameters"                    -> rs.query().parameters().toString,
+                    "available"                     -> rs.resultAvailableAfter(TimeUnit.MILLISECONDS).toString,
+                    "consumed"                      -> rs.resultConsumedAfter(TimeUnit.MILLISECONDS).toString,
+                    "server-processor"              -> rs.server().address(),
+                    "counter-contains-updates"      -> rs.counters().containsUpdates(),
+                    "counter-nodes-created"         -> rs.counters().nodesCreated(),
+                    "counter-nodes-deleted"         -> rs.counters().nodesDeleted(),
+                    "counter-relationships-created" -> rs.counters().relationshipsCreated(),
+                    "counter-relationships-deleted" -> rs.counters().relationshipsDeleted(),
+                    "counter-properties-set"        -> rs.counters().propertiesSet(),
+                    "counter-labels-added"          -> rs.counters().labelsAdded(),
+                    "counter-labels-removed"        -> rs.counters().labelsRemoved()
+                  )
+                }
+                .compile
+                .drain
+            )
+          }
 
       override protected def gather[U, A](
         runOp: OpS ~> Out,
         value: CypherTransactor.Operation[Record, Out, U],
         fn: fs2.Stream[F, U] => A
-      ): fs2.Stream[F, A] = fs2.Stream.resource(qSpan.span("gather")).flatMap(_ => super.gather(runOp, value, fn))
+      ): fs2.Stream[F, A] =
+        fs2.Stream.resource(qSpan.span("transaction-gather")).flatMap(_ => super.gather(runOp, value, fn))
 
       override protected def sessionResource: Resource[F, RxSession] =
         super.sessionResource.guaranteeCase {
@@ -86,7 +111,7 @@ class TransactorTracing[F[_]: MonadCancel[*[_], Throwable]](
     apply(tx, timeout, write = true)
 
   def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean)(implicit span: Span[F]): Out[R] =
-    fs2.Stream.resource(span.span(s"query-${if (write) "write" else "read"}")).flatMap { qSpan =>
+    fs2.Stream.resource(span.span(s"session-${if (write) "write" else "read"}")).flatMap { qSpan =>
       fs2.Stream.eval(qSpan.put("registered-timeout" -> timeout.toString(), Tags.component("persistence"))) *>
       proxy(qSpan)(tx, timeout, write)
     }

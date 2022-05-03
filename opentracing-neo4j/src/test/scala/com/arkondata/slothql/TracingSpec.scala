@@ -1,7 +1,6 @@
 package com.arkondata.slothql
 
 import cats.effect.{ IO, Resource }
-import cats.syntax.flatMap._
 import io.jaegertracing.Configuration.{ ReporterConfiguration, SamplerConfiguration }
 import natchez.Span
 import natchez.jaeger.Jaeger

@@ -18,15 +18,15 @@ import cats.syntax.functor._
 import cats.{ ~>, Applicative, Monad }
 import fs2.interop.reactivestreams._
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.reactive.{ RxSession, RxTransaction, RxTransactionWork }
-import org.neo4j.driver.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
+import org.neo4j.driver.reactive.{ RxResult, RxSession, RxTransaction, RxTransactionWork }
+import org.neo4j.driver.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
 import org.neo4j.driver.{ Driver, Record, TransactionConfig, Value }
 import org.reactivestreams.Publisher
 import shapeless._
 
 import com.arkondata.slothql.cypher
-import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 import com.arkondata.slothql.cypher.CypherTransactor._
+import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 import com.arkondata.slothql.neo4j.util.fs2StreamTxCMonad
 
 class Neo4jCypherTransactor[F[_]](
@@ -53,11 +53,22 @@ class Neo4jCypherTransactor[F[_]](
     transactor: RxTransaction,
     query: CypherStatement.Prepared[A],
     read: CypherTransactor.Reader[Record, A]
-  ): Out[A] = transactor
-    .run(query.template, query.params.asJava)
-    .records()
-    .toStreamBuffered(chunkSize)
-    .evalMap(r => F.delay(read(r)))
+  ): Out[A] = queryWithSummary(transactor, query, read)._1
+
+  protected def queryWithSummary[A](
+    transactor: RxTransaction,
+    query: CypherStatement.Prepared[A],
+    read: CypherTransactor.Reader[Record, A]
+  ): (Out[A], RxResult) = {
+    val rx = transactor.run(query.template, query.params.asJava)
+
+    (
+      rx.records()
+        .toStreamBuffered(chunkSize)
+        .evalMap(r => F.delay(read(r))),
+      rx
+    )
+  }
 
   protected def gather[U, A](runOp: OpS ~> Out, value: Operation[Record, Out, U], fn: Out[U] => A): Out[A] =
     fs2.Stream.emit(fn(runOp(value)))
