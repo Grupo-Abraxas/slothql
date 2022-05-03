@@ -12,6 +12,15 @@ class TransactorTracing[F[_]](
 ) {
   import transactor.{ Out, Tx }
 
+  lazy val syntax  = transactor
+  lazy val readers = transactor.readers
+
+  def runRead[R](tx: Tx[R]): Out[R] =
+    transactor.runRead(tx)
+
+  def runWrite[R](tx: Tx[R]): Out[R] =
+    transactor.runWrite(tx)
+
   def runRead[R](tx: Tx[R], timeout: FiniteDuration): Out[R] =
     transactor.runRead(tx, timeout)
 

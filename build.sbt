@@ -75,7 +75,7 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
     Compile / scalacOptions ++= Seq("-Ymacro-annotations", "-Wunused:imports"),
     libraryDependencies ++= Seq()
   )
-  .dependsOn(cypher)
+  .dependsOn(cypher % "compile -> compile; test -> test")
 
 // // // Scaladoc // // //
 
