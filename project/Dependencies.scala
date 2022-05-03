@@ -23,10 +23,10 @@ object Dependencies {
   lazy val `neo4j-driver` = "org.neo4j.driver" % "neo4j-java-driver" % Version.neo4jDriver
   lazy val `natchez`      = "org.tpolecat"    %% "natchez-core"      % Version.natchez
 
-  lazy val `natchez-jaeger` = "org.tpolecat" %% "natchez-jaeger" % Version.natchez
-
   object Test {
     lazy val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest % sbt.Test
+
+    lazy val `natchez-jaeger` = "org.tpolecat" %% "natchez-jaeger" % Version.natchez % sbt.Test
 
     lazy val `slf4j-simple` = "org.slf4j" % "slf4j-simple" % Version.`slf4j-simple` % sbt.Test
   }

@@ -74,7 +74,7 @@ lazy val opentracingNeo4j = (project in file("opentracing-neo4j"))
     docSettings,
     name := "slothql-opentracing-neo4j",
     Compile / scalacOptions ++= Seq("-Ymacro-annotations", "-Wunused:imports"),
-    libraryDependencies ++= Seq(Dependencies.`natchez`, Dependencies.`natchez-jaeger`)
+    libraryDependencies ++= Seq(Dependencies.`natchez`, Dependencies.Test.`natchez-jaeger`)
   )
   .dependsOn(cypher % "compile -> compile; test -> test")
 
