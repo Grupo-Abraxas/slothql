@@ -102,13 +102,11 @@ object Neo4jCypherTransactor {
 
   def apply[F[_]: Async](
     driver: Driver,
-    defaultTimeout: FiniteDuration,
-    completion: Deferred[F, Unit],
     chunkSize: Int = 1024
   )(implicit
     dispatcher: Dispatcher[F]
-  ): Neo4jCypherTransactor[F] =
-    new Neo4jCypherTransactor[F](driver, completion, chunkSize)
+  ): F[(Neo4jCypherTransactor[F], Deferred[F, Unit])] =
+    Deferred[F, Unit].map(defer => (new Neo4jCypherTransactor[F](driver, defer, chunkSize), defer))
 
   def imapK[F[_], G[_]: Monad](f: F ~> G, g: G ~> F): Tx[F, *] ~> Tx[G, *] =
     λ[Tx[F, *] ~> Tx[G, *]](
