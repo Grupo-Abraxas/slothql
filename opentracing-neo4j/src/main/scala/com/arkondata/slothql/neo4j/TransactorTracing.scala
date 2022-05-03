@@ -19,7 +19,7 @@ class TransactorTracing[F[_]](
     transactor.runWrite(tx, timeout)
 
   def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean): Out[R] =
-    transactor.apply(tx, timeout * 2, write)
+    transactor.apply(tx, timeout, write)
 }
 
 object TransactorTracing {
