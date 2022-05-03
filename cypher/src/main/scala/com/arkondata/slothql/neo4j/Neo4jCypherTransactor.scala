@@ -1,7 +1,7 @@
 package com.arkondata.slothql.neo4j
 
 import scala.annotation.implicitNotFound
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 import scala.jdk.CollectionConverters._
 import scala.jdk.DurationConverters.ScalaDurationOps
 
@@ -29,14 +29,22 @@ import com.arkondata.slothql.cypher.CypherTransactor
 import com.arkondata.slothql.cypher.CypherTransactor._
 import com.arkondata.slothql.neo4j.util.fs2StreamTxCMonad
 
-class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit], chunkSize: Int)(implicit
+class Neo4jCypherTransactor[F[_]](
+  driver: Driver,
+  completion: Deferred[F, Unit],
+  defaultTimeout: FiniteDuration,
+  chunkSize: Int
+)(implicit
   dispatcher: Dispatcher[F],
   F: Async[F]
-) extends Neo4jCypherTransactor.Syntax[F] {
+) extends Neo4jCypherTransactor.Syntax[F]
+    with CypherTransactor[F, Record, fs2.Stream[F, *]] {
 
   object readers extends Neo4jCypherTransactor.Readers
 
   override type Tx[R] = CypherTransactor.Tx[F, Record, fs2.Stream[F, *], R]
+
+  override type Out[R] = fs2.Stream[F, R]
 
   private type TxS[R] = CypherTransactor.Tx[fs2.Stream[F, *], Record, fs2.Stream[F, *], R]
 
@@ -64,6 +72,12 @@ class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit],
         }
       }
   }
+
+  override def runRead[R](tx: Tx[R]): fs2.Stream[F, R] =
+    apply(tx, defaultTimeout, write = false)
+
+  override def runWrite[R](tx: Tx[R]): fs2.Stream[F, R] =
+    apply(tx, defaultTimeout, write = true)
 
   @inline def runRead[R](tx: Tx[R], timeout: FiniteDuration): fs2.Stream[F, R] =
     apply(tx, timeout, write = false)
@@ -102,11 +116,12 @@ object Neo4jCypherTransactor {
 
   def apply[F[_]: Async](
     driver: Driver,
+    defaultTimeout: FiniteDuration = 10.seconds,
     chunkSize: Int = 1024
   )(implicit
     dispatcher: Dispatcher[F]
   ): F[(Neo4jCypherTransactor[F], Deferred[F, Unit])] =
-    Deferred[F, Unit].map(defer => (new Neo4jCypherTransactor[F](driver, defer, chunkSize), defer))
+    Deferred[F, Unit].map(defer => (new Neo4jCypherTransactor[F](driver, defer, defaultTimeout, chunkSize), defer))
 
   def imapK[F[_], G[_]: Monad](f: F ~> G, g: G ~> F): Tx[F, *] ~> Tx[G, *] =
     λ[Tx[F, *] ~> Tx[G, *]](
