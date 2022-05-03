@@ -19,13 +19,13 @@ import cats.{ ~>, Applicative, Monad }
 import fs2.interop.reactivestreams._
 import org.neo4j.driver.internal.types.InternalTypeSystem
 import org.neo4j.driver.reactive.{ RxSession, RxTransaction, RxTransactionWork }
-import org.neo4j.driver.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
+import org.neo4j.driver.types.{ Type, Node => NNode, Path => NPath, Relationship => NRelationship }
 import org.neo4j.driver.{ Driver, Record, TransactionConfig, Value }
 import org.reactivestreams.Publisher
 import shapeless._
 
 import com.arkondata.slothql.cypher
-import com.arkondata.slothql.cypher.CypherTransactor
+import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 import com.arkondata.slothql.cypher.CypherTransactor._
 import com.arkondata.slothql.neo4j.util.fs2StreamTxCMonad
 
@@ -47,6 +47,21 @@ class Neo4jCypherTransactor[F[_]](
   final type TxS[R]    = CypherTransactor.Tx[Out, Record, Out, R]
   final type OpS[R]    = Operation[Record, Out, R]
 
+  protected def unwind[A](out: Out[A]): Out[A] = out
+
+  protected def query[A](
+    transactor: RxTransaction,
+    query: CypherStatement.Prepared[A],
+    read: CypherTransactor.Reader[Record, A]
+  ): Out[A] = transactor
+    .run(query.template, query.params.asJava)
+    .records()
+    .toStreamBuffered(chunkSize)
+    .evalMap(r => F.delay(read(r)))
+
+  protected def gather[U, A](runOp: OpS ~> Out, value: Operation[Record, Out, U], fn: Out[U] => A): Out[A] =
+    fs2.Stream.emit(fn(runOp(value)))
+
   final object Tx {
 
     // Tx[A] ~> TxS[A]
@@ -58,14 +73,9 @@ class Neo4jCypherTransactor[F[_]](
       new ~>[OpS, Out] {
 
         override def apply[A](fa: OpS[A]): Out[A] = fa match {
-          case CypherTransactor.Unwind(values) => values
-          case CypherTransactor.Query(query, read) =>
-            transactor
-              .run(query.template, query.params.asJava)
-              .records()
-              .toStreamBuffered(chunkSize)
-              .evalMap(r => F.delay(read(r)))
-          case CypherTransactor.Gather(value, fn) => fs2.Stream.emit(fn(apply(value)))
+          case CypherTransactor.Unwind(values)      => unwind(values)
+          case CypherTransactor.Query(query0, read) => query(transactor, query0, read)
+          case CypherTransactor.Gather(value, fn)   => gather(this, value, fn)
         }
       }
   }

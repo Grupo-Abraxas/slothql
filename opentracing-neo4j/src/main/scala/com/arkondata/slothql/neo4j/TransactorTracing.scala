@@ -12,12 +12,13 @@ import cats.syntax.apply._
 import cats.syntax.either._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
+import cats.~>
 import fs2.interop.reactivestreams.StreamUnicastPublisher
 import natchez.{ Span, Tags }
 import org.neo4j.driver.{ Driver, Record, TransactionConfig }
-import org.neo4j.driver.reactive.RxSession
+import org.neo4j.driver.reactive.{ RxSession, RxTransaction }
 
-import com.arkondata.slothql.cypher.CypherTransactor
+import com.arkondata.slothql.cypher.{ CypherStatement, CypherTransactor }
 
 class TransactorTracing[F[_]: MonadCancel[*[_], Throwable]](
   driver: Driver,
@@ -42,6 +43,25 @@ class TransactorTracing[F[_]: MonadCancel[*[_], Throwable]](
 
   def proxy(qSpan: Span[F]): Neo4jCypherTransactor[F] =
     new Neo4jCypherTransactor[F](driver, completion, defaultTimeout, chunkSize) {
+
+      override protected def unwind[A](out: fs2.Stream[F, A]): fs2.Stream[F, A] =
+        fs2.Stream.resource(qSpan.span("unwind")).flatMap(s => super.unwind(out))
+
+      override protected def query[A](
+        transactor: RxTransaction,
+        query: CypherStatement.Prepared[A],
+        read: CypherTransactor.Reader[Record, A]
+      ): fs2.Stream[F, A] =
+        fs2.Stream
+          .resource(qSpan.span("query"))
+          .evalTap(_.put("query" -> query.template, "params" -> query.params.toString()))
+          .flatMap(_ => super.query(transactor, query, read))
+
+      override protected def gather[U, A](
+        runOp: OpS ~> Out,
+        value: CypherTransactor.Operation[Record, Out, U],
+        fn: fs2.Stream[F, U] => A
+      ): fs2.Stream[F, A] = fs2.Stream.resource(qSpan.span("gather")).flatMap(_ => super.gather(runOp, value, fn))
 
       override protected def sessionResource: Resource[F, RxSession] =
         super.sessionResource.guaranteeCase {
