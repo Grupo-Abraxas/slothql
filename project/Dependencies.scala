@@ -27,6 +27,8 @@ object Dependencies {
 
   object Test {
     lazy val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest % sbt.Test
+
+    lazy val `slf4j-simple` = "org.slf4j" % "slf4j-simple" % Version.`slf4j-simple` % sbt.Test
   }
 
   object Version {
@@ -44,5 +46,7 @@ object Dependencies {
     lazy val organizeImports = "0.5.0"
 
     lazy val scalatest = "3.2.11"
+
+    lazy val `slf4j-simple` = "1.7.36"
   }
 }

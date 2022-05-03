@@ -49,7 +49,8 @@ lazy val cypher = (project in file("cypher"))
       Dependencies.`fs2-core`,
       Dependencies.`fs2-re`,
       Dependencies.`neo4j-driver`,
-      Dependencies.Test.scalatest
+      Dependencies.Test.scalatest,
+      Dependencies.Test.`slf4j-simple`
     ),
     console / initialCommands :=
       """
