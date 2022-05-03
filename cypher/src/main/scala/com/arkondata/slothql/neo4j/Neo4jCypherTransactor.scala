@@ -18,9 +18,10 @@ import cats.syntax.functor._
 import cats.{ ~>, Applicative, Monad }
 import fs2.interop.reactivestreams._
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.reactive.{ RxSession, RxTransaction }
+import org.neo4j.driver.reactive.{ RxSession, RxTransaction, RxTransactionWork }
 import org.neo4j.driver.types.{ Node => NNode, Path => NPath, Relationship => NRelationship, Type }
 import org.neo4j.driver.{ Driver, Record, TransactionConfig, Value }
+import org.reactivestreams.Publisher
 import shapeless._
 
 import com.arkondata.slothql.cypher
@@ -74,29 +75,20 @@ class Neo4jCypherTransactor[F[_]](driver: Driver, completion: Deferred[F, Unit],
     unsafeSyncStream(tx.mapK(Tx.streamK), timeout * 2, write)
 
   private def unsafeSyncStream[R](txs: TxS[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] =
-    if (write) {
-      fs2.Stream
-        .resource(sessionResource)
-        .flatMap(session =>
-          session
-            .writeTransaction(
-              tx => StreamUnicastPublisher(txs.foldMap(Tx.runOp(tx)), dispatcher),
-              TransactionConfig.builder().withTimeout(timeout.toJava).build()
-            )
-            .toStreamBuffered(chunkSize)
-        )
-    } else {
-      fs2.Stream
-        .resource(sessionResource)
-        .flatMap(session =>
-          session
-            .readTransaction(
-              tx => StreamUnicastPublisher(txs.foldMap(Tx.runOp(tx)), dispatcher),
-              TransactionConfig.builder().withTimeout(timeout.toJava).build()
-            )
-            .toStreamBuffered(chunkSize)
-        )
-    }
+    fs2.Stream
+      .resource(sessionResource)
+      .flatMap(
+        sessionFn[R](_, write)(
+          tx => StreamUnicastPublisher(txs.foldMap(Tx.runOp(tx)), dispatcher),
+          TransactionConfig.builder().withTimeout(timeout.toJava).build()
+        ).toStreamBuffered(chunkSize)
+      )
+
+  private def sessionFn[A](
+    session: RxSession,
+    write: Boolean
+  ): (RxTransactionWork[Publisher[A]], TransactionConfig) => Publisher[A] = (fn, cfg) =>
+    if (write) session.writeTransaction(fn, cfg) else session.readTransaction(fn, cfg)
 
   private lazy val sessionResource: Resource[F, RxSession] = Resource.makeCase(
     completion.tryGet.map(_.isDefined).flatMap(F.raiseError(new IllegalStateException("Driver is closed")).whenA) *>
