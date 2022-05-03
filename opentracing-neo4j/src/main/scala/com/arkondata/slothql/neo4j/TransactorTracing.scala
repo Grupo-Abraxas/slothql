@@ -5,6 +5,7 @@ import scala.concurrent.duration.{ DurationInt, FiniteDuration }
 import cats.effect.kernel.{ Async, Deferred }
 import cats.effect.std.Dispatcher
 import cats.syntax.functor._
+import natchez.Span
 import org.neo4j.driver.Driver
 
 class TransactorTracing[F[_]](
@@ -15,19 +16,19 @@ class TransactorTracing[F[_]](
   lazy val syntax  = transactor
   lazy val readers = transactor.readers
 
-  def runRead[R](tx: Tx[R]): Out[R] =
-    transactor.runRead(tx)
+  def runRead[R](tx: Tx[R])(implicit span: Span[F]): Out[R] =
+    apply(tx, transactor.defaultTimeout, write = false)
 
-  def runWrite[R](tx: Tx[R]): Out[R] =
-    transactor.runWrite(tx)
+  def runWrite[R](tx: Tx[R])(implicit span: Span[F]): Out[R] =
+    apply(tx, transactor.defaultTimeout, write = true)
 
-  def runRead[R](tx: Tx[R], timeout: FiniteDuration): Out[R] =
-    transactor.runRead(tx, timeout)
+  def runRead[R](tx: Tx[R], timeout: FiniteDuration)(implicit span: Span[F]): Out[R] =
+    apply(tx, timeout, write = false)
 
-  def runWrite[R](tx: Tx[R], timeout: FiniteDuration): Out[R] =
-    transactor.runWrite(tx, timeout)
+  def runWrite[R](tx: Tx[R], timeout: FiniteDuration)(implicit span: Span[F]): Out[R] =
+    apply(tx, timeout, write = true)
 
-  def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean): Out[R] =
+  def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean)(implicit span: Span[F]): Out[R] =
     transactor.apply(tx, timeout, write)
 }
 

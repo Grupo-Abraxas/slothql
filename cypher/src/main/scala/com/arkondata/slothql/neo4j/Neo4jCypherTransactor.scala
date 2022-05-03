@@ -32,7 +32,7 @@ import com.arkondata.slothql.neo4j.util.fs2StreamTxCMonad
 class Neo4jCypherTransactor[F[_]](
   driver: Driver,
   completion: Deferred[F, Unit],
-  defaultTimeout: FiniteDuration,
+  val defaultTimeout: FiniteDuration,
   chunkSize: Int
 )(implicit
   dispatcher: Dispatcher[F],
