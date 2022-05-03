@@ -42,25 +42,22 @@ class Neo4jCypherTransactor[F[_]](
 
   object readers extends Neo4jCypherTransactor.Readers
 
-  override type Tx[R] = CypherTransactor.Tx[F, Record, fs2.Stream[F, *], R]
-
   override type Out[R] = fs2.Stream[F, R]
+  override type Tx[R]  = CypherTransactor.Tx[F, Record, Out, R]
+  final type TxS[R]    = CypherTransactor.Tx[Out, Record, Out, R]
+  final type OpS[R]    = Operation[Record, Out, R]
 
-  private type TxS[R] = CypherTransactor.Tx[fs2.Stream[F, *], Record, fs2.Stream[F, *], R]
-
-  private type OpS[R] = Operation[Record, fs2.Stream[F, *], R]
-
-  private object Tx {
+  final object Tx {
 
     // Tx[A] ~> TxS[A]
-    def streamK: F ~> fs2.Stream[F, *] = new ~>[F, fs2.Stream[F, *]] {
-      override def apply[A](fa: F[A]): fs2.Stream[F, A] = fs2.Stream.eval(fa)
+    def streamK: F ~> Out = new ~>[F, Out] {
+      override def apply[A](fa: F[A]): Out[A] = fs2.Stream.eval(fa)
     }
 
-    def runOp(transactor: RxTransaction): OpS ~> fs2.Stream[F, *] =
-      new ~>[OpS, fs2.Stream[F, *]] {
+    def runOp(transactor: RxTransaction): OpS ~> Out =
+      new ~>[OpS, Out] {
 
-        override def apply[A](fa: OpS[A]): fs2.Stream[F, A] = fa match {
+        override def apply[A](fa: OpS[A]): Out[A] = fa match {
           case CypherTransactor.Unwind(values) => values
           case CypherTransactor.Query(query, read) =>
             transactor
