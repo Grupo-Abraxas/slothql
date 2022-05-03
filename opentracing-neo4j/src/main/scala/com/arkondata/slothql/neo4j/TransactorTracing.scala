@@ -1,26 +1,63 @@
 package com.arkondata.slothql.neo4j
 
+import java.io.{ PrintStream, PrintWriter, StringWriter }
+
 import scala.concurrent.duration.{ DurationInt, FiniteDuration }
+import scala.util.Try
 
-import cats.effect.kernel.{ Async, Deferred }
+import cats.effect.{ Outcome, Resource }
+import cats.effect.kernel.{ Async, Deferred, MonadCancel }
 import cats.effect.std.Dispatcher
+import cats.syntax.apply._
+import cats.syntax.either._
+import cats.syntax.flatMap._
 import cats.syntax.functor._
-import natchez.Span
-import org.neo4j.driver.Driver
+import fs2.interop.reactivestreams.StreamUnicastPublisher
+import natchez.{ Span, Tags }
+import org.neo4j.driver.{ Driver, Record, TransactionConfig }
+import org.neo4j.driver.reactive.RxSession
 
-class TransactorTracing[F[_]](
-  val transactor: Neo4jCypherTransactor[F]
-) {
-  import transactor.{ Out, Tx }
+import com.arkondata.slothql.cypher.CypherTransactor
 
-  lazy val syntax  = transactor
-  lazy val readers = transactor.readers
+class TransactorTracing[F[_]: MonadCancel[*[_], Throwable]](
+  driver: Driver,
+  completion: Deferred[F, Unit],
+  defaultTimeout: FiniteDuration,
+  chunkSize: Int
+)(implicit
+  dispatcher: Dispatcher[F],
+  F: Async[F]
+) extends Neo4jCypherTransactor.Syntax[F] {
+
+  type Out[R]         = fs2.Stream[F, R]
+  override type Tx[R] = CypherTransactor.Tx[F, Record, Out, R]
+
+  object readers extends Neo4jCypherTransactor.Readers
+
+  private def resolveErrorTrace(err: Throwable): Resource[F, String] = for {
+    sw <- Resource.fromAutoCloseable(F.delay(new StringWriter()))
+    pw <- Resource.fromAutoCloseable(F.delay(new PrintWriter(sw)))
+    _  <- Resource.eval(F.delay(err.printStackTrace(pw)))
+  } yield sw.toString
+
+  def proxy(qSpan: Span[F]): Neo4jCypherTransactor[F] =
+    new Neo4jCypherTransactor[F](driver, completion, defaultTimeout, chunkSize) {
+
+      override protected def sessionResource: Resource[F, RxSession] =
+        super.sessionResource.guaranteeCase {
+          case Outcome.Canceled() =>
+            Resource.eval(qSpan.put(Tags.error(true), "canceled" -> true, "error-detail" -> "Was canceled"))
+          case Outcome.Errored(err) =>
+            resolveErrorTrace(err).evalMap(detail => qSpan.put(Tags.error(true), "error-detail" -> detail))
+          case Outcome.Succeeded(_) => Resource.eval(qSpan.put("status" -> "success"))
+        }
+    }
 
   def runRead[R](tx: Tx[R])(implicit span: Span[F]): Out[R] =
-    apply(tx, transactor.defaultTimeout, write = false)
+    apply(tx, defaultTimeout, write = false)
 
   def runWrite[R](tx: Tx[R])(implicit span: Span[F]): Out[R] =
-    apply(tx, transactor.defaultTimeout, write = true)
+    apply(tx, defaultTimeout, write = true)
 
   def runRead[R](tx: Tx[R], timeout: FiniteDuration)(implicit span: Span[F]): Out[R] =
     apply(tx, timeout, write = false)
@@ -29,7 +66,11 @@ class TransactorTracing[F[_]](
     apply(tx, timeout, write = true)
 
   def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean)(implicit span: Span[F]): Out[R] =
-    transactor.apply(tx, timeout, write)
+    fs2.Stream.resource(span.span(s"query-${if (write) "write" else "read"}")).flatMap { qSpan =>
+      fs2.Stream.eval(qSpan.put("registered-timeout" -> timeout.toString(), Tags.component("persistence"))) *>
+      proxy(qSpan)(tx, timeout, write)
+    }
+
 }
 
 object TransactorTracing {
@@ -41,7 +82,5 @@ object TransactorTracing {
   )(implicit
     dispatcher: Dispatcher[F]
   ): F[(TransactorTracing[F], Deferred[F, Unit])] =
-    Neo4jCypherTransactor(driver, defaultTimeout, chunkSize).map { case (transactor, complete) =>
-      (new TransactorTracing[F](transactor), complete)
-    }
+    Deferred[F, Unit].map(defer => (new TransactorTracing(driver, defer, defaultTimeout, chunkSize), defer))
 }

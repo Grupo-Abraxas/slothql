@@ -83,25 +83,22 @@ class Neo4jCypherTransactor[F[_]](
     apply(tx, timeout, write = true)
 
   def apply[R](tx: Tx[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] =
-    unsafeSyncStream(tx.mapK(Tx.streamK), timeout * 2, write)
-
-  private def unsafeSyncStream[R](txs: TxS[R], timeout: FiniteDuration, write: Boolean): fs2.Stream[F, R] =
     fs2.Stream
       .resource(sessionResource)
       .flatMap(
         sessionFn[R](_, write)(
-          tx => StreamUnicastPublisher(txs.foldMap(Tx.runOp(tx)), dispatcher),
+          rx => StreamUnicastPublisher(tx.mapK(Tx.streamK).foldMap(Tx.runOp(rx)), dispatcher),
           TransactionConfig.builder().withTimeout(timeout.toJava).build()
         ).toStreamBuffered(chunkSize)
       )
 
-  private def sessionFn[A](
+  protected def sessionFn[A](
     session: RxSession,
     write: Boolean
   ): (RxTransactionWork[Publisher[A]], TransactionConfig) => Publisher[A] = (fn, cfg) =>
     if (write) session.writeTransaction(fn, cfg) else session.readTransaction(fn, cfg)
 
-  private lazy val sessionResource: Resource[F, RxSession] = Resource.makeCase(
+  protected def sessionResource: Resource[F, RxSession] = Resource.makeCase(
     completion.tryGet.map(_.isDefined).flatMap(F.raiseError(new IllegalStateException("Driver is closed")).whenA) *>
     F.delay(driver.rxSession())
   )((s, _) => s.close().toStreamBuffered(chunkSize).compile.drain)

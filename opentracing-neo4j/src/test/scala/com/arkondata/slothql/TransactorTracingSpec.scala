@@ -13,7 +13,7 @@ import com.arkondata.slothql.test.tags.RequiresNeo4j
 @RequiresNeo4j
 class TransactorTracingSpec extends AnyWordSpec with Matchers with Neo4jUsingTest with TracingSpec {
   implicit lazy val (tracingTx, _) = TransactorTracing[IO](Connection.driver).unsafeRunSync()
-  import tracingTx.syntax._
+  import tracingTx._
   import tracingTx.readers._
 
   "run read" in {
