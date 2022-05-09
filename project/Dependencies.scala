@@ -16,32 +16,37 @@ object Dependencies {
   lazy val `cats-core`   = "org.typelevel" %% "cats-core"   % Version.cats
   lazy val `cats-free`   = "org.typelevel" %% "cats-free"   % Version.cats
   lazy val `cats-effect` = "org.typelevel" %% "cats-effect" % Version.catsEffect
-  lazy val `fs2-core`    = "co.fs2"        %% "fs2-core"    % Version.fs2
+
+  lazy val `fs2-core` = "co.fs2" %% "fs2-core"             % Version.fs2
+  lazy val `fs2-re`   = "co.fs2" %% "fs2-reactive-streams" % Version.fs2
 
   lazy val `neo4j-driver` = "org.neo4j.driver" % "neo4j-java-driver" % Version.neo4jDriver
-
-  lazy val `opentracing-scala`  = "com.arkondata" %% "opentracing-scala"  % Version.opentracingScala
-  lazy val `opentracing-effect` = "com.arkondata" %% "opentracing-effect" % Version.opentracingScala
-  lazy val `opentracing-fs2`    = "com.arkondata" %% "opentracing-fs2"    % Version.opentracingScala
+  lazy val `natchez`      = "org.tpolecat"    %% "natchez-core"      % Version.natchez
 
   object Test {
     lazy val scalatest = "org.scalatest" %% "scalatest" % Version.scalatest % sbt.Test
+
+    lazy val `natchez-jaeger` = "org.tpolecat" %% "natchez-jaeger" % Version.natchez % sbt.Test
+
+    lazy val `slf4j-simple` = "org.slf4j" % "slf4j-simple" % Version.`slf4j-simple` % sbt.Test
   }
 
   object Version {
-    lazy val shapeless     = "2.3.7"
+    lazy val shapeless     = "2.3.9"
     lazy val kindProjector = "0.13.2"
     lazy val macroParadise = "2.1.1"
 
-    lazy val cats       = "2.4.2"
-    lazy val catsEffect = "2.5.4"
-    lazy val fs2        = "2.5.9"
+    lazy val cats       = "2.7.0"
+    lazy val catsEffect = "3.3.4"
+    lazy val fs2        = "3.2.0"
 
     lazy val neo4jDriver = "4.3.0"
+    lazy val natchez     = "0.1.5"
 
-    lazy val opentracingScala = "0.2.3"
-    lazy val organizeImports  = "0.5.0"
+    lazy val organizeImports = "0.5.0"
 
-    lazy val scalatest = "3.2.10"
+    lazy val scalatest = "3.2.11"
+
+    lazy val `slf4j-simple` = "1.7.36"
   }
 }

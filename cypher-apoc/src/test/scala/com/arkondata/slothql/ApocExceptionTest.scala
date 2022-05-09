@@ -1,5 +1,7 @@
 package com.arkondata.slothql
 
+import scala.concurrent.duration.DurationInt
+
 import cats.syntax.monadError._
 import org.scalatest.EitherValues
 import org.scalatest.matchers.should.Matchers
@@ -20,7 +22,7 @@ class ApocExceptionTest extends AnyWordSpec with Matchers with Neo4jUsingTest wi
       val message = "Test Assertion Failed"
       val query   = APOC.assert(lit(false), lit(message))(lit(true))
       val io = tx
-        .runRead(tx.query(query))
+        .runRead(tx.query(query), 10.seconds)
         .compile
         .drain
         .adaptError(ApocException.adapt)

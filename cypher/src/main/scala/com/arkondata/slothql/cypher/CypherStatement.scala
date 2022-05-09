@@ -11,7 +11,7 @@ import cats.syntax.apply._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.syntax.semigroupk._
-import cats.{ catsInstancesForId, Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad }
+import cats.{ Applicative, Eval, Foldable, Functor, Monad, MonoidK, Semigroupal, StackSafeMonad }
 
 sealed trait CypherStatement {
   val template: String

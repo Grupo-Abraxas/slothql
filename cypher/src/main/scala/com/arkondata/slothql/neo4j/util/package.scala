@@ -4,7 +4,7 @@ import java.util.stream.{ Stream => JStream }
 
 import scala.jdk.CollectionConverters._
 
-import cats.effect.{ Blocker, ContextShift, Resource, Sync }
+import cats.effect.{ Resource, Sync }
 import cats.syntax.applicative._
 import cats.{ Applicative, Apply, Monad }
 
@@ -14,7 +14,7 @@ package object util {
 
   implicit def fs2StreamTxCMonad[F[_], Src](implicit
     A: Applicative[F],
-    compiler: fs2.Stream.Compiler[F, F]
+    compiler: fs2.Compiler[F, F]
   ): Monad[TxC0[F, Src, fs2.Stream[F, *], *]] =
     new Monad[TxC0[F, Src, fs2.Stream[F, *], *]] {
       type TxC[A] = TxC0[F, Src, fs2.Stream[F, *], A]
@@ -38,9 +38,9 @@ package object util {
         }
     }
 
-  def javaStreamToFs2[F[_]: Sync: ContextShift, A](blocker: Blocker, fj: F[JStream[A]]): fs2.Stream[F, A] =
+  def javaStreamToFs2[F[_]: Sync, A](fj: F[JStream[A]], chunkSize: Int = 1024): fs2.Stream[F, A] =
     fs2.Stream
       .resource(Resource.fromAutoCloseable(fj))
-      .flatMap(jStream => fs2.Stream.fromBlockingIterator[F](blocker, jStream.iterator().asScala))
+      .flatMap(jStream => fs2.Stream.fromBlockingIterator[F](jStream.iterator().asScala, chunkSize))
 
 }

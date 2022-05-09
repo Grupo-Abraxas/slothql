@@ -17,3 +17,9 @@ services:
       retries: 10
     volumes:
       - ../neo4j/conf:/conf
+  jaegertracing:
+    image: jaegertracing/all-in-one:1.17
+    ports:
+      - ${JAEGERTRACING_COMPACT_PORT-6833}:6831/udp
+      - ${JAEGERTRACING_BINARY_PORT-6834}:6832/udp
+      - ${JAEGERTRACING_FRONT_PORT-16688}:16686
