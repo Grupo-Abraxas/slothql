@@ -33,7 +33,7 @@ class Neo4jCypherTransactorTest extends AnyWordSpec with Matchers with Neo4jUsin
   }
 
   private def test[R](read: tx.Tx[R], expected: Seq[R])(implicit pos: Position): Assertion =
-    tx.runRead(read, timeout).compile.toList.unsafeRunSync() should contain theSameElementsAs expected
+    tx.runRead(read, timeout).compile.toList.unsafeRunSync() should contain allElementsOf expected
 
   private def resetId(node: GraphElem.Node): GraphElem.Node = node.copy(id = 0)
 
