@@ -118,7 +118,7 @@ ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
 ThisBuild / scalafixDependencies += Dependencies.Plugin.`organize-imports`
 inThisBuild(
   List(
-    scalaVersion := "2.13.6",
+    scalaVersion := "2.13.8",
     semanticdbEnabled := true,
     semanticdbVersion := scalafixSemanticdb.revision
   )
