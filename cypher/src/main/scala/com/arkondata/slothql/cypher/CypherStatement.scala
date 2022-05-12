@@ -266,6 +266,8 @@ object CypherStatement {
     def part(k: CypherFragment.Aux[Part]): GenS[Part] = raw(k.toCypher(_))
     def part(template: String): GenS[Part]            = raw((Part(template, Map.empty), _))
 
+    def complete[T](query: CypherFragment.Query[T]): GenS[Complete[T]] = raw(query.toCypher(_))
+
     def complete[T](k: CypherFragment.Aux[Complete[T]]): GenS[Complete[T]] = raw(k.toCypher(_))
     def complete[T](template: String): GenS[Complete[T]]                   = raw((Complete(template, Map.empty), _))
 
