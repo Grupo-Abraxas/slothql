@@ -211,17 +211,20 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     class CallQueryOps[RI](query: CF.StsQuery[RI]) {
 
       def yielding[R0, Out](name: String)(fn: CF.Expr.Alias[R0] => CF.Query.Query0[Out]): CF.Query.Query0[Out] =
-        CF.Query.Call(query, fn(CF.Expr.Alias[R0](name)))
+        CF.Query.Call(query, fn(CF.Expr.Alias.Fixed[R0](name)))
 
       def yielding[R0, R1, Out](name0: String, name1: String)(
         fn: (CF.Expr.Alias[R0], CF.Expr.Alias[R1]) => CF.Query.Query0[Out]
       ): CF.Query.Query0[Out] =
-        CF.Query.Call(query, fn(CF.Expr.Alias[R0](name0), CF.Expr.Alias[R1](name1)))
+        CF.Query.Call(query, fn(CF.Expr.Alias.Fixed[R0](name0), CF.Expr.Alias.Fixed[R1](name1)))
 
       def yielding[R0, R1, R2, Out](name0: String, name1: String, name2: String)(
         fn: (CF.Expr.Alias[R0], CF.Expr.Alias[R1], CF.Expr.Alias[R2]) => CF.Query.Query0[Out]
       ): CF.Query.Query0[Out] =
-        CF.Query.Call(query, fn(CF.Expr.Alias[R0](name0), CF.Expr.Alias[R1](name1), CF.Expr.Alias[R2](name2)))
+        CF.Query.Call(
+          query,
+          fn(CF.Expr.Alias.Fixed[R0](name0), CF.Expr.Alias.Fixed[R1](name1), CF.Expr.Alias.Fixed[R2](name2))
+        )
 
     }
 

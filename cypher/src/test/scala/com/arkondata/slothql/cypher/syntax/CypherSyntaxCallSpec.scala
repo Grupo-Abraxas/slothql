@@ -30,23 +30,26 @@ class CypherSyntaxCallSpec extends CypherSyntaxBaseSpec {
       Match { case (n @ Node("Node")) =>
         Call {
           Match { case (m @ Node("Node0")) - Rel("Rel") > `n` =>
-            `return`(m as "out", lit(true) as "out1", lit(1L) as "out2")
+            `return`(m as "out0", lit(true) as "out1", lit(1L) as "out2")
           } union
           Match { case (m @ Node("Node0")) - Rel("Rel0") > `n` =>
-            `return`(m as "out", lit(true) as "out1", lit(1L) as "out2")
+            `return`(m as "out0", lit(true) as "out1", lit(1L) as "out2")
           }
         }.yielding("out0", "out1", "out2") { (out1: Node, out2: Alias[Boolean], out3: Alias[Long]) =>
-          `return`(out1, out2, out3)
+          With(out1, out2, out3) { (out1, out2, out3) =>
+            `return`(out1, out2, out3)
+          }
         }
       },
       s"""|MATCH (`n0`:`Node`) CALL { 
           |MATCH (`m0`:`Node0`) -[:`Rel`]-> (`n0`) 
-          |RETURN `m0` AS `out`, true AS `out1`, 1 AS `out2`
+          |RETURN `m0` AS `out0`, true AS `out1`, 1 AS `out2`
           | UNION 
           |MATCH (`m1`:`Node0`) -[:`Rel0`]-> (`n0`) 
-          |RETURN `m1` AS `out`, true AS `out1`, 1 AS `out2` 
+          |RETURN `m1` AS `out0`, true AS `out1`, 1 AS `out2` 
           |} 
-          |RETURN `out00`, `out10`, `out20`
+          |WITH `out0` AS `out10`, `out1` AS `out20`, `out2` AS `out30`
+          | RETURN `out10`, `out20`, `out30`
           |""".stripMargin.replace("\n", "")
     ).returns[(GraphElem.Node, Boolean, Long)]
   }
