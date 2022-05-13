@@ -108,6 +108,31 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     @compileTimeOnly("would have been replaced at With.apply")
     def limit(n: CF.Expr.Input[Long]): Nothing = ???
 
+    def references[T1, R](n: CF.Expr[T1] with CypherStatement.Alias)(
+      query: => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] = CF.Query.Clause(CF.Clause.With(CF.Return.Expr(n, None), None), query)
+
+    def references[T1, T2, R](n0: CF.Expr[T1] with CypherStatement.Alias, n1: CF.Expr[T2] with CypherStatement.Alias)(
+      query: => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] = CF.Query.Clause(
+      CF.Clause.With(CF.Return.Tuple(List(CF.Return.Expr(n0, None), CF.Return.Expr(n1, None))), None),
+      query
+    )
+
+    def references[T1, T2, T3, R](
+      n0: CF.Expr[T1] with CypherStatement.Alias,
+      n1: CF.Expr[T2] with CypherStatement.Alias,
+      n2: CF.Expr[T2] with CypherStatement.Alias
+    )(
+      query: => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] = CF.Query.Clause(
+      CF.Clause.With(
+        CF.Return.Tuple(List(CF.Return.Expr(n0, None), CF.Return.Expr(n1, None), CF.Return.Expr(n2, None))),
+        None
+      ),
+      query
+    )
+
     def apply[R](wildcard: **.type)(query: CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild0[R]
 
@@ -205,6 +230,28 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   object Call {
 
     def apply(procedure: String, params: CF.Expr[_]*): CallOps = new CallOps
+
+    def apply[R](query: CF.StsQuery[R]): CallQueryOps[R] = new CallQueryOps[R](query)
+
+    class CallQueryOps[RI](query: CF.StsQuery[RI]) {
+
+      def yielding[R0, Out](name: String)(fn: CF.Expr.Alias[R0] => CF.Query.Query0[Out]): CF.Query.Query0[Out] =
+        CF.Query.Call(query, fn(CF.Expr.Alias.Fixed[R0](name)))
+
+      def yielding[R0, R1, Out](name0: String, name1: String)(
+        fn: (CF.Expr.Alias[R0], CF.Expr.Alias[R1]) => CF.Query.Query0[Out]
+      ): CF.Query.Query0[Out] =
+        CF.Query.Call(query, fn(CF.Expr.Alias.Fixed[R0](name0), CF.Expr.Alias.Fixed[R1](name1)))
+
+      def yielding[R0, R1, R2, Out](name0: String, name1: String, name2: String)(
+        fn: (CF.Expr.Alias[R0], CF.Expr.Alias[R1], CF.Expr.Alias[R2]) => CF.Query.Query0[Out]
+      ): CF.Query.Query0[Out] =
+        CF.Query.Call(
+          query,
+          fn(CF.Expr.Alias.Fixed[R0](name0), CF.Expr.Alias.Fixed[R1](name1), CF.Expr.Alias.Fixed[R2](name2))
+        )
+
+    }
 
     class CallOps {
       def void[R](res: CF.Query.Query0[R]): CF.Query.Query0[R] = macro CypherSyntaxCallMacros.void[R]

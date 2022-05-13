@@ -2,7 +2,7 @@ import com.typesafe.sbt.SbtGit.GitKeys
 
 enablePlugins(GitVersioning)
 
-ThisBuild / scalaVersion := "2.13.6"
+ThisBuild / scalaVersion := "2.13.8"
 
 ThisBuild / isSnapshot := false
 ThisBuild / git.baseVersion := "0.2-dev"
@@ -118,7 +118,7 @@ ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
 ThisBuild / scalafixDependencies += Dependencies.Plugin.`organize-imports`
 inThisBuild(
   List(
-    scalaVersion := "2.13.6",
+    scalaVersion := "2.13.8",
     semanticdbEnabled := true,
     semanticdbVersion := scalafixSemanticdb.revision
   )

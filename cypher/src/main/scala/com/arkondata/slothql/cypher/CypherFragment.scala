@@ -365,12 +365,16 @@ object CypherFragment {
     final lazy val toCypherF: GenF[Statement] = Query.toCypher(this).f
   }
 
+  type StsQuery[+R] = Query[R]
+
   object Query {
     final case class Union[+A](left: Query[A], right: Query[A], all: Boolean) extends Query[A]
 
     sealed trait Query0[+A] extends Query[A]
     final case class Return[+A](ret: CypherFragment.Return[A]) extends Query0[A]
     final case object Nothing extends Query0[Nothing]
+
+    final case class Call[+A, +B](query: StsQuery[B], queryN: Query0[A]) extends Query0[A]
 
     final case class Clause[+A](clause: CypherFragment.Clause, query: Query0[A]) extends Query0[A]
 
@@ -381,6 +385,11 @@ object CypherFragment {
         (part(clause).toComplete[A], complete(query)).map2((c, q) => s"$c $q")
       case Return(ret) =>
         part(ret).toComplete[A].map(r => s"RETURN $r")
+      case Call(queryI, queryN) =>
+        for {
+          i <- complete(queryI.asInstanceOf[Query[A]])
+          n <- complete(queryN)
+        } yield s"CALL { $i } $n"
       case Nothing =>
         complete("")
     }

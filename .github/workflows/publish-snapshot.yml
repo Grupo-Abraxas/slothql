@@ -3,7 +3,9 @@ name: Scala CI - Publish Snapshot
 on:
   release: 
     types: [prereleased]
-  
+
+  workflow_dispatch: {}
+
 jobs:
   build:
 
