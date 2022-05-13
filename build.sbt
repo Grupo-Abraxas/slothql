@@ -5,7 +5,7 @@ enablePlugins(GitVersioning)
 ThisBuild / scalaVersion := "2.13.8"
 
 ThisBuild / isSnapshot := false
-ThisBuild / git.baseVersion := "0.2-jaguar"
+ThisBuild / git.baseVersion := "0.2-dev"
 ThisBuild / git.gitHeadCommit := GitKeys.gitReader.value.withGit(
   _.asInstanceOf[com.typesafe.sbt.git.JGit].headCommit.map(_.abbreviate(8).name)
 )
