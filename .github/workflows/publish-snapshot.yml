@@ -4,8 +4,10 @@ on:
   release: 
     types: [prereleased]
 
-  workflow_dispatch: {}
-  
+  push:
+    branches:
+      - add_call_syntax
+
 jobs:
   build:
 
