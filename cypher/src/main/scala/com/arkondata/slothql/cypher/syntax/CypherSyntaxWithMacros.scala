@@ -285,22 +285,22 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
       .unzip3
 
     val preserveValues = preserving.map { p =>
-      (p.tree match {
-        case Apply(_, l) =>
-          l.map { s =>
-            Seq(q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Expr(..$s, None)")
-          }
-        case _ => c.abort(c.enclosingPosition, s"Preserving is not provided")
-      }).flatten
-    }.getOrElse(Seq.empty[c.Tree])
+      q"${p.tree}.expressions.toList.map(e => _root_.com.arkondata.slothql.cypher.CypherFragment.Return.Expr(e, None))"
+    }
 
     val rebind = argNames.toMap
-    val return0 = (wildcard, preserveValues ++ returns) match {
-      case (false, Seq())       => c.abort(c.enclosingPosition, "No variables bound at WITH clause")
-      case (false, Seq(single)) => single
-      case (false, seq)         => q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
-      case (true, Seq())        => q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Wildcard"
-      case (true, seq) =>
+    val return0 = (wildcard, preserveValues, returns) match {
+      case (false, None, Seq())       => c.abort(c.enclosingPosition, "No variables bound at WITH clause")
+      case (false, Some(pv), Seq())   => q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple($pv)"
+      case (false, None, Seq(single)) => single
+      case (false, Some(pv), Seq(single)) =>
+        q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple($pv :+ $single)"
+      case (false, None, seq) =>
+        q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
+      case (false, Some(pv), seq) =>
+        q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple($pv ++ _root_.scala.List(..$seq))"
+      case (true, _, Seq()) => q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Wildcard"
+      case (true, _, seq) =>
         q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.WildcardTuple(_root_.scala.List(..$seq))"
     }
     val (ops, body1) = body0 match {

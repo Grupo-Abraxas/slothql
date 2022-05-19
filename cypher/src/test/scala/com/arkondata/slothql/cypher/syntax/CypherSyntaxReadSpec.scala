@@ -134,7 +134,8 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
       Match { case (a @ Node("Node")) - Rel("to") > (b @ Node("Node")) =>
         Match {
           case c if c.prop[Int]("z") === a.prop[Int]("xyz") =>
-            With(*(a, b)) {
+            val v = Seq(b)
+            With(*(a).also(v)) {
               a.props
             }
         }
