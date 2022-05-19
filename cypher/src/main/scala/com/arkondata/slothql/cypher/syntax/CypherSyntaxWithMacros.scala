@@ -88,6 +88,11 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
   ): c.Expr[CF.Query.Query0[R]] =
     withImpl(query.tree, wildcard = true, None)
 
+  def withPreserving0[R: WeakTypeTag](preserving: c.Expr[Preserving])(
+    query: c.Expr[CF.Query.Query0[R]]
+  ): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = false, Some(preserving))
+
   def withWild1[T1: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]])(
     query: c.Expr[CF.Expr.Alias[T1] => CF.Query.Query0[R]]
   ): c.Expr[CF.Query.Query0[R]] =

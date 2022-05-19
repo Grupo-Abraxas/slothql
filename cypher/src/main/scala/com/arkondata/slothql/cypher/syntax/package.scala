@@ -109,7 +109,7 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     @compileTimeOnly("would have been replaced at With.apply")
     def limit(n: CF.Expr.Input[Long]): Nothing = ???
 
-    def preserving(exprs: CF.Expr[_] with CypherStatement.Alias*): Preserving = Preserving(exprs)
+    def preserving(expressions: CF.Expr[_] with CypherStatement.Alias*): Preserving = Preserving(expressions)
 
     def references[T1, R](n: CF.Expr[T1] with CypherStatement.Alias)(
       query: => CF.Query.Query0[R]
@@ -138,6 +138,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
 
     def apply[R](wildcard: **.type)(query: CF.Query.Query0[R]): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild0[R]
+
+    def apply[R](preserving: Preserving)(query: CF.Query.Query0[R]): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withPreserving0[R]
 
     // 1 Expr
 
@@ -478,6 +481,9 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
   object ::= {
     def unapply(any: Any): Option[(Path, Node)] = ???
   }
+
+  // Simplify Expression With //
+  def *(expressions: CF.Expr[_] with CypherStatement.Alias*): Preserving = With.preserving(expressions: _*)
 
   // // // // // // // // // // // // // // // // //
   // // // // //  Return Expressions  // // // // //

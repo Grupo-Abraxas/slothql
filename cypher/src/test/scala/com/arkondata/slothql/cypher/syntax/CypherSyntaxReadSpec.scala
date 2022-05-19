@@ -129,12 +129,28 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
       "RETURN `a0`, `c0`"
     ).returns[(Map[String, Any], Map[String, Any])]
 
+    "support no aliasing with no values" in
+    test(
+      Match { case (a @ Node("Node")) - Rel("to") > (b @ Node("Node")) =>
+        Match {
+          case c if c.prop[Int]("z") === a.prop[Int]("xyz") =>
+            With(*(a, b)) {
+              a.props
+            }
+        }
+      },
+      "MATCH (`a0`:`Node`) -[:`to`]-> (`b0`:`Node`) " +
+      "MATCH (`c0`) WHERE `c0`.`z` = `a0`.`xyz` " +
+      "WITH `a0`, `b0` " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
     "support no aliasing with" in
     test(
       Match { case (a @ Node("Node")) - Rel("to") > (b @ Node("Node")) =>
         Match {
           case c if c.prop[Int]("z") === a.prop[Int]("xyz") =>
-            With(With.preserving(a, b), c.prop[Int]("z")) { z =>
+            With(*(a, b), c.prop[Int]("z")) { z =>
               (a.props, z)
             }
         }
