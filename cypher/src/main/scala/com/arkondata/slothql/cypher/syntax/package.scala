@@ -8,6 +8,7 @@ import cats.data.{ Ior, NonEmptyList }
 import shapeless.{ ::, =:!=, |∨|, ops, HList, HNil, Refute, Unpack1 }
 
 import com.arkondata.slothql.cypher.CypherFragment.Clause.Write
+import com.arkondata.slothql.cypher.CypherFragment.Expr.Alias.Preserving
 import com.arkondata.slothql.cypher.syntax.OnCreate.PartialCreateApply
 import com.arkondata.slothql.cypher.syntax.OnMatch.PartialMatchApply
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
@@ -108,6 +109,8 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     @compileTimeOnly("would have been replaced at With.apply")
     def limit(n: CF.Expr.Input[Long]): Nothing = ???
 
+    def preserving(exprs: CF.Expr[_] with CypherStatement.Alias*): Preserving = Preserving(exprs)
+
     def references[T1, R](n: CF.Expr[T1] with CypherStatement.Alias)(
       query: => CF.Query.Query0[R]
     ): CF.Query.Query0[R] = CF.Query.Clause(CF.Clause.With(CF.Return.Expr(n, None), None), query)
@@ -146,6 +149,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild1[T1, R]
 
+    def apply[T1, R](preserving: Preserving, t1: CF.Expr[T1])(
+      query: CF.Expr.Alias[T1] => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withPreserving1[T1, R]
+
     // 2 Exprs
 
     def apply[T1, T2, R](t1: CF.Expr[T1], t2: CF.Expr[T2])(
@@ -157,6 +165,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
       query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]
     ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild2[T1, T2, R]
+
+    def apply[T1, T2, R](preserving: Preserving, t1: CF.Expr[T1], t2: CF.Expr[T2])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withPreserving2[T1, T2, R]
 
     // 3 Exprs
 
@@ -170,6 +183,11 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
     ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild3[T1, T2, T3, R]
 
+    def apply[T1, T2, T3, R](preserving: Preserving, t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3])(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withPreserving3[T1, T2, T3, R]
+
     // 4 Exprs
 
     def apply[T1, T2, T3, T4, R](t1: CF.Expr[T1], t2: CF.Expr[T2], t3: CF.Expr[T3], t4: CF.Expr[T4])(
@@ -181,6 +199,17 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
       query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]
     ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild4[T1, T2, T3, T4, R]
+
+    def apply[T1, T2, T3, T4, R](
+      preserving: Preserving,
+      t1: CF.Expr[T1],
+      t2: CF.Expr[T2],
+      t3: CF.Expr[T3],
+      t4: CF.Expr[T4]
+    )(
+      query: (CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withPreserving4[T1, T2, T3, T4, R]
 
     // 5 Exprs
 
@@ -218,6 +247,24 @@ package object syntax extends CypherSyntaxLowPriorityImplicits {
       ) => CF.Query.Query0[R]
     ): CF.Query.Query0[R] =
       macro CypherSyntaxWithMacros.withWild5[T1, T2, T3, T4, T5, R]
+
+    def apply[T1, T2, T3, T4, T5, R](
+      preserving: Preserving,
+      t1: CF.Expr[T1],
+      t2: CF.Expr[T2],
+      t3: CF.Expr[T3],
+      t4: CF.Expr[T4],
+      t5: CF.Expr[T5]
+    )(
+      query: (
+        CF.Expr.Alias[T1],
+        CF.Expr.Alias[T2],
+        CF.Expr.Alias[T3],
+        CF.Expr.Alias[T4],
+        CF.Expr.Alias[T5]
+      ) => CF.Query.Query0[R]
+    ): CF.Query.Query0[R] =
+      macro CypherSyntaxWithMacros.withPreserving5[T1, T2, T3, T4, T5, R]
 
   }
 

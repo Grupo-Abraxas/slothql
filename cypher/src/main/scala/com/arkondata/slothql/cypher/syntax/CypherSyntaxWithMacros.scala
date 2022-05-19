@@ -5,6 +5,7 @@ import scala.reflect.macros.blackbox
 
 import cats.data.NonEmptyList
 
+import com.arkondata.slothql.cypher.CypherFragment.Expr.Alias.Preserving
 import com.arkondata.slothql.cypher.{ CypherFragment => CF }
 
 class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyntaxPatternMacros(c) {
@@ -13,12 +14,12 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
   def with1[T1: WeakTypeTag, R: WeakTypeTag](t1: c.Expr[CF.Expr[T1]])(
     query: c.Expr[CF.Expr.Alias[T1] => CF.Query.Query0[R]]
   ): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1])
+    withImpl(query.tree, wildcard = false, None, t1.tree -> weakTypeOf[T1])
 
   def with2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](t1: c.Expr[CF.Expr[T1]], t2: c.Expr[CF.Expr[T2]])(
     query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]]
   ): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, wildcard = false, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
+    withImpl(query.tree, wildcard = false, None, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
 
   def with3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
     t1: c.Expr[CF.Expr[T1]],
@@ -30,6 +31,7 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(
       query.tree,
       wildcard = false,
+      None,
       t1.tree -> weakTypeOf[T1],
       t2.tree -> weakTypeOf[T2],
       t3.tree -> weakTypeOf[T3]
@@ -46,6 +48,7 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(
       query.tree,
       wildcard = false,
+      None,
       t1.tree -> weakTypeOf[T1],
       t2.tree -> weakTypeOf[T2],
       t3.tree -> weakTypeOf[T3],
@@ -72,6 +75,7 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(
       query.tree,
       wildcard = false,
+      None,
       t1.tree -> weakTypeOf[T1],
       t2.tree -> weakTypeOf[T2],
       t3.tree -> weakTypeOf[T3],
@@ -82,19 +86,19 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
   def withWild0[R: WeakTypeTag](wildcard: c.Expr[**.type])(
     query: c.Expr[CF.Query.Query0[R]]
   ): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, wildcard = true)
+    withImpl(query.tree, wildcard = true, None)
 
   def withWild1[T1: WeakTypeTag, R: WeakTypeTag](wildcard: c.Expr[**.type], t1: c.Expr[CF.Expr[T1]])(
     query: c.Expr[CF.Expr.Alias[T1] => CF.Query.Query0[R]]
   ): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1])
+    withImpl(query.tree, wildcard = true, None, t1.tree -> weakTypeOf[T1])
 
   def withWild2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](
     wildcard: c.Expr[**.type],
     t1: c.Expr[CF.Expr[T1]],
     t2: c.Expr[CF.Expr[T2]]
   )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
-    withImpl(query.tree, wildcard = true, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
+    withImpl(query.tree, wildcard = true, None, t1.tree -> weakTypeOf[T1], t2.tree -> weakTypeOf[T2])
 
   def withWild3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
     wildcard: c.Expr[**.type],
@@ -107,6 +111,7 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(
       query.tree,
       wildcard = true,
+      None,
       t1.tree -> weakTypeOf[T1],
       t2.tree -> weakTypeOf[T2],
       t3.tree -> weakTypeOf[T3]
@@ -124,6 +129,7 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(
       query.tree,
       wildcard = true,
+      None,
       t1.tree -> weakTypeOf[T1],
       t2.tree -> weakTypeOf[T2],
       t3.tree -> weakTypeOf[T3],
@@ -151,6 +157,97 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
     withImpl(
       query.tree,
       wildcard = true,
+      None,
+      t1.tree -> weakTypeOf[T1],
+      t2.tree -> weakTypeOf[T2],
+      t3.tree -> weakTypeOf[T3],
+      t4.tree -> weakTypeOf[T4],
+      t5.tree -> weakTypeOf[T5]
+    )
+
+  def withPreserving1[T1: WeakTypeTag, R: WeakTypeTag](preserving: c.Expr[Preserving], t1: c.Expr[CF.Expr[T1]])(
+    query: c.Expr[CF.Expr.Alias[T1] => CF.Query.Query0[R]]
+  ): c.Expr[CF.Query.Query0[R]] =
+    withImpl(query.tree, wildcard = false, preserving = Some(preserving), t1.tree -> weakTypeOf[T1])
+
+  def withPreserving2[T1: WeakTypeTag, T2: WeakTypeTag, R: WeakTypeTag](
+    preserving: c.Expr[Preserving],
+    t1: c.Expr[CF.Expr[T1]],
+    t2: c.Expr[CF.Expr[T2]]
+  )(query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2]) => CF.Query.Query0[R]]): c.Expr[CF.Query.Query0[R]] =
+    withImpl(
+      query.tree,
+      wildcard   = false,
+      preserving = Some(preserving),
+      t1.tree -> weakTypeOf[T1],
+      t2.tree -> weakTypeOf[T2]
+    )
+
+  def withPreserving3[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, R: WeakTypeTag](
+    preserving: c.Expr[Preserving],
+    t1: c.Expr[CF.Expr[T1]],
+    t2: c.Expr[CF.Expr[T2]],
+    t3: c.Expr[CF.Expr[T3]]
+  )(
+    query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3]) => CF.Query.Query0[R]]
+  ): c.Expr[CF.Query.Query0[R]] =
+    withImpl(
+      query.tree,
+      wildcard = false,
+      Some(preserving),
+      t1.tree -> weakTypeOf[T1],
+      t2.tree -> weakTypeOf[T2],
+      t3.tree -> weakTypeOf[T3]
+    )
+
+  def withPreserving4[T1: WeakTypeTag, T2: WeakTypeTag, T3: WeakTypeTag, T4: WeakTypeTag, R: WeakTypeTag](
+    preserving: c.Expr[Preserving],
+    t1: c.Expr[CF.Expr[T1]],
+    t2: c.Expr[CF.Expr[T2]],
+    t3: c.Expr[CF.Expr[T3]],
+    t4: c.Expr[CF.Expr[T4]]
+  )(
+    query: c.Expr[(CF.Expr.Alias[T1], CF.Expr.Alias[T2], CF.Expr.Alias[T3], CF.Expr.Alias[T4]) => CF.Query.Query0[R]]
+  ): c.Expr[CF.Query.Query0[R]] =
+    withImpl(
+      query.tree,
+      wildcard = false,
+      Some(preserving),
+      t1.tree -> weakTypeOf[T1],
+      t2.tree -> weakTypeOf[T2],
+      t3.tree -> weakTypeOf[T3],
+      t4.tree -> weakTypeOf[T4]
+    )
+
+  def withPreserving5[
+    T1: WeakTypeTag,
+    T2: WeakTypeTag,
+    T3: WeakTypeTag,
+    T4: WeakTypeTag,
+    T5: WeakTypeTag,
+    R: WeakTypeTag
+  ](
+    preserving: c.Expr[Preserving],
+    t1: c.Expr[CF.Expr[T1]],
+    t2: c.Expr[CF.Expr[T2]],
+    t3: c.Expr[CF.Expr[T3]],
+    t4: c.Expr[CF.Expr[T4]],
+    t5: c.Expr[CF.Expr[T5]]
+  )(
+    query: c.Expr[
+      (
+        CF.Expr.Alias[T1],
+        CF.Expr.Alias[T2],
+        CF.Expr.Alias[T3],
+        CF.Expr.Alias[T4],
+        CF.Expr.Alias[T5]
+      ) => CF.Query.Query0[R]
+    ]
+  ): c.Expr[CF.Query.Query0[R]] =
+    withImpl(
+      query.tree,
+      wildcard = false,
+      Some(preserving),
       t1.tree -> weakTypeOf[T1],
       t2.tree -> weakTypeOf[T2],
       t3.tree -> weakTypeOf[T3],
@@ -160,7 +257,12 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
 
   protected type ExprWithInnerType = (Tree, Type)
 
-  protected def withImpl[R](query: Tree, wildcard: Boolean, exprs: ExprWithInnerType*): c.Expr[CF.Query.Query0[R]] = {
+  protected def withImpl[R](
+    query: Tree,
+    wildcard: Boolean,
+    preserving: Option[c.Expr[Preserving]],
+    exprs: ExprWithInnerType*
+  ): c.Expr[CF.Query.Query0[R]] = {
     val (args, body0) = query match {
       case Function(args, body) => args -> body
       case _                    => Nil  -> query
@@ -176,8 +278,19 @@ class CypherSyntaxWithMacros(override val c: blackbox.Context) extends CypherSyn
         ((nme, name), bind, ret)
       }
       .unzip3
+
+    val preserveValues = preserving.map { p =>
+      (p.tree match {
+        case Apply(_, l) =>
+          l.map { s =>
+            Seq(q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Expr(..$s, None)")
+          }
+        case _ => c.abort(c.enclosingPosition, s"Preserving is not provided")
+      }).flatten
+    }.getOrElse(Seq.empty[c.Tree])
+
     val rebind = argNames.toMap
-    val return0 = (wildcard, returns) match {
+    val return0 = (wildcard, preserveValues ++ returns) match {
       case (false, Seq())       => c.abort(c.enclosingPosition, "No variables bound at WITH clause")
       case (false, Seq(single)) => single
       case (false, seq)         => q"_root_.com.arkondata.slothql.cypher.CypherFragment.Return.Tuple(_root_.scala.List(..$seq))"
