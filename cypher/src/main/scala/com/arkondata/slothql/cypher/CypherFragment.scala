@@ -115,6 +115,11 @@ object CypherFragment {
       def apply[A](name: String): Alias[A] = new Alias(name)
 
       final case class Fixed[+A](override val name: String) extends Alias[A](name) with CypherStatement.Alias.Fixed
+
+      final case class Preserving(expressions: Seq[Expr[_] with CypherStatement.Alias]) {
+        def also(others: Seq[Expr[_] with CypherStatement.Alias]): Preserving = Preserving(expressions ++ others)
+        def and(others: Expr[_] with CypherStatement.Alias*): Preserving      = Preserving(expressions ++ others)
+      }
     }
 
     final case class Func[+A](func: String, params: List[Expr[_]]) extends Expr[A]

@@ -129,6 +129,39 @@ class CypherSyntaxReadSpec extends CypherSyntaxBaseSpec {
       "RETURN `a0`, `c0`"
     ).returns[(Map[String, Any], Map[String, Any])]
 
+    "support no aliasing with no values" in
+    test(
+      Match { case (a @ Node("Node")) - Rel("to") > (b @ Node("Node")) =>
+        Match {
+          case c if c.prop[Int]("z") === a.prop[Int]("xyz") =>
+            val v = Seq(b)
+            With(*(a).also(v)) {
+              a.props
+            }
+        }
+      },
+      "MATCH (`a0`:`Node`) -[:`to`]-> (`b0`:`Node`) " +
+      "MATCH (`c0`) WHERE `c0`.`z` = `a0`.`xyz` " +
+      "WITH `a0`, `b0` " +
+      "RETURN `a0`"
+    ).returns[Map[String, Any]]
+
+    "support no aliasing with" in
+    test(
+      Match { case (a @ Node("Node")) - Rel("to") > (b @ Node("Node")) =>
+        Match {
+          case c if c.prop[Int]("z") === a.prop[Int]("xyz") =>
+            With(*(a, b), c.prop[Int]("z")) { z =>
+              (a.props, z)
+            }
+        }
+      },
+      "MATCH (`a0`:`Node`) -[:`to`]-> (`b0`:`Node`) " +
+      "MATCH (`c0`) WHERE `c0`.`z` = `a0`.`xyz` " +
+      "WITH `a0`, `b0`, `c0`.`z` AS `z0` " +
+      "RETURN `a0`, `z0`"
+    ).returns[(Map[String, Any], Int)]
+
     "not allow to use identifiers excluded by WITH" in pending
 
     "support WHERE condition at WITH clause" in
