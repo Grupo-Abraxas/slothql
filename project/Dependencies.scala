@@ -41,7 +41,7 @@ object Dependencies {
     lazy val fs2        = "3.2.0"
 
     lazy val neo4jDriver = "4.3.0"
-    lazy val natchez     = "0.1.5"
+    lazy val natchez     = "0.3.3"
 
     lazy val organizeImports = "0.5.0"
 
