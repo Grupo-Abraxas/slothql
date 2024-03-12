@@ -1,4 +1,6 @@
 import com.typesafe.sbt.SbtGit.GitKeys
+import sbtrelease.ReleaseStateTransformations._
+import sbtrelease._
 
 enablePlugins(GitVersioning)
 
@@ -8,6 +10,42 @@ ThisBuild / isSnapshot := false
 ThisBuild / git.baseVersion := "0.2-dev"
 ThisBuild / git.gitHeadCommit := GitKeys.gitReader.value.withGit(
   _.asInstanceOf[com.typesafe.sbt.git.JGit].headCommit.map(_.abbreviate(8).name)
+)
+
+releaseVersion := { ver =>
+  sys.env
+    .get("CALCULATED_NEXT_VERSION")
+    .orElse(Some(ver))
+    .flatMap(Version(_))
+    .map(_.string)
+    .getOrElse(versionFormatError(ver))
+}
+
+releaseNextVersion := { ver =>
+  sys.env
+    .get("CALCULATED_NEXT_VERSION")
+    .orElse(Some(ver))
+    .flatMap(Version(_))
+    .map(_.bump(releaseVersionBump.value).asSnapshot.string)
+    .getOrElse(versionFormatError(ver))
+}
+
+releaseTagName := {
+  sys.env
+    .get("CALCULATED_NEXT_VERSION")
+    .orElse(Some(version.value))
+    .flatMap(Version(_))
+    .map(ver => s"v${ver.string}")
+    .getOrElse(versionFormatError("not version found"))
+}
+
+releaseProcess := Seq[ReleaseStep](
+  inquireVersions,
+  setReleaseVersion,
+  tagRelease,
+  publishArtifacts,
+  setNextVersion,
+  pushChanges
 )
 
 ThisBuild / organization := "com.arkondata"
@@ -96,31 +134,47 @@ lazy val docSettings = Seq(
 
 // Publishing
 
-ThisBuild / publishMavenStyle := true
-ThisBuild / publishTo := sonatypePublishToBundle.value
-
-// Fix for gpg 2.2.x
-// See [[https://github.com/sbt/sbt-pgp/issues/173]]
-Global / PgpKeys.gpgCommand := (baseDirectory.value / "gpg.sh").getAbsolutePath
-
-ThisBuild / credentials += Credentials(
-  "Sonatype Nexus Repository Manager",
-  "oss.sonatype.org",
-  sys.env.getOrElse("SONATYPE_USER", ""),
-  sys.env.getOrElse("SONATYPE_PWD", "")
+inThisBuild(
+  Seq(
+    resolvers += Resolver.sonatypeRepo("releases"),
+    resolvers += "arkondata--sbt-dev".at(
+      "https://arkondata-744752950324.d.codeartifact.us-east-1.amazonaws.com/maven/sbt-dev"
+    ),
+    publishTo := Some(
+      "arkondata--sbt-dev".at("https://arkondata-744752950324.d.codeartifact.us-east-1.amazonaws.com/maven/sbt-dev")
+    ),
+    credentials += Credentials(
+      "arkondata/sbt-dev",
+      "arkondata-744752950324.d.codeartifact.us-east-1.amazonaws.com",
+      "aws",
+      sys.env.getOrElse("CODEARTIFACT_AUTH_TOKEN", "")
+    ),
+    Compile / scalacOptions ++= Seq(
+      "-feature",
+      "-unchecked",
+      "-deprecation",
+      "-Wunused:imports",
+      "-P:semanticdb:exclude:Macros.scala"
+    ),
+    addCompilerPlugin(Dependencies.Plugin.`better-monadic-for`),
+    addCompilerPlugin(Dependencies.Plugin.`kind-projector`),
+    Test / parallelExecution := true
+  ) ++ Versioning.settings
 )
 
-// Fix for error `java.net.ProtocolException: Too many follow-up requests: 21`
-// See [[https://github.com/sbt/sbt-pgp/issues/150]]
-ThisBuild / updateOptions := updateOptions.value.withGigahorse(false)
-
 // Scalafix dependencies
-ThisBuild / scalafixDependencies += Dependencies.Plugin.`organize-imports`
+//ThisBuild / scalafixDependencies += Dependencies.ScalaFix.organizeImports
+
 inThisBuild(
   List(
-    scalaVersion := "2.13.8",
+    scalaVersion := "2.13.2",
     semanticdbEnabled := true,
     semanticdbVersion := scalafixSemanticdb.revision
   )
 )
+
+//    semanticdbEnabled := true,
+//    semanticdbVersion := scalafixSemanticdb.revision
 addCommandAlias("ff", "Test/scalafix;Test/scalafmt;scalafix;scalafmt")
+
+

@@ -10,6 +10,7 @@ object Dependencies {
     lazy val `kind-projector`   = "org.typelevel"        %% "kind-projector"   % Version.kindProjector cross CrossVersion.full
     lazy val `macro-paradise`   = "org.scalamacros"       % "paradise"         % Version.macroParadise cross CrossVersion.full
     lazy val `organize-imports` = "com.github.liancheng" %% "organize-imports" % Version.organizeImports
+     lazy val `better-monadic-for` = "com.olegpy"    %% "better-monadic-for" % Version.betterMonadicFor
   }
 
   lazy val shapeless     = "com.chuusai"   %% "shapeless"   % Version.shapeless
@@ -32,6 +33,7 @@ object Dependencies {
   }
 
   object Version {
+    lazy val betterMonadicFor = "0.3.1"
     lazy val shapeless     = "2.3.9"
     lazy val kindProjector = "0.13.2"
     lazy val macroParadise = "2.1.1"
