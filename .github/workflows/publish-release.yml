@@ -3,7 +3,7 @@ name: Scala CI - Publish Release
 on:
   push:
     branches:
-      - "feat-publish-to-awscodeartifact"
+      - "feat-pubish-to-awscodeartifact"
   # release: 
   #   types: [released]
   
