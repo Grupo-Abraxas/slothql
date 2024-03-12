@@ -27,10 +27,17 @@ jobs:
     - name: Run tests (no Neo4j)
       run: sbt "testOnly * -- -l com.arkondata.slothql.test.tags.RequiresNeo4j"
     
+    - run: git config --global url."https://".insteadOf git://
+
+    - name: Initialize mandatory git config
+      run: |
+        git config --local user.name "jenkinsabraxas"
+        git config --local user.email "services@grupoabraxas.com"    
     - uses: actions/checkout@v2
       with:
         repository: Grupo-Abraxas/arkon-cc-next-version
         ref: v0.1.5
+        token: ${{ secrets.GH_TOKEN }}
         path: .github/actions/my-action
     - name: Get conventional commits next version
       uses: ./.github/actions/my-action
